@@ -57,6 +57,45 @@ export async function deleteWebsiteDailySiteWideByDates(dates: string[]) {
   if (error) throw error;
 }
 
+function mergeWebsiteDailyRow(
+  existing: WebsiteDailyRow | undefined,
+  partial: Partial<WebsiteDailyRow> & { date: string }
+): Partial<WebsiteDailyRow> & { date: string } {
+  return {
+    date: partial.date,
+    lead_source: partial.lead_source ?? existing?.lead_source ?? null,
+    utm_campaign: partial.utm_campaign ?? existing?.utm_campaign ?? null,
+    landing_page_visits:
+      partial.landing_page_visits !== undefined
+        ? partial.landing_page_visits
+        : (existing?.landing_page_visits ?? null),
+    unique_visitors:
+      partial.unique_visitors !== undefined
+        ? partial.unique_visitors
+        : (existing?.unique_visitors ?? null),
+    video_plays:
+      partial.video_plays !== undefined
+        ? partial.video_plays
+        : (existing?.video_plays ?? null),
+    video_avg_watch_percent:
+      partial.video_avg_watch_percent !== undefined
+        ? partial.video_avg_watch_percent
+        : (existing?.video_avg_watch_percent ?? null),
+    video_completion_rate:
+      partial.video_completion_rate !== undefined
+        ? partial.video_completion_rate
+        : (existing?.video_completion_rate ?? null),
+    form_starts:
+      partial.form_starts !== undefined
+        ? partial.form_starts
+        : (existing?.form_starts ?? null),
+    form_completions:
+      partial.form_completions !== undefined
+        ? partial.form_completions
+        : (existing?.form_completions ?? null)
+  };
+}
+
 export async function upsertWebsiteDaily(rows: Array<Partial<WebsiteDailyRow> & { date: string }>) {
   if (!supabaseAdmin) throw new Error("Supabase is not configured.");
   const payload = rows.map((r) => ({
@@ -75,12 +114,39 @@ export async function upsertWebsiteDaily(rows: Array<Partial<WebsiteDailyRow> & 
   const { error } = await supabaseAdmin
     .from("website_daily")
     .upsert(payload, {
-      // Unique is (date, lead_source, utm_campaign). Note: Postgres treats NULLs as distinct,
-      // so cron routes delete-and-reinsert for the site-wide (null/null) rows.
       onConflict: "date,lead_source,utm_campaign"
     });
 
   if (error) throw error;
+}
+
+/** Merge partial site-wide rows with existing DB values before upserting. */
+export async function mergeAndUpsertWebsiteDaily(
+  partialRows: Array<Partial<WebsiteDailyRow> & { date: string }>
+) {
+  if (!supabaseAdmin) throw new Error("Supabase is not configured.");
+  if (partialRows.length === 0) return;
+
+  const dates = [...new Set(partialRows.map((r) => r.date))];
+  const { data, error } = await supabaseAdmin
+    .from("website_daily")
+    .select("*")
+    .in("date", dates)
+    .is("lead_source", null)
+    .is("utm_campaign", null);
+
+  if (error) throw error;
+
+  const existingByDate = new Map<string, WebsiteDailyRow>();
+  for (const row of (data ?? []) as WebsiteDailyRow[]) {
+    existingByDate.set(row.date, row);
+  }
+
+  const merged = partialRows.map((partial) =>
+    mergeWebsiteDailyRow(existingByDate.get(partial.date), partial)
+  );
+
+  await upsertWebsiteDaily(merged);
 }
 
 export async function getWebsiteTrend(fromISO: string, toISO: string): Promise<WebsiteTrendPoint[]> {

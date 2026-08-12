@@ -41,10 +41,31 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 - Vercel Cron configuration is in `vercel.json` (runs hourly to pull “yesterday + today”).
 - For local testing, you can run the handlers by calling the route URL and sending an `Authorization` header set to `CRON_SECRET`.
 
+## Backfilling historical data
+The hourly cron routes only pull the last 2 days. For a one-time all-time backfill, use the manual script:
+
+```bash
+npm run backfill -- --source=all --from=2024-01-01 --confirm
+```
+
+Options:
+- `--source=meta|ga4|wistia|all` — run one source at a time or all (default: `all`)
+- `--from=YYYY-MM-DD` — start date inclusive (**defaults to 1 year ago** if omitted)
+- `--to=YYYY-MM-DD` — end date inclusive (defaults to today)
+- `--confirm` — skip the interactive confirmation prompt (required in non-interactive shells)
+
+The script requests data in **monthly chunks** with retry/backoff, upserts into `meta_ads_daily` and `website_daily` (same unique keys as cron), and prints a summary when done. Upserts are idempotent, so re-running is safe but uses API quota.
+
+**Wistia note:** historical daily play counts come from Wistia’s Stats `by_date` endpoint. Average watch % and form metrics are only populated by the hourly cron going forward (Analytics API, per-day).
+
+This script is **not** scheduled in `vercel.json` — run it manually once from your machine.
+
 ## Project structure
 - `src/app/` : App Router pages (`/`, `/meta-ads`, `/website`) and route handlers
 - `src/lib/db/` : Supabase data-access helpers per table (`meta_ads_daily`, `website_daily`, `cron_runs`)
+- `src/lib/ingest/` : Shared fetch/transform/upsert logic used by cron routes and the backfill script
 - `src/app/api/cron/` : Cron-protected scheduled pull endpoints for Meta, GA4, and Wistia
+- `scripts/backfill.ts` : One-off historical backfill (manual, not scheduled)
 
 ## Deployment
 - This app is intended for Vercel.

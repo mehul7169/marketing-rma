@@ -1,9 +1,5 @@
 import type { WebsiteDailyTableRow } from "@/lib/db/website_daily";
-
-function fmtMaybePct(v: number | null) {
-  if (v === null) return "—";
-  return `${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
-}
+import { formatInteger, formatPercentNullable } from "@/lib/format";
 
 export default function WebsiteDailyTable({ rows }: { rows: WebsiteDailyTableRow[] }) {
   return (
@@ -34,13 +30,27 @@ export default function WebsiteDailyTable({ rows }: { rows: WebsiteDailyTableRow
                 <td className="px-4 py-3 text-left font-medium text-slate-900">
                   {r.date}
                 </td>
-                <td className="px-4 py-3 text-right">{r.landing_page_visits.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right">{r.unique_visitors.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right">{r.video_plays.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right">{fmtMaybePct(r.video_avg_watch_percent)}</td>
-                <td className="px-4 py-3 text-right">{fmtMaybePct(r.video_completion_rate)}</td>
-                <td className="px-4 py-3 text-right">{r.form_starts.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right">{r.form_completions.toLocaleString()}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                  {formatInteger(r.landing_page_visits)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                  {formatInteger(r.unique_visitors)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                  {formatInteger(r.video_plays)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                  {formatPercentNullable(r.video_avg_watch_percent)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                  {formatPercentNullable(r.video_completion_rate)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                  {formatInteger(r.form_starts)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                  {formatInteger(r.form_completions)}
+                </td>
               </tr>
             ))
           )}
@@ -49,4 +59,3 @@ export default function WebsiteDailyTable({ rows }: { rows: WebsiteDailyTableRow
     </div>
   );
 }
-

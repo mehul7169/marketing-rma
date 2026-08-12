@@ -1,17 +1,20 @@
-import { addDaysISO, clampDateRange, toISODate } from "@/lib/utils/date";
+import {
+  addDaysISO,
+  clampDateRange,
+  fillTrendDateGaps,
+  getPriorPeriod,
+  inclusiveDayCount,
+  toISODate
+} from "@/lib/utils/date";
 import {
   getMetaAdsAggregatedTable,
   getMetaAdsTotals,
   getMetaAdsTrend
 } from "@/lib/db/meta_ads_daily";
 import DateRangePicker from "@/components/DateRangePicker";
-import TwoMetricLineChart from "@/components/charts/TwoMetricLineChart";
 import MetaAdsTable from "@/components/meta/MetaAdsTable";
-
-function fmtMoney(v: number | null) {
-  if (v === null) return "—";
-  return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
+import MetaSummaryCards from "@/components/meta/MetaSummaryCards";
+import MetaTrendSection from "@/components/meta/MetaTrendSection";
 
 export default async function MetaAdsPage({
   searchParams
@@ -36,13 +39,29 @@ export default async function MetaAdsPage({
     // Graceful fallback to default range.
   }
 
-  const [totals, trend, table] = await Promise.all([
+  const priorPeriod = getPriorPeriod(fromISO, toISO);
+  const rangeDays = inclusiveDayCount(fromISO, toISO);
+
+  const [totals, priorTotals, trendRaw, table] = await Promise.all([
     getMetaAdsTotals(fromISO, toISO),
+    getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO),
     getMetaAdsTrend(fromISO, toISO),
     getMetaAdsAggregatedTable(fromISO, toISO)
   ]);
 
-  const hasAnyData = trend.length > 0 || table.length > 0;
+  const hasAnyData = trendRaw.length > 0 || table.length > 0;
+
+  const daysWithData = trendRaw.filter((d) => d.spend > 0 || d.leads > 0).length;
+
+  const trendForChart =
+    daysWithData >= 3
+      ? fillTrendDateGaps(trendRaw, fromISO, toISO, { spend: 0, leads: 0, clicks: 0 })
+      : trendRaw;
+
+  const priorHasData =
+    priorTotals.totalSpend > 0 ||
+    priorTotals.totalLeads > 0 ||
+    priorTotals.averageCtrPercent > 0;
 
   return (
     <div className="space-y-8">
@@ -68,46 +87,16 @@ export default async function MetaAdsPage({
         </div>
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded border border-slate-200 p-5">
-              <div className="text-xs text-slate-600">Total Spend</div>
-              <div className="mt-2 text-xl font-semibold text-slate-900">
-                ${totals.totalSpend.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </div>
-            </div>
-            <div className="rounded border border-slate-200 p-5">
-              <div className="text-xs text-slate-600">Total Leads</div>
-              <div className="mt-2 text-xl font-semibold text-slate-900">
-                {totals.totalLeads.toLocaleString()}
-              </div>
-            </div>
-            <div className="rounded border border-slate-200 p-5">
-              <div className="text-xs text-slate-600">Blended Cost / Lead</div>
-              <div className="mt-2 text-xl font-semibold text-slate-900">
-                {totals.blendedCostPerLead === null
-                  ? "—"
-                  : `$${fmtMoney(totals.blendedCostPerLead)}`}
-              </div>
-            </div>
-            <div className="rounded border border-slate-200 p-5">
-              <div className="text-xs text-slate-600">Average CTR%</div>
-              <div className="mt-2 text-xl font-semibold text-slate-900">
-                {totals.averageCtrPercent.toLocaleString(undefined, {
-                  maximumFractionDigits: 2
-                })}
-                %
-              </div>
-            </div>
-          </section>
+          <MetaSummaryCards
+            totals={totals}
+            priorTotals={priorHasData ? priorTotals : null}
+            periodDays={priorPeriod.periodDays}
+          />
 
           <section className="space-y-3">
             <h2 className="text-sm font-medium text-slate-900">Trends</h2>
             <div className="rounded border border-slate-200 p-4">
-              <TwoMetricLineChart
-                data={trend}
-                metricA={{ key: "spend", label: "Spend", color: "#1d4ed8" }}
-                metricB={{ key: "leads", label: "Leads", color: "#0284c7" }}
-              />
+              <MetaTrendSection trend={trendForChart} rangeDays={rangeDays} />
             </div>
           </section>
 
@@ -125,4 +114,3 @@ export default async function MetaAdsPage({
     </div>
   );
 }
-

@@ -1,17 +1,19 @@
-import { addDaysISO, clampDateRange, toISODate } from "@/lib/utils/date";
+import {
+  addDaysISO,
+  clampDateRange,
+  fillTrendDateGaps,
+  inclusiveDayCount,
+  toISODate
+} from "@/lib/utils/date";
 import {
   getWebsiteDailyTable,
   getWebsiteTotals,
   getWebsiteTrend
 } from "@/lib/db/website_daily";
 import DateRangePicker from "@/components/DateRangePicker";
-import TwoMetricLineChart from "@/components/charts/TwoMetricLineChart";
 import WebsiteDailyTable from "@/components/website/WebsiteDailyTable";
-
-function fmtMaybePct(v: number | null) {
-  if (v === null) return "—";
-  return `${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
-}
+import WebsiteTrendSection from "@/components/website/WebsiteTrendSection";
+import { formatInteger, formatPercentNullable } from "@/lib/format";
 
 export default async function WebsitePage({
   searchParams
@@ -36,13 +38,27 @@ export default async function WebsitePage({
     // Graceful fallback
   }
 
-  const [totals, trend, daily] = await Promise.all([
+  const rangeDays = inclusiveDayCount(fromISO, toISO);
+
+  const [totals, trendRaw, daily] = await Promise.all([
     getWebsiteTotals(fromISO, toISO),
     getWebsiteTrend(fromISO, toISO),
     getWebsiteDailyTable(fromISO, toISO)
   ]);
 
-  const hasAnyData = daily.length > 0 || trend.length > 0;
+  const hasAnyData = daily.length > 0 || trendRaw.length > 0;
+
+  const daysWithData = trendRaw.filter(
+    (d) => d.landing_page_visits > 0 || d.video_plays > 0
+  ).length;
+
+  const trendForChart =
+    daysWithData >= 3
+      ? fillTrendDateGaps(trendRaw, fromISO, toISO, {
+          landing_page_visits: 0,
+          video_plays: 0
+        })
+      : trendRaw;
 
   return (
     <div className="space-y-8">
@@ -83,27 +99,25 @@ export default async function WebsitePage({
             <div className="rounded border border-slate-200 p-5">
               <div className="text-xs text-slate-600">Landing Page Visits</div>
               <div className="mt-2 text-xl font-semibold text-slate-900">
-                {totals.totalLandingPageVisits.toLocaleString()}
+                {formatInteger(totals.totalLandingPageVisits)}
               </div>
             </div>
             <div className="rounded border border-slate-200 p-5">
               <div className="text-xs text-slate-600">Video Plays</div>
               <div className="mt-2 text-xl font-semibold text-slate-900">
-                {totals.totalVideoPlays.toLocaleString()}
+                {formatInteger(totals.totalVideoPlays)}
               </div>
             </div>
             <div className="rounded border border-slate-200 p-5">
               <div className="text-xs text-slate-600">Average Watch %</div>
               <div className="mt-2 text-xl font-semibold text-slate-900">
-                {fmtMaybePct(totals.averageWatchPercent)}
+                {formatPercentNullable(totals.averageWatchPercent)}
               </div>
             </div>
             <div className="rounded border border-slate-200 p-5">
               <div className="text-xs text-slate-600">Form Completion Rate</div>
               <div className="mt-2 text-xl font-semibold text-slate-900">
-                {totals.formCompletionRatePercent === null
-                  ? "—"
-                  : fmtMaybePct(totals.formCompletionRatePercent)}
+                {formatPercentNullable(totals.formCompletionRatePercent)}
               </div>
             </div>
           </section>
@@ -111,19 +125,7 @@ export default async function WebsitePage({
           <section className="space-y-3">
             <h2 className="text-sm font-medium text-slate-900">Trends</h2>
             <div className="rounded border border-slate-200 p-4">
-              <TwoMetricLineChart
-                data={trend}
-                metricA={{
-                  key: "landing_page_visits",
-                  label: "Landing Page Visits",
-                  color: "#1d4ed8"
-                }}
-                metricB={{
-                  key: "video_plays",
-                  label: "Video Plays",
-                  color: "#0284c7"
-                }}
-              />
+              <WebsiteTrendSection trend={trendForChart} rangeDays={rangeDays} />
             </div>
           </section>
 
@@ -136,4 +138,3 @@ export default async function WebsitePage({
     </div>
   );
 }
-
