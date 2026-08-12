@@ -35,6 +35,8 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 | `WISTIA_API_TOKEN` | Wistia API token | Wistia → Settings → API Access |
 | `WISTIA_MEDIA_ID` | Wistia media id (hashed id) | Wistia → video/media settings |
 | `CRON_SECRET` | Shared secret to protect cron routes | Choose any strong value |
+| `ADMIN_EMAIL` | Login email for the dashboard gate | Set in `.env.local` |
+| `ADMIN_PASSWORD` | Login password for the dashboard gate | Set in `.env.local` |
 
 ## Data ingestion (cron)
 - Scheduled pulls are implemented as Next.js Route Handlers under `app/api/cron/*`.
