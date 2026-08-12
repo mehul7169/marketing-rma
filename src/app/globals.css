@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Minimal internal-tool feel */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: #ffffff;
+  color: #111827; /* slate-900-ish */
+}
+
