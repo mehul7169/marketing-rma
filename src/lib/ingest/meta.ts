@@ -4,12 +4,37 @@ import type { MetaAdsDailyRow } from "@/lib/db/meta_ads_daily";
 export type MetaAction = { action_type: string; value: string };
 export type MetaCostPerAction = { action_type: string; value: string };
 
+/**
+ * Insights fields requested from Meta. Add new names here when extending
+ * ingestion — keep this as the single source of truth (not scattered inline).
+ */
+export const META_INSIGHTS_FIELDS = [
+  "date_start",
+  "campaign_id",
+  "campaign_name",
+  "adset_id",
+  "adset_name",
+  "ad_id",
+  "ad_name",
+  "spend",
+  "impressions",
+  "reach",
+  "cpm",
+  "clicks",
+  "ctr",
+  "cpc",
+  "actions",
+  "cost_per_action_type"
+] as const;
+
 export type MetaInsightsRow = {
   date_start: string;
   campaign_id: string | null;
   campaign_name: string | null;
   adset_id: string;
   adset_name: string | null;
+  ad_id: string;
+  ad_name: string | null;
   spend: string | null;
   impressions: string | null;
   reach: string | null;
@@ -57,9 +82,9 @@ export function extractCostPerLead(
 
 export function transformMetaInsightsRows(
   rows: MetaInsightsRow[]
-): Array<Partial<MetaAdsDailyRow> & { date: string; ad_set_id: string }> {
+): Array<Partial<MetaAdsDailyRow> & { date: string; ad_id: string; ad_set_id: string }> {
   return rows
-    .filter((r) => r.adset_id && r.date_start)
+    .filter((r) => r.ad_id && r.adset_id && r.date_start)
     .map((r) => {
       const leads = extractLeads(r.actions);
       const costPerLead = extractCostPerLead(r.cost_per_action_type);
@@ -76,6 +101,11 @@ export function transformMetaInsightsRows(
         campaign_name: r.campaign_name,
         ad_set_id: r.adset_id,
         ad_set_name: r.adset_name,
+        ad_id: r.ad_id,
+        ad_name: r.ad_name,
+        // Thumbnail would require one extra Graph call per ad; skip during
+        // ingest so spend/leads are never blocked by rate limits.
+        creative_thumbnail_url: null,
         utm_term: null,
         spend,
         impressions: numOrNull(r.impressions),
@@ -103,25 +133,10 @@ export async function fetchMetaInsights(
 
   const params = new URLSearchParams({
     access_token: config.accessToken,
-    level: "adset",
+    level: "ad",
     time_increment: "1",
     time_range: JSON.stringify({ since: sinceISO, until: untilISO }),
-    fields: [
-      "date_start",
-      "campaign_id",
-      "campaign_name",
-      "adset_id",
-      "adset_name",
-      "spend",
-      "impressions",
-      "reach",
-      "cpm",
-      "clicks",
-      "ctr",
-      "cpc",
-      "actions",
-      "cost_per_action_type"
-    ].join(",")
+    fields: META_INSIGHTS_FIELDS.join(",")
   });
 
   const rows: MetaInsightsRow[] = [];

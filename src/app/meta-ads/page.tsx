@@ -7,7 +7,7 @@ import {
   toISODate
 } from "@/lib/utils/date";
 import {
-  getMetaAdsAggregatedTable,
+  getMetaAdsHierarchy,
   getMetaAdsTotals,
   getMetaAdsTrend
 } from "@/lib/db/meta_ads_daily";
@@ -46,7 +46,7 @@ export default async function MetaAdsPage({
     getMetaAdsTotals(fromISO, toISO),
     getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO),
     getMetaAdsTrend(fromISO, toISO),
-    getMetaAdsAggregatedTable(fromISO, toISO)
+    getMetaAdsHierarchy(fromISO, toISO)
   ]);
 
   const hasAnyData = trendRaw.length > 0 || table.length > 0;
@@ -102,11 +102,11 @@ export default async function MetaAdsPage({
 
           <section className="space-y-3">
             <h2 className="text-sm font-medium text-slate-900">
-              Campaign / Ad Set (aggregated)
+              Campaigns
             </h2>
             <MetaAdsTable rows={table} />
             <div className="text-xs text-slate-500">
-              Tip: click any numeric column header to sort.
+              Click a row to expand ad sets, then ads. Sort applies at every level.
             </div>
           </section>
         </>

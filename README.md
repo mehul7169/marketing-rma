@@ -2,7 +2,7 @@
 Internal marketing + sales lifecycle dashboard (Meta Ads performance + website/video analytics).
 
 ## What this covers right now (Phase 1)
-- Meta Ads performance: spend, CTR, CPC, and leads (blended cost/lead) with simple trends and sortable campaign/ad-set table.
+- Meta Ads performance: spend, CTR, CPC, and leads (blended cost/lead) with campaign → ad set → ad drill-down.
 - Website & video analytics: landing page visits, video plays, watch metrics, and form completion rates (site-wide totals for now).
 - Lead lifecycle tracking via GHL webhook is a later phase and is not built yet.
 
@@ -16,7 +16,7 @@ Internal marketing + sales lifecycle dashboard (Meta Ads performance + website/v
 ## Getting started locally
 1. `npm install`
 2. Copy `.env.example` to `.env.local` and fill in real values.
-3. Create the Supabase schema (tables live in your Supabase project; see your schema/SQL in Supabase).
+3. Create the Supabase schema (tables live in your Supabase project). For the ad-level Meta grain, run `supabase/migrations/001_meta_ads_ad_level.sql` in the SQL editor.
 4. Run: `npm run dev`
 
 ### Environment variables
@@ -53,10 +53,19 @@ Options:
 - `--from=YYYY-MM-DD` — start date inclusive (**defaults to 1 year ago** if omitted)
 - `--to=YYYY-MM-DD` — end date inclusive (defaults to today)
 - `--confirm` — skip the interactive confirmation prompt (required in non-interactive shells)
+- `--truncate` — delete existing `meta_ads_daily` rows before a Meta reload (use when changing grain)
 
-The script requests data in **monthly chunks** with retry/backoff, upserts into `meta_ads_daily` and `website_daily` (same unique keys as cron), and prints a summary when done. Upserts are idempotent, so re-running is safe but uses API quota.
+The script requests data in **monthly chunks** with retry/backoff, upserts into `meta_ads_daily` (unique on `date, ad_id`) and `website_daily`, and prints a summary when done. Upserts are idempotent, so re-running is safe but uses API quota.
 
 **Wistia note:** historical daily play counts come from Wistia’s Stats `by_date` endpoint. Average watch % and form metrics are only populated by the hourly cron going forward (Analytics API, per-day).
+
+After changing Meta grain from ad set to ad, re-run Meta only (not GA4/Wistia):
+
+```bash
+# 1. Run supabase/migrations/001_meta_ads_ad_level.sql in the Supabase SQL editor
+# 2. Reload Meta history at ad level
+npx tsx --env-file=.env.local scripts/backfill.ts --source=meta --from=2020-01-01 --truncate --confirm
+```
 
 This script is **not** scheduled in `vercel.json` — run it manually once from your machine.
 
@@ -64,6 +73,7 @@ This script is **not** scheduled in `vercel.json` — run it manually once from 
 - `src/app/` : App Router pages (`/`, `/meta-ads`, `/website`) and route handlers
 - `src/lib/db/` : Supabase data-access helpers per table (`meta_ads_daily`, `website_daily`, `cron_runs`)
 - `src/lib/ingest/` : Shared fetch/transform/upsert logic used by cron routes and the backfill script
+- `supabase/migrations/` : SQL migrations (including ad-level Meta grain)
 - `src/app/api/cron/` : Cron-protected scheduled pull endpoints for Meta, GA4, and Wistia
 - `scripts/backfill.ts` : One-off historical backfill (manual, not scheduled)
 
