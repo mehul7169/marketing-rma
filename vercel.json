@@ -1,26 +1,7 @@
 {
   "crons": [
-    {
-      "path": "/api/cron/meta-ads",
-      "schedule": "0 * * * *",
-      "headers": {
-        "Authorization": "Bearer ${CRON_SECRET}"
-      }
-    },
-    {
-      "path": "/api/cron/ga4",
-      "schedule": "0 * * * *",
-      "headers": {
-        "Authorization": "Bearer ${CRON_SECRET}"
-      }
-    },
-    {
-      "path": "/api/cron/wistia",
-      "schedule": "0 * * * *",
-      "headers": {
-        "Authorization": "Bearer ${CRON_SECRET}"
-      }
-    }
+    { "path": "/api/cron/meta-ads", "schedule": "0 * * * *" },
+    { "path": "/api/cron/ga4", "schedule": "0 * * * *" },
+    { "path": "/api/cron/wistia", "schedule": "0 * * * *" }
   ]
 }
-
