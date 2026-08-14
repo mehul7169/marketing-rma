@@ -1,5 +1,6 @@
 import type { LeadRow } from "@/lib/leads/types";
 import { addDaysISO } from "@/lib/utils/date";
+import { toISTDateString } from "@/lib/timezone";
 
 export type RateStat = {
   numerator: number;
@@ -59,10 +60,10 @@ export type InsightsMetrics = {
  *   cohort as the show-up numerator, so the two rates chain on the same calls.
  *
  * Daily series use the event timestamps specified in the insights page:
- * call_booked_at, call_showed_at, closed_at.
+ * call_booked_at, call_showed_at, closed_at — bucketed by IST calendar day.
  */
 function datePart(iso: string): string {
-  return iso.slice(0, 10);
+  return toISTDateString(iso);
 }
 
 function inRange(iso: string | null, fromISO: string, toISO: string): boolean {

@@ -4,15 +4,10 @@ import StageBadge, { stageLabel } from "@/components/leads/StageBadge";
 import { getLeadById } from "@/lib/db/leads";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatCurrencyNullable } from "@/lib/format";
-import { format } from "date-fns";
+import { formatISTDateTime } from "@/lib/timezone";
 
 function fmtWhen(iso: string | null): string {
-  if (!iso) return "—";
-  try {
-    return format(new Date(iso), "d MMM yyyy, HH:mm");
-  } catch {
-    return iso;
-  }
+  return formatISTDateTime(iso);
 }
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {

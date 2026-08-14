@@ -3,9 +3,9 @@ import {
   clampDateRange,
   fillTrendDateGaps,
   getPriorPeriod,
-  inclusiveDayCount,
-  toISODate
+  inclusiveDayCount
 } from "@/lib/utils/date";
+import { todayISTDateString } from "@/lib/timezone";
 import {
   getMetaAdsHierarchy,
   getMetaAdsTotals,
@@ -22,7 +22,7 @@ export default async function MetaAdsPage({
   searchParams: { from?: string; to?: string };
 }) {
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
-  const todayISO = toISODate(new Date());
+  const todayISO = todayISTDateString();
   const fallbackTo = todayISO;
   const fallbackFrom = addDaysISO(todayISO, -29);
 

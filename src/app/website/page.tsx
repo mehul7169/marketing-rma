@@ -2,9 +2,9 @@ import {
   addDaysISO,
   clampDateRange,
   fillTrendDateGaps,
-  inclusiveDayCount,
-  toISODate
+  inclusiveDayCount
 } from "@/lib/utils/date";
+import { todayISTDateString } from "@/lib/timezone";
 import {
   getWebsiteDailyTable,
   getWebsiteTotals,
@@ -21,7 +21,7 @@ export default async function WebsitePage({
   searchParams: { from?: string; to?: string };
 }) {
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
-  const todayISO = toISODate(new Date());
+  const todayISO = todayISTDateString();
   const fallbackTo = todayISO;
   const fallbackFrom = addDaysISO(todayISO, -29);
 

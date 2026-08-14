@@ -5,7 +5,8 @@ import InsightsRateCards from "@/components/insights/InsightsRateCards";
 import InsightsSourceBooked from "@/components/insights/InsightsSourceBooked";
 import InsightsTrendSection from "@/components/insights/InsightsTrendSection";
 import { getInsightsData } from "@/lib/db/insights";
-import { addDaysISO, clampDateRange, inclusiveDayCount, toISODate } from "@/lib/utils/date";
+import { addDaysISO, clampDateRange, inclusiveDayCount } from "@/lib/utils/date";
+import { todayISTDateString } from "@/lib/timezone";
 
 function parseList(value: string | undefined): string[] {
   if (!value) return [];
@@ -17,7 +18,7 @@ export default async function InsightsPage({
 }: {
   searchParams: { from?: string; to?: string; source?: string };
 }) {
-  const todayISO = toISODate(new Date());
+  const todayISO = todayISTDateString();
   let fromISO = addDaysISO(todayISO, -29);
   let toISO = todayISO;
   try {

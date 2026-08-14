@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
 import { computeStage } from "@/lib/leads/computeStage";
 import type { LeadListFilters, LeadRow } from "@/lib/leads/types";
+import { istDayEndUtcIso, istDayStartUtcIso } from "@/lib/timezone";
 
 function requireDb() {
   if (!supabaseAdmin) throw new Error("Supabase is not configured.");
@@ -174,8 +175,8 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   const db = requireDb();
   let query = db.from("leads").select("*").order("created_at", { ascending: false });
 
-  if (filters.fromISO) query = query.gte("created_at", `${filters.fromISO}T00:00:00.000Z`);
-  if (filters.toISO) query = query.lte("created_at", `${filters.toISO}T23:59:59.999Z`);
+  if (filters.fromISO) query = query.gte("created_at", istDayStartUtcIso(filters.fromISO));
+  if (filters.toISO) query = query.lte("created_at", istDayEndUtcIso(filters.toISO));
   if (filters.stages && filters.stages.length > 0) query = query.in("stage", filters.stages);
   if (filters.sources && filters.sources.length > 0) {
     query = query.in("lead_source", filters.sources);

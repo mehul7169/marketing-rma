@@ -44,7 +44,7 @@ export default function DateRangePicker({
       }}
     >
       <div className="flex flex-col">
-        <label className="text-xs text-slate-600">From</label>
+        <label className="text-xs text-slate-600">From (IST)</label>
         <input
           className="mt-1 w-40 rounded border border-slate-200 px-2 py-2 text-sm text-slate-900"
           type="date"
@@ -53,7 +53,7 @@ export default function DateRangePicker({
         />
       </div>
       <div className="flex flex-col">
-        <label className="text-xs text-slate-600">To</label>
+        <label className="text-xs text-slate-600">To (IST)</label>
         <input
           className="mt-1 w-40 rounded border border-slate-200 px-2 py-2 text-sm text-slate-900"
           type="date"
@@ -74,7 +74,7 @@ export default function DateRangePicker({
           </div>
         ) : (
           <div className="mt-1 text-[11px] text-slate-500">
-            Default: last 30 days
+            Default: last 30 days (IST)
           </div>
         )}
       </div>

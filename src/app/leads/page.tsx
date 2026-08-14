@@ -3,8 +3,8 @@ import LeadRow from "@/components/leads/LeadRow";
 import LeadsFilters from "@/components/leads/LeadsFilters";
 import StageBadge from "@/components/leads/StageBadge";
 import { listDistinctLeadSources, listLeads } from "@/lib/db/leads";
-import { addDaysISO, clampDateRange, toISODate } from "@/lib/utils/date";
-import { format } from "date-fns";
+import { addDaysISO, clampDateRange } from "@/lib/utils/date";
+import { formatISTDateTime, todayISTDateString } from "@/lib/timezone";
 
 function parseList(value: string | undefined): string[] {
   if (!value) return [];
@@ -12,12 +12,7 @@ function parseList(value: string | undefined): string[] {
 }
 
 function fmtWhen(iso: string | null): string {
-  if (!iso) return "—";
-  try {
-    return format(new Date(iso), "d MMM yyyy, HH:mm");
-  } catch {
-    return iso;
-  }
+  return formatISTDateTime(iso);
 }
 
 export default async function LeadsPage({
@@ -32,7 +27,7 @@ export default async function LeadsPage({
     lifecycle?: string;
   };
 }) {
-  const todayISO = toISODate(new Date());
+  const todayISO = todayISTDateString();
   let fromISO = addDaysISO(todayISO, -29);
   let toISO = todayISO;
   try {

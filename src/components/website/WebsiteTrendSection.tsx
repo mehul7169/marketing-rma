@@ -3,6 +3,7 @@
 import type { WebsiteTrendPoint } from "@/lib/db/website_daily";
 import SingleMetricLineChart from "@/components/charts/SingleMetricLineChart";
 import { formatInteger } from "@/lib/format";
+import { formatCalendarDate } from "@/lib/timezone";
 import { getChartTickInterval } from "@/lib/utils/date";
 
 const MIN_TREND_DAYS = 3;
@@ -43,7 +44,9 @@ export default function WebsiteTrendSection({
                   .filter((d) => d.landing_page_visits > 0 || d.video_plays > 0)
                   .map((row) => (
                     <tr key={row.date}>
-                      <td className="px-4 py-2 text-slate-900">{row.date}</td>
+                      <td className="px-4 py-2 text-slate-900">
+                        {formatCalendarDate(row.date, "d MMM yyyy")}
+                      </td>
                       <td className="px-4 py-2 text-right">
                         {formatInteger(row.landing_page_visits)}
                       </td>

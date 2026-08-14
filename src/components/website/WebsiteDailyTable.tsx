@@ -1,5 +1,6 @@
 import type { WebsiteDailyTableRow } from "@/lib/db/website_daily";
 import { formatInteger, formatPercentNullable } from "@/lib/format";
+import { formatCalendarDate } from "@/lib/timezone";
 
 export default function WebsiteDailyTable({ rows }: { rows: WebsiteDailyTableRow[] }) {
   return (
@@ -28,7 +29,7 @@ export default function WebsiteDailyTable({ rows }: { rows: WebsiteDailyTableRow
             rows.map((r) => (
               <tr key={r.date} className="hover:bg-slate-50/60">
                 <td className="px-4 py-3 text-left font-medium text-slate-900">
-                  {r.date}
+                  {formatCalendarDate(r.date, "d MMM yyyy")}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
                   {formatInteger(r.landing_page_visits)}

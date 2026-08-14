@@ -1,33 +1,48 @@
-import { addDays, differenceInDays, format, parseISO } from "date-fns";
+import { toISTDateString, formatCalendarDate } from "@/lib/timezone";
 
+function parseCivil(iso: string): [number, number, number] {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) throw new Error(`Invalid date: ${iso}`);
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+function formatCivil(year: number, month: number, day: number): string {
+  const dt = new Date(Date.UTC(year, month - 1, day));
+  const y = dt.getUTCFullYear();
+  const mo = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(dt.getUTCDate()).padStart(2, "0");
+  return `${y}-${mo}-${d}`;
+}
+
+/** IST calendar date (YYYY-MM-DD) of a UTC instant. */
 export function toISODate(d: Date): string {
-  // Use calendar date (YYYY-MM-DD) in UTC to avoid server TZ drift.
-  const utc = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  return format(utc, "yyyy-MM-dd");
+  return toISTDateString(d);
 }
 
 export function parseISODate(iso: string): Date {
-  // `parseISO` interprets YYYY-MM-DD as UTC midnight in practice.
-  return parseISO(iso);
+  const [y, m, d] = parseCivil(iso);
+  return new Date(Date.UTC(y, m - 1, d));
 }
 
 export function clampDateRange(fromISO: string, toISO: string): { fromISO: string; toISO: string } {
-  const from = parseISODate(fromISO);
-  const to = parseISODate(toISO);
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
-    throw new Error("Invalid date range");
-  }
-  if (from > to) return { fromISO: toISO, toISO: fromISO };
+  parseCivil(fromISO);
+  parseCivil(toISO);
+  if (fromISO > toISO) return { fromISO: toISO, toISO: fromISO };
   return { fromISO, toISO };
 }
 
 export function addDaysISO(iso: string, days: number): string {
-  return toISODate(addDays(parseISODate(iso), days));
+  const [y, m, d] = parseCivil(iso);
+  return formatCivil(y, m, d + days);
 }
 
-/** Inclusive day count between two ISO dates. */
+/** Inclusive day count between two YYYY-MM-DD calendar dates. */
 export function inclusiveDayCount(fromISO: string, toISO: string): number {
-  return differenceInDays(parseISODate(toISO), parseISODate(fromISO)) + 1;
+  const [y1, m1, d1] = parseCivil(fromISO);
+  const [y2, m2, d2] = parseCivil(toISO);
+  const a = Date.UTC(y1, m1 - 1, d1);
+  const b = Date.UTC(y2, m2 - 1, d2);
+  return Math.round((b - a) / 86400000) + 1;
 }
 
 /** Prior period of the same length, ending the day before `fromISO`. */
@@ -68,8 +83,7 @@ export function getChartTickInterval(rangeDays: number): number {
   return Math.max(0, Math.floor(rangeDays / 12) - 1);
 }
 
-/** Short label for chart x-axis — e.g. "12 Aug". */
+/** Short label for a YYYY-MM-DD calendar date — e.g. "12 Aug". */
 export function formatChartDateLabel(iso: string): string {
-  return format(parseISODate(iso), "d MMM");
+  return formatCalendarDate(iso, "d MMM");
 }
-

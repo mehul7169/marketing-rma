@@ -1,42 +1,50 @@
-import {
-  addMonths,
-  endOfMonth,
-  format,
-  max as maxDate,
-  min as minDate,
-  parseISO,
-  startOfMonth
-} from "date-fns";
-
 export type DateChunk = {
   start: string; // YYYY-MM-DD inclusive
   end: string; // YYYY-MM-DD inclusive
 };
 
-function formatDateISO(d: Date): string {
-  return format(d, "yyyy-MM-dd");
+function parseCivil(iso: string): [number, number, number] {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) throw new Error(`Invalid date: ${iso}`);
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
 }
 
-/** Split [fromISO, toISO] into calendar-month chunks (inclusive). */
-export function getMonthlyChunks(fromISO: string, toISO: string): DateChunk[] {
-  const from = parseISO(fromISO);
-  const to = parseISO(toISO);
+function formatCivil(year: number, month: number, day: number): string {
+  const dt = new Date(Date.UTC(year, month - 1, day));
+  const y = dt.getUTCFullYear();
+  const mo = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(dt.getUTCDate()).padStart(2, "0");
+  return `${y}-${mo}-${d}`;
+}
 
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
-    throw new Error(`Invalid date range: ${fromISO} → ${toISO}`);
-  }
-  if (from > to) {
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** Split [fromISO, toISO] into calendar-month chunks (inclusive). Civil dates, not server TZ. */
+export function getMonthlyChunks(fromISO: string, toISO: string): DateChunk[] {
+  const [fy, fm, fd] = parseCivil(fromISO);
+  const [ty, tm, td] = parseCivil(toISO);
+  if (fromISO > toISO) {
     throw new Error(`from (${fromISO}) must be on or before to (${toISO})`);
   }
 
   const chunks: DateChunk[] = [];
-  let cursor = startOfMonth(from);
+  let y = fy;
+  let m = fm;
 
-  while (cursor <= to) {
-    const monthStart = maxDate([cursor, from]);
-    const monthEnd = minDate([endOfMonth(cursor), to]);
-    chunks.push({ start: formatDateISO(monthStart), end: formatDateISO(monthEnd) });
-    cursor = startOfMonth(addMonths(cursor, 1));
+  while (y < ty || (y === ty && m <= tm)) {
+    const monthStartDay = y === fy && m === fm ? fd : 1;
+    const monthEndDay = y === ty && m === tm ? td : daysInMonth(y, m);
+    chunks.push({
+      start: formatCivil(y, m, monthStartDay),
+      end: formatCivil(y, m, monthEndDay)
+    });
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
   }
 
   return chunks;

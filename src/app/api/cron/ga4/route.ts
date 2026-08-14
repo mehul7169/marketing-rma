@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { logCronRun } from "@/lib/db/cron_runs";
 import { getGa4IngestConfigFromEnv, ingestGa4Range } from "@/lib/ingest/ga4";
 import { assertCronSecret } from "@/lib/utils/cronAuth";
-import { addDaysISO, toISODate } from "@/lib/utils/date";
+import { addDaysISO } from "@/lib/utils/date";
+import { todayISTDateString } from "@/lib/timezone";
 
 export const runtime = "nodejs";
 
@@ -13,7 +14,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const todayISO = toISODate(new Date());
+  // Pull window is yesterday + today in IST, not UTC.
+  const todayISO = todayISTDateString();
   const yesterdayISO = addDaysISO(todayISO, -1);
 
   try {

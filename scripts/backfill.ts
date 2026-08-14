@@ -84,6 +84,7 @@ function parseArgs(): CliOptions {
   }
 
   const today = new Date();
+  // Defaults are IST calendar dates (toISODate uses Asia/Kolkata).
   toISO = toISO ?? toISODate(today);
   fromISO = fromISO ?? toISODate(subYears(today, 1));
 

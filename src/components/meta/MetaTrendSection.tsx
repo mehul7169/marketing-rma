@@ -7,6 +7,7 @@ import {
   formatCurrencyAxis,
   formatInteger
 } from "@/lib/format";
+import { formatCalendarDate } from "@/lib/timezone";
 import { getChartTickInterval } from "@/lib/utils/date";
 
 const MIN_TREND_DAYS = 3;
@@ -43,7 +44,9 @@ export default function MetaTrendSection({
                   .filter((d) => d.spend > 0 || d.leads > 0)
                   .map((row) => (
                   <tr key={row.date}>
-                    <td className="px-4 py-2 text-slate-900">{row.date}</td>
+                    <td className="px-4 py-2 text-slate-900">
+                      {formatCalendarDate(row.date, "d MMM yyyy")}
+                    </td>
                     <td className="px-4 py-2 text-right">
                       {formatCurrency(row.spend)}
                     </td>
