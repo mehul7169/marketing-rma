@@ -27,7 +27,8 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/");
+      const data = (await res.json()) as { role?: string };
+      router.push(data.role === "viewer" ? "/meta-ads" : "/");
       router.refresh();
     } catch {
       setError("Invalid email or password");

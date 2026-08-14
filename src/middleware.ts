@@ -1,15 +1,29 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { SESSION_COOKIE, hasValidSession } from "@/lib/auth/session";
+import {
+  SESSION_COOKIE,
+  isViewerAllowedPath,
+  parseSessionRole
+} from "@/lib/auth/session";
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const session = request.cookies.get(SESSION_COOKIE)?.value;
-  if (hasValidSession(session)) {
+  const role = await parseSessionRole(session, process.env.ROLE_SECRET);
+
+  if (!role) {
+    const loginUrl = new URL("/login", request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (role === "admin") {
     return NextResponse.next();
   }
 
-  const loginUrl = new URL("/login", request.url);
-  return NextResponse.redirect(loginUrl);
+  if (isViewerAllowedPath(request.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
+
+  return NextResponse.redirect(new URL("/meta-ads", request.url));
 }
 
 export const config = {

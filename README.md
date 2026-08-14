@@ -39,6 +39,9 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 | `CRON_SECRET` | Shared secret to protect cron routes | Choose any strong value |
 | `ADMIN_EMAIL` | Login email for the dashboard gate | Set in `.env.local` |
 | `ADMIN_PASSWORD` | Login password for the dashboard gate | Set in `.env.local` |
+| `VIEWER_EMAIL` | Restricted login (Meta Ads / Website / Insights only) | Set in `.env.local` |
+| `VIEWER_PASSWORD` | Restricted login password | Set in `.env.local` |
+| `ROLE_SECRET` | HMAC key for the signed session cookie | Random hex; required now that there are two roles |
 | `WEBSITE_INGEST_SECRET` | Shared secret for runmoreads.in ingest APIs | Random hex; same pattern as `CRON_SECRET` |
 
 ## Data ingestion (cron)

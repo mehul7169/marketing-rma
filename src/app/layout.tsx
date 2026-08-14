@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import AppNav from "@/components/AppNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,44 +21,7 @@ export default function RootLayout({
               <div className="text-sm font-medium text-slate-900">
                 Funnel Dashboard
               </div>
-              <nav className="flex items-center gap-4 text-sm">
-                <a
-                  className="text-slate-600 hover:text-slate-900"
-                  href="/"
-                >
-                  Home
-                </a>
-                <a
-                  className="text-slate-600 hover:text-slate-900"
-                  href="/insights"
-                >
-                  Insights
-                </a>
-                <a
-                  className="text-slate-600 hover:text-slate-900"
-                  href="/leads"
-                >
-                  Leads
-                </a>
-                <a
-                  className="text-slate-600 hover:text-slate-900"
-                  href="/meta-ads"
-                >
-                  Meta Ads
-                </a>
-                <a
-                  className="text-slate-600 hover:text-slate-900"
-                  href="/website"
-                >
-                  Website
-                </a>
-                <a
-                  className="text-slate-600 hover:text-slate-900"
-                  href="/api/auth/logout"
-                >
-                  Log out
-                </a>
-              </nav>
+              <AppNav />
             </div>
           </header>
           <main className="mx-auto max-w-6xl px-6 py-8">
