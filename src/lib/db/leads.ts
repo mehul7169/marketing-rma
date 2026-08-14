@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
+import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
 import { computeStage } from "@/lib/leads/computeStage";
 import type { LeadListFilters, LeadRow } from "@/lib/leads/types";
 
@@ -21,15 +22,19 @@ function asLead(row: unknown): LeadRow {
 
 function stamp(existing: LeadRow, patch: Partial<LeadRow>): LeadRow {
   const merged: LeadRow = { ...existing, ...patch };
-  merged.stage = computeStage({
+  const derived = {
     deal_closed: merged.deal_closed,
-    call_showed: merged.call_showed,
+    post_call_status: merged.post_call_status,
     setter_verified: merged.setter_verified,
     call_booked_at: merged.call_booked_at,
-    call_cancelled_at: merged.call_cancelled_at,
+    requalification_result: merged.requalification_result,
+    requalification_attempted: merged.requalification_attempted,
+    call_showed: merged.call_showed,
     qualified: merged.qualified,
     form_filled_at: merged.form_filled_at
-  });
+  };
+  merged.stage = computeStage(derived);
+  merged.lifecycle_status = computeLifecycleStatus(derived);
   merged.updated_at = new Date().toISOString();
   return merged;
 }
@@ -104,6 +109,14 @@ export async function insertLead(row: Partial<LeadRow> & { email: string }): Pro
     closed_by: row.closed_by ?? null,
     notes: row.notes ?? null,
     stage: null,
+    requalification_attempted: row.requalification_attempted ?? false,
+    requalification_called_at: row.requalification_called_at ?? null,
+    requalification_result: row.requalification_result ?? null,
+    requalification_notes: row.requalification_notes ?? null,
+    post_call_status: row.post_call_status ?? null,
+    post_call_status_updated_at: row.post_call_status_updated_at ?? null,
+    post_call_status_updated_by: row.post_call_status_updated_by ?? null,
+    lifecycle_status: null,
     updated_at: now
   };
   const withStage = stamp(base, {});
@@ -166,6 +179,17 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   if (filters.stages && filters.stages.length > 0) query = query.in("stage", filters.stages);
   if (filters.sources && filters.sources.length > 0) {
     query = query.in("lead_source", filters.sources);
+  }
+  if (filters.needsRequal) {
+    query = query
+      .eq("qualified", false)
+      .or("requalification_attempted.eq.false,requalification_attempted.is.null");
+  } else if (filters.lifecycle && filters.lifecycle !== "all") {
+    if (filters.lifecycle === "active") {
+      query = query.or("lifecycle_status.eq.active,lifecycle_status.is.null");
+    } else {
+      query = query.eq("lifecycle_status", filters.lifecycle);
+    }
   }
   if (filters.search && filters.search.trim()) {
     const q = filters.search.trim().replace(/[%_,]/g, " ");

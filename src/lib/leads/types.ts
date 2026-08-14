@@ -39,6 +39,14 @@ export type LeadRow = {
   closed_by: string | null;
   notes: string | null;
   stage: string | null;
+  requalification_attempted: boolean | null;
+  requalification_called_at: string | null;
+  requalification_result: string | null;
+  requalification_notes: string | null;
+  post_call_status: string | null;
+  post_call_status_updated_at: string | null;
+  post_call_status_updated_by: string | null;
+  lifecycle_status: string | null;
   updated_at: string;
 };
 
@@ -48,4 +56,6 @@ export type LeadListFilters = {
   stages?: string[];
   sources?: string[];
   search?: string;
+  lifecycle?: string;
+  needsRequal?: boolean;
 };

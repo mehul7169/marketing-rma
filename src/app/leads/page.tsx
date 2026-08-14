@@ -29,6 +29,7 @@ export default async function LeadsPage({
     stage?: string;
     source?: string;
     q?: string;
+    lifecycle?: string;
   };
 }) {
   const todayISO = toISODate(new Date());
@@ -47,10 +48,19 @@ export default async function LeadsPage({
   const stages = parseList(searchParams.stage);
   const sources = parseList(searchParams.source);
   const search = searchParams.q ?? "";
+  const lifecycle = searchParams.lifecycle ?? "active";
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
 
   const [rows, allSources] = await Promise.all([
-    listLeads({ fromISO, toISO, stages, sources, search }),
+    listLeads({
+      fromISO,
+      toISO,
+      stages,
+      sources,
+      search,
+      lifecycle: lifecycle === "needs_requal" ? undefined : lifecycle,
+      needsRequal: lifecycle === "needs_requal"
+    }),
     listDistinctLeadSources()
   ]);
 
@@ -71,7 +81,8 @@ export default async function LeadsPage({
           extraParams={{
             stage: stages.join(","),
             source: sources.join(","),
-            q: search
+            q: search,
+            lifecycle
           }}
         />
       </div>
@@ -83,6 +94,7 @@ export default async function LeadsPage({
         search={search}
         fromISO={fromISO}
         toISO={toISO}
+        lifecycle={lifecycle}
       />
 
       <div className="overflow-x-auto rounded border border-slate-200">

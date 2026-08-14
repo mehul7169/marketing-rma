@@ -4,13 +4,22 @@ import { useRouter } from "next/navigation";
 import { LEAD_STAGES } from "@/lib/leads/computeStage";
 import { stageLabel } from "@/components/leads/StageBadge";
 
+const LIFECYCLE_TABS: Array<{ id: string; label: string }> = [
+  { id: "active", label: "Active" },
+  { id: "unqualified", label: "Unqualified" },
+  { id: "dead", label: "Dead" },
+  { id: "closed", label: "Closed" },
+  { id: "all", label: "All" }
+];
+
 export default function LeadsFilters({
   sources,
   selectedStages,
   selectedSources,
   search,
   fromISO,
-  toISO
+  toISO,
+  lifecycle
 }: {
   sources: string[];
   selectedStages: string[];
@@ -18,6 +27,7 @@ export default function LeadsFilters({
   search: string;
   fromISO: string;
   toISO: string;
+  lifecycle: string;
 }) {
   const router = useRouter();
 
@@ -27,6 +37,7 @@ export default function LeadsFilters({
     q?: string;
     from?: string;
     to?: string;
+    lifecycle?: string;
   }) {
     const params = new URLSearchParams();
     params.set("from", next.from ?? fromISO);
@@ -34,6 +45,9 @@ export default function LeadsFilters({
     const stages = next.stages ?? selectedStages;
     const srcs = next.sources ?? selectedSources;
     const q = next.q ?? search;
+    const life = next.lifecycle ?? lifecycle;
+    if (life && life !== "active") params.set("lifecycle", life);
+    if (life === "active") params.set("lifecycle", "active");
     if (stages.length) params.set("stage", stages.join(","));
     if (srcs.length) params.set("source", srcs.join(","));
     if (q) params.set("q", q);
@@ -45,12 +59,40 @@ export default function LeadsFilters({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
+        {LIFECYCLE_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`rounded border px-3 py-1.5 text-sm ${
+              lifecycle === tab.id
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-200 text-slate-700"
+            }`}
+            onClick={() => push({ lifecycle: tab.id })}
+          >
+            {tab.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={`rounded border px-3 py-1.5 text-sm ${
+            lifecycle === "needs_requal"
+              ? "border-amber-700 bg-amber-700 text-white"
+              : "border-amber-300 bg-amber-50 text-amber-900"
+          }`}
+          onClick={() => push({ lifecycle: "needs_requal" })}
+        >
+          Needs Requalification Call
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           className={`rounded border px-3 py-1.5 text-sm ${sourceKey === "" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
           onClick={() => push({ sources: [] })}
         >
-          All Leads
+          All sources
         </button>
         <button
           type="button"
@@ -88,7 +130,7 @@ export default function LeadsFilters({
           Stage
           <select
             multiple
-            className="mt-1 h-24 min-w-[160px] rounded border border-slate-200 px-2 py-1 text-sm"
+            className="mt-1 h-24 min-w-[180px] rounded border border-slate-200 px-2 py-1 text-sm"
             value={selectedStages}
             onChange={(e) => {
               const values = Array.from(e.target.selectedOptions).map((o) => o.value);

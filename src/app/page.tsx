@@ -1,5 +1,6 @@
 import DateRangePicker from "@/components/DateRangePicker";
 import { listDistinctLeadSources, listLeadsInRange } from "@/lib/db/leads";
+import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
 import { FUNNEL_STEPS } from "@/lib/leads/computeStage";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatCurrency, formatInteger, formatPercent } from "@/lib/format";
@@ -29,7 +30,7 @@ function funnelCounts(leads: LeadRow[]) {
   const counts: Record<string, number> = {
     lead: total,
     form_filled: formFilled,
-    qualified,
+    form_qualified: qualified,
     booked,
     verified,
     showed,
@@ -37,6 +38,23 @@ function funnelCounts(leads: LeadRow[]) {
   };
 
   return { total, formFilled, qualified, booked, verified, showed, closed, revenue, counts };
+}
+
+function lifecyclePulse(leads: LeadRow[]) {
+  const counts = { active: 0, unqualified: 0, dead: 0, closed: 0 };
+  for (const l of leads) {
+    const status = computeLifecycleStatus({
+      deal_closed: l.deal_closed,
+      setter_verified: l.setter_verified,
+      call_booked_at: l.call_booked_at,
+      post_call_status: l.post_call_status,
+      qualified: l.qualified,
+      requalification_attempted: l.requalification_attempted,
+      requalification_result: l.requalification_result
+    });
+    counts[status] += 1;
+  }
+  return counts;
 }
 
 export default async function HomePage({
@@ -67,6 +85,7 @@ export default async function HomePage({
   ]);
 
   const f = funnelCounts(leads);
+  const life = lifecyclePulse(leads);
   const prevCounts = [
     f.total,
     f.formFilled,
@@ -77,10 +96,11 @@ export default async function HomePage({
     f.closed
   ];
 
-  function leadsHref(stage?: string) {
+  function leadsHref(stage?: string, lifecycle?: string) {
     const params = new URLSearchParams();
     params.set("from", fromISO);
     params.set("to", toISO);
+    params.set("lifecycle", lifecycle ?? "all");
     if (source) params.set("source", source);
     if (stage && stage !== "lead") params.set("stage", stage);
     return `/leads?${params.toString()}`;
@@ -121,6 +141,24 @@ export default async function HomePage({
           </a>
         ))}
       </div>
+
+      <p className="text-sm text-slate-600">
+        <a href={leadsHref(undefined, "active")} className="hover:text-slate-900">
+          {formatInteger(life.active)} Active
+        </a>
+        {" · "}
+        <a href={leadsHref(undefined, "unqualified")} className="hover:text-slate-900">
+          {formatInteger(life.unqualified)} Unqualified
+        </a>
+        {" · "}
+        <a href={leadsHref(undefined, "dead")} className="hover:text-slate-900">
+          {formatInteger(life.dead)} Dead
+        </a>
+        {" · "}
+        <a href={leadsHref(undefined, "closed")} className="hover:text-slate-900">
+          {formatInteger(life.closed)} Closed
+        </a>
+      </p>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded border border-slate-200 p-5">

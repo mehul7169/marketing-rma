@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import LeadActions from "@/components/leads/LeadActions";
-import StageBadge from "@/components/leads/StageBadge";
+import StageBadge, { stageLabel } from "@/components/leads/StageBadge";
 import { getLeadById } from "@/lib/db/leads";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatCurrencyNullable } from "@/lib/format";
@@ -27,6 +27,7 @@ function Field({ label, value }: { label: string; value: string | null | undefin
 function lastTouch(lead: LeadRow): { by: string; at: string } {
   const events = [
     { by: lead.closed_by, at: lead.closed_at },
+    { by: lead.post_call_status_updated_by, at: lead.post_call_status_updated_at },
     { by: lead.call_showed_by, at: lead.call_showed_at },
     { by: lead.setter_verified_by, at: lead.setter_verified_at },
     { by: lead.qualified_by, at: lead.qualified_at }
@@ -58,6 +59,11 @@ export default async function LeadDetailPage({
             {lead.name || lead.email}
           </h1>
           <StageBadge stage={lead.stage} />
+          <span className="text-xs text-slate-500">
+            {lead.lifecycle_status
+              ? lead.lifecycle_status.charAt(0).toUpperCase() + lead.lifecycle_status.slice(1)
+              : "Active"}
+          </span>
         </div>
         <p className="mt-1 text-sm text-slate-500">
           Last updated {fmtWhen(lead.updated_at)}
@@ -86,6 +92,24 @@ export default async function LeadDetailPage({
             <Field label="Cancelled" value={fmtWhen(lead.call_cancelled_at)} />
             <Field label="Deal value" value={formatCurrencyNullable(lead.deal_value)} />
             <Field label="GHL contact" value={lead.ghl_contact_id} />
+            <Field label="Lifecycle" value={lead.lifecycle_status} />
+            <Field label="Post-call status" value={lead.post_call_status ? stageLabel(lead.post_call_status) : null} />
+            <Field
+              label="Post-call updated"
+              value={
+                lead.post_call_status_updated_by
+                  ? `${lead.post_call_status_updated_by}${lead.post_call_status_updated_at ? ` · ${fmtWhen(lead.post_call_status_updated_at)}` : ""}`
+                  : fmtWhen(lead.post_call_status_updated_at)
+              }
+            />
+            <Field
+              label="Requalification"
+              value={
+                lead.requalification_attempted
+                  ? `${lead.requalification_result || "in progress"}${lead.requalification_called_at ? ` · ${fmtWhen(lead.requalification_called_at)}` : ""}`
+                  : "Not attempted"
+              }
+            />
           </div>
 
           <h2 className="text-sm font-medium text-slate-900">Qualification form</h2>

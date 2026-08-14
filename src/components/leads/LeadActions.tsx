@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import type { LeadRow } from "@/lib/leads/types";
 import { saveLeadActions } from "@/app/leads/actions";
 import { formatCurrencyNullable } from "@/lib/format";
+import {
+  POST_CALL_STATUSES,
+  type PostCallStatus,
+  type RequalificationResult
+} from "@/lib/leads/computeStage";
+import { stageLabel } from "@/components/leads/StageBadge";
 
 function TriToggle({
   label,
@@ -12,7 +18,8 @@ function TriToggle({
   onChange,
   yes = "Yes",
   no = "No",
-  unset = "Not yet"
+  unset = "Not yet",
+  help
 }: {
   label: string;
   value: boolean | null;
@@ -20,6 +27,7 @@ function TriToggle({
   yes?: string;
   no?: string;
   unset?: string;
+  help?: string;
 }) {
   const btn = (v: boolean | null, text: string) => (
     <button
@@ -43,6 +51,7 @@ function TriToggle({
         {btn(false, no)}
         {btn(null, unset)}
       </div>
+      {help ? <p className="text-xs text-slate-500">{help}</p> : null}
     </div>
   );
 }
@@ -50,11 +59,17 @@ function TriToggle({
 function BoolToggle({
   label,
   value,
-  onChange
+  onChange,
+  onLabel = "On",
+  offLabel = "Off",
+  help
 }: {
   label: string;
-  value: boolean;
+  value: boolean | null;
   onChange: (v: boolean) => void;
+  onLabel?: string;
+  offLabel?: string;
+  help?: string;
 }) {
   return (
     <div className="space-y-1.5">
@@ -63,18 +78,19 @@ function BoolToggle({
         <button
           type="button"
           onClick={() => onChange(true)}
-          className={`rounded border px-3 py-1.5 text-sm ${value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
+          className={`rounded border px-3 py-1.5 text-sm ${value === true ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
         >
-          On
+          {onLabel}
         </button>
         <button
           type="button"
           onClick={() => onChange(false)}
-          className={`rounded border px-3 py-1.5 text-sm ${!value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
+          className={`rounded border px-3 py-1.5 text-sm ${value === false ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
         >
-          Off
+          {offLabel}
         </button>
       </div>
+      {help ? <p className="text-xs text-slate-500">{help}</p> : null}
     </div>
   );
 }
@@ -89,6 +105,13 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
       : ""
   );
   const [dealClosed, setDealClosed] = useState(lead.deal_closed);
+  const [requalResult, setRequalResult] = useState<RequalificationResult | "">(
+    lead.requalification_result === "requalified" ||
+      lead.requalification_result === "still_unqualified"
+      ? lead.requalification_result
+      : ""
+  );
+  const [requalNotes, setRequalNotes] = useState(lead.requalification_notes ?? "");
   const [saving, setSaving] = useState(false);
 
   async function patch(input: Parameters<typeof saveLeadActions>[1]) {
@@ -104,6 +127,8 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
     }
   }
 
+  const showPostCall = lead.call_showed === true && lead.deal_closed !== true;
+
   return (
     <div className="space-y-6">
       <TriToggle
@@ -116,12 +141,15 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
       />
       <BoolToggle
         label="Setter verified"
-        value={Boolean(lead.setter_verified)}
+        value={lead.setter_verified}
+        onLabel="Verified"
+        offLabel="Unqualified"
+        help="On a booked lead, mark Unqualified if the call does not actually qualify. We never delete records — this moves the lead to Dead."
         onChange={(setter_verified) => patch({ setter_verified })}
       />
       <BoolToggle
         label="Reminder sent"
-        value={Boolean(lead.reminder_sent)}
+        value={lead.reminder_sent}
         onChange={(reminder_sent) => patch({ reminder_sent })}
       />
       <TriToggle
@@ -168,6 +196,72 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
           <span className="mt-1 block text-slate-500">
             Current: {formatCurrencyNullable(lead.deal_value)}
           </span>
+        </label>
+      ) : null}
+
+      {lead.qualified === false ? (
+        <div className="space-y-3 rounded border border-amber-200 bg-amber-50/50 p-4">
+          <div className="text-sm font-medium text-slate-900">Log requalification call</div>
+          <p className="text-xs text-slate-600">
+            Vriddhi’s outbound list. Logging an outcome keeps the record; Still
+            Unqualified moves it out of Active.
+          </p>
+          <label className="block text-xs text-slate-600">
+            Outcome
+            <select
+              value={requalResult}
+              onChange={(e) => setRequalResult(e.target.value as RequalificationResult | "")}
+              className="mt-1 w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            >
+              <option value="">Select outcome</option>
+              <option value="requalified">Requalified</option>
+              <option value="still_unqualified">Still Unqualified</option>
+            </select>
+          </label>
+          <label className="block text-xs text-slate-600">
+            Requalification notes
+            <textarea
+              value={requalNotes}
+              onChange={(e) => setRequalNotes(e.target.value)}
+              rows={3}
+              className="mt-1 w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={saving || !requalResult}
+            onClick={() =>
+              patch({
+                requalification_result: requalResult as RequalificationResult,
+                requalification_notes: requalNotes
+              })
+            }
+            className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+          >
+            {saving ? "Saving…" : "Save requalification call"}
+          </button>
+        </div>
+      ) : null}
+
+      {showPostCall ? (
+        <label className="block text-xs text-slate-600">
+          Post-call status
+          <select
+            value={lead.post_call_status ?? ""}
+            onChange={(e) => {
+              const value = e.target.value as PostCallStatus;
+              if (!value) return;
+              patch({ post_call_status: value });
+            }}
+            className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+          >
+            <option value="">Select status</option>
+            {POST_CALL_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status === "dead" ? "Dead" : stageLabel(status)}
+              </option>
+            ))}
+          </select>
         </label>
       ) : null}
 
