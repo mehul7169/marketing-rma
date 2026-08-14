@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE, SESSION_VALUE } from "@/lib/auth/session";
+import { SESSION_COOKIE } from "@/lib/auth/session";
 
 type LoginBody = {
   email?: unknown;
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(SESSION_COOKIE, SESSION_VALUE, {
+  response.cookies.set(SESSION_COOKIE, email, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",

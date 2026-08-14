@@ -11,11 +11,15 @@ function isoToLocalDateValue(iso: string) {
 export default function DateRangePicker({
   fromISO,
   toISO,
-  hasCustomRange
+  hasCustomRange,
+  extraParams,
+  pathname
 }: {
   fromISO: string;
   toISO: string;
   hasCustomRange: boolean;
+  extraParams?: Record<string, string | undefined>;
+  pathname?: string;
 }) {
   const router = useRouter();
 
@@ -29,7 +33,14 @@ export default function DateRangePicker({
       className="flex flex-wrap items-end gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        router.push(`?from=${from}&to=${to}`);
+        const params = new URLSearchParams();
+        params.set("from", from);
+        params.set("to", to);
+        for (const [key, value] of Object.entries(extraParams ?? {})) {
+          if (value) params.set(key, value);
+        }
+        const path = pathname ?? "";
+        router.push(`${path}?${params.toString()}`);
       }}
     >
       <div className="flex flex-col">

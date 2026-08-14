@@ -29,6 +29,18 @@ export default function RootLayout({
                 </a>
                 <a
                   className="text-slate-600 hover:text-slate-900"
+                  href="/insights"
+                >
+                  Insights
+                </a>
+                <a
+                  className="text-slate-600 hover:text-slate-900"
+                  href="/leads"
+                >
+                  Leads
+                </a>
+                <a
+                  className="text-slate-600 hover:text-slate-900"
                   href="/meta-ads"
                 >
                   Meta Ads

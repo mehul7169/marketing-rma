@@ -2,9 +2,11 @@
 Internal marketing + sales lifecycle dashboard (Meta Ads performance + website/video analytics).
 
 ## What this covers right now (Phase 1)
-- Meta Ads performance: spend, CTR, CPC, and leads (blended cost/lead) with campaign → ad set → ad drill-down.
-- Website & video analytics: landing page visits, video plays, watch metrics, and form completion rates (site-wide totals for now).
-- Lead lifecycle tracking via GHL webhook is a later phase and is not built yet.
+- Funnel overview on `/` from the `leads` table (system of record for status).
+- CRM at `/leads` for setter/sales to qualify, verify, mark show-up, and close deals.
+- Website ingest APIs (`/api/ingest/*`) for runmoreads.in form + cal.com bookings.
+- Meta Ads performance and website/video analytics.
+- GHL is email sequences only — it does not drive lead status.
 
 ## Tech Stack
 - Next.js 14 (App Router, TypeScript)
@@ -16,7 +18,7 @@ Internal marketing + sales lifecycle dashboard (Meta Ads performance + website/v
 ## Getting started locally
 1. `npm install`
 2. Copy `.env.example` to `.env.local` and fill in real values.
-3. Create the Supabase schema (tables live in your Supabase project). For the ad-level Meta grain, run `supabase/migrations/001_meta_ads_ad_level.sql` in the SQL editor.
+3. Create the Supabase schema (tables live in your Supabase project). Run `supabase/migrations/001_meta_ads_ad_level.sql` and `supabase/migrations/002_leads.sql` in the SQL editor.
 4. Run: `npm run dev`
 
 ### Environment variables
@@ -37,11 +39,20 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 | `CRON_SECRET` | Shared secret to protect cron routes | Choose any strong value |
 | `ADMIN_EMAIL` | Login email for the dashboard gate | Set in `.env.local` |
 | `ADMIN_PASSWORD` | Login password for the dashboard gate | Set in `.env.local` |
+| `WEBSITE_INGEST_SECRET` | Shared secret for runmoreads.in ingest APIs | Random hex; same pattern as `CRON_SECRET` |
 
 ## Data ingestion (cron)
 - Scheduled pulls are implemented as Next.js Route Handlers under `app/api/cron/*`.
 - Vercel Cron configuration is in `vercel.json` (runs hourly to pull “yesterday + today”).
 - For local testing, you can run the handlers by calling the route URL and sending an `Authorization` header set to `CRON_SECRET`.
+
+## Website ingest (runmoreads.in)
+The marketing site never talks to Supabase. It POSTs to this app with `Authorization: Bearer $WEBSITE_INGEST_SECRET`:
+- `POST /api/ingest/lead-form` — qualification form submit (optional `qualified: boolean | null`)
+- `POST /api/ingest/booking` — cal.com booking
+- `POST /api/ingest/booking-cancelled` — cal.com cancellation relay
+
+These routes are excluded from login middleware (same as cron).
 
 ## Backfilling historical data
 The hourly cron routes only pull the last 2 days. For a one-time all-time backfill, use the manual script:
@@ -74,7 +85,8 @@ This script is **not** scheduled in `vercel.json` — run it manually once from 
 ## Project structure
 - `src/app/` : App Router pages (`/`, `/meta-ads`, `/website`) and route handlers
 - `src/lib/db/` : Supabase data-access helpers per table (`meta_ads_daily`, `website_daily`, `cron_runs`)
-- `src/lib/ingest/` : Shared fetch/transform/upsert logic used by cron routes and the backfill script
+- `src/lib/leads/` : Stage computation used by every lead write
+- `src/app/api/ingest/` : Website form/booking ingest (Bearer `WEBSITE_INGEST_SECRET`)
 - `supabase/migrations/` : SQL migrations (including ad-level Meta grain)
 - `src/app/api/cron/` : Cron-protected scheduled pull endpoints for Meta, GA4, and Wistia
 - `scripts/backfill.ts` : One-off historical backfill (manual, not scheduled)
