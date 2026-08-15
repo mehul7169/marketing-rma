@@ -1,10 +1,12 @@
 import DateRangePicker from "@/components/DateRangePicker";
+import InfoTip from "@/components/InfoTip";
 import InsightsCreativeTable from "@/components/insights/InsightsCreativeTable";
 import InsightsFilters from "@/components/insights/InsightsFilters";
 import InsightsRateCards from "@/components/insights/InsightsRateCards";
 import InsightsSourceBooked from "@/components/insights/InsightsSourceBooked";
 import InsightsTrendSection from "@/components/insights/InsightsTrendSection";
 import { getInsightsData } from "@/lib/db/insights";
+import { INSIGHTS_TOOLTIPS } from "@/lib/insights/tooltips";
 import { clampDateRange, defaultFromISO, inclusiveDayCount } from "@/lib/utils/date";
 import { todayISTDateString } from "@/lib/timezone";
 
@@ -82,7 +84,10 @@ export default async function InsightsPage({
           />
         </section>
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-slate-900">Source → calls booked</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+            Source → calls booked
+            <InfoTip text={INSIGHTS_TOOLTIPS.sourceBooked} />
+          </h2>
           <div className="rounded border border-slate-200 p-4">
             <InsightsSourceBooked rows={metrics.sourceBooked} />
           </div>
@@ -90,8 +95,11 @@ export default async function InsightsPage({
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-slate-900">Daily</h2>
-        <div className="rounded border border-slate-200 p-4">
+        <h2 className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+          Daily
+          <InfoTip text={INSIGHTS_TOOLTIPS.dailyTrend} />
+        </h2>
+        <div className="overflow-visible rounded border border-slate-200 p-4">
           <InsightsTrendSection trend={metrics.daily} rangeDays={rangeDays} />
         </div>
       </section>

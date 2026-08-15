@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import type { CreativeRow } from "@/lib/insights/metrics";
+import { INSIGHTS_TOOLTIPS } from "@/lib/insights/tooltips";
 import { formatCurrency, formatCurrencyNullable, formatInteger } from "@/lib/format";
+import InfoTip from "@/components/InfoTip";
 
 type SortKey =
   | "spend"
@@ -14,15 +16,15 @@ type SortKey =
   | "costPerBooked"
   | "costPerDeal";
 
-const COLUMNS: Array<[SortKey, string]> = [
-  ["spend", "Spend"],
-  ["callsBooked", "Calls booked"],
-  ["qualified", "Qualified"],
-  ["showed", "Showed"],
-  ["dealsClosed", "Deals closed"],
-  ["revenue", "Revenue"],
-  ["costPerBooked", "Cost / booked"],
-  ["costPerDeal", "Cost / deal"]
+const COLUMNS: Array<[SortKey, string, string | null]> = [
+  ["spend", "Spend", INSIGHTS_TOOLTIPS.creativeSpend],
+  ["callsBooked", "Calls booked", INSIGHTS_TOOLTIPS.creativeCallsBooked],
+  ["qualified", "Qualified", INSIGHTS_TOOLTIPS.creativeQualified],
+  ["showed", "Showed", INSIGHTS_TOOLTIPS.creativeShowed],
+  ["dealsClosed", "Deals closed", INSIGHTS_TOOLTIPS.creativeDealsClosed],
+  ["revenue", "Revenue", null],
+  ["costPerBooked", "Cost / booked", INSIGHTS_TOOLTIPS.creativeCostPerBooked],
+  ["costPerDeal", "Cost / deal", INSIGHTS_TOOLTIPS.creativeCostPerDeal]
 ];
 
 function sortValue(row: CreativeRow, key: SortKey): number {
@@ -64,9 +66,10 @@ export default function InsightsCreativeTable({
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-slate-500">
-        Unmatched leads: {formatInteger(unmatchedLeadCount)}
-        <span className="ml-1">
+      <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+        <span>Unmatched leads: {formatInteger(unmatchedLeadCount)}</span>
+        <InfoTip text={INSIGHTS_TOOLTIPS.creativeUnmatched} />
+        <span className="text-slate-400">
           (utm_content vs Meta ad name — not an ID match)
         </span>
       </p>
@@ -75,16 +78,19 @@ export default function InsightsCreativeTable({
           <thead>
             <tr className="bg-slate-50 text-slate-700">
               <th className="px-4 py-3 text-left font-medium">Creative name</th>
-              {COLUMNS.map(([key, label]) => (
+              {COLUMNS.map(([key, label, tip]) => (
                 <th key={key} className="px-4 py-3 text-right font-medium">
-                  <button
-                    type="button"
-                    className="hover:text-slate-900"
-                    onClick={() => toggle(key)}
-                  >
-                    {label}
-                    {sortKey === key ? (dir === "desc" ? " ↓" : " ↑") : ""}
-                  </button>
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      className="hover:text-slate-900"
+                      onClick={() => toggle(key)}
+                    >
+                      {label}
+                      {sortKey === key ? (dir === "desc" ? " ↓" : " ↑") : ""}
+                    </button>
+                    {tip ? <InfoTip text={tip} /> : null}
+                  </span>
                 </th>
               ))}
             </tr>
@@ -115,7 +121,12 @@ function CreativeCells({ row, muted }: { row: CreativeRow; muted?: boolean }) {
   const cls = muted ? "text-slate-500" : "text-slate-900";
   return (
     <tr className={muted ? "bg-slate-50/80" : undefined}>
-      <td className={`px-4 py-3 ${cls}`}>{row.name}</td>
+      <td className={`px-4 py-3 ${cls}`}>
+        <span className="inline-flex items-center gap-1.5">
+          {row.name}
+          {row.unmatched ? <InfoTip text={INSIGHTS_TOOLTIPS.creativeUnmatched} /> : null}
+        </span>
+      </td>
       <td className={`whitespace-nowrap px-4 py-3 text-right tabular-nums ${cls}`}>
         {formatCurrency(row.spend)}
       </td>
