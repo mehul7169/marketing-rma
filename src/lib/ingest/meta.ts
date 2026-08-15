@@ -24,8 +24,29 @@ export const META_INSIGHTS_FIELDS = [
   "ctr",
   "cpc",
   "actions",
+  "unique_actions",
+  "outbound_clicks",
+  "outbound_clicks_ctr",
+  "unique_outbound_clicks",
+  "unique_outbound_clicks_ctr",
+  "cost_per_outbound_click",
+  "cost_per_unique_outbound_click",
   "cost_per_action_type"
 ] as const;
+
+/**
+ * Meta Ads Manager "Results" — exact `lead` action (confirmed via Graph API
+ * Explorer against known form-fill counts).
+ */
+export const META_RESULT_ACTION_TYPE = "lead";
+
+/**
+ * Call bookings — custom conversion `offsite_conversion.fb_pixel_custom`
+ * (confirmed via Graph API Explorer; matched known appointment counts).
+ * Do not use initiate_checkout or its variants — those inflate (checkout
+ * step interactions, not completed bookings).
+ */
+export const META_APPOINTMENT_ACTION_TYPE = "offsite_conversion.fb_pixel_custom";
 
 export type MetaInsightsRow = {
   date_start: string;
@@ -43,6 +64,13 @@ export type MetaInsightsRow = {
   ctr: string | null;
   cpc: string | null;
   actions: MetaAction[] | null;
+  unique_actions: MetaAction[] | null;
+  outbound_clicks: MetaAction[] | null;
+  outbound_clicks_ctr: MetaAction[] | null;
+  unique_outbound_clicks: MetaAction[] | null;
+  unique_outbound_clicks_ctr: MetaAction[] | null;
+  cost_per_outbound_click: MetaCostPerAction[] | null;
+  cost_per_unique_outbound_click: MetaCostPerAction[] | null;
   cost_per_action_type: MetaCostPerAction[] | null;
 };
 
@@ -55,6 +83,35 @@ function numOrNull(v: string | null | undefined): number | null {
   if (v === null || v === undefined) return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Sum `value` across entries matching `actionType` (defensive if Meta returns multiples). */
+export function sumActionType(
+  entries: Array<{ action_type: string; value: string }> | null | undefined,
+  actionType: string
+): number | null {
+  if (!entries || entries.length === 0) return null;
+  let sum = 0;
+  let found = false;
+  for (const a of entries) {
+    if (a.action_type !== actionType) continue;
+    const n = Number(a.value);
+    if (!Number.isFinite(n)) continue;
+    sum += n;
+    found = true;
+  }
+  return found ? sum : null;
+}
+
+/** First matching cost (Meta returns one per type); falls back to null. */
+export function costForActionType(
+  entries: MetaCostPerAction[] | null | undefined,
+  actionType: string
+): number | null {
+  if (!entries || entries.length === 0) return null;
+  const hit = entries.find((a) => a.action_type === actionType);
+  if (!hit) return null;
+  return numOrNull(hit.value);
 }
 
 export function extractLeads(actions: MetaAction[] | null): number | null {
@@ -80,6 +137,11 @@ export function extractCostPerLead(
   return Number.isFinite(n) ? n : null;
 }
 
+function ratioOrNull(spend: number | null, count: number | null): number | null {
+  if (spend === null || count === null || count <= 0) return null;
+  return spend / count;
+}
+
 export function transformMetaInsightsRows(
   rows: MetaInsightsRow[]
 ): Array<Partial<MetaAdsDailyRow> & { date: string; ad_id: string; ad_set_id: string }> {
@@ -94,6 +156,30 @@ export function transformMetaInsightsRows(
         spend !== null && leads && leads > 0 ? spend / leads : null;
       const computedLpConversionRate =
         leads !== null && clicks !== null && clicks > 0 ? leads / clicks : null;
+
+      const results = sumActionType(r.actions, META_RESULT_ACTION_TYPE);
+      const appointmentsScheduled = sumActionType(
+        r.actions,
+        META_APPOINTMENT_ACTION_TYPE
+      );
+      const uniqueOutboundClicks = sumActionType(
+        r.unique_outbound_clicks,
+        "outbound_click"
+      );
+      const uniqueOutboundCtr = sumActionType(
+        r.unique_outbound_clicks_ctr,
+        "outbound_click"
+      );
+      const costPerUniqueOutbound =
+        costForActionType(r.cost_per_unique_outbound_click, "outbound_click") ??
+        ratioOrNull(spend, uniqueOutboundClicks);
+
+      const costPerResult =
+        costForActionType(r.cost_per_action_type, META_RESULT_ACTION_TYPE) ??
+        ratioOrNull(spend, results);
+      const costPerAppointment =
+        costForActionType(r.cost_per_action_type, META_APPOINTMENT_ACTION_TYPE) ??
+        ratioOrNull(spend, appointmentsScheduled);
 
       return {
         date: r.date_start,
@@ -116,7 +202,15 @@ export function transformMetaInsightsRows(
         cpc: numOrNull(r.cpc),
         leads_meta_reported: leads,
         cost_per_lead: costPerLead ?? computedCostPerLead,
-        lp_conversion_rate: computedLpConversionRate
+        lp_conversion_rate: computedLpConversionRate,
+        actions: r.actions ?? null,
+        results,
+        cost_per_result: costPerResult,
+        unique_outbound_clicks: uniqueOutboundClicks,
+        unique_outbound_ctr: uniqueOutboundCtr,
+        cost_per_unique_outbound_click: costPerUniqueOutbound,
+        appointments_scheduled: appointmentsScheduled,
+        cost_per_appointment_scheduled: costPerAppointment
       };
     });
 }
