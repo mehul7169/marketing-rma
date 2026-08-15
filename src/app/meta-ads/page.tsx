@@ -1,6 +1,6 @@
 import {
-  addDaysISO,
   clampDateRange,
+  defaultFromISO,
   fillTrendDateGaps,
   getPriorPeriod,
   inclusiveDayCount
@@ -24,7 +24,7 @@ export default async function MetaAdsPage({
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
   const todayISO = todayISTDateString();
   const fallbackTo = todayISO;
-  const fallbackFrom = addDaysISO(todayISO, -29);
+  const fallbackFrom = defaultFromISO(todayISO);
 
   let fromISO = fallbackFrom;
   let toISO = fallbackTo;

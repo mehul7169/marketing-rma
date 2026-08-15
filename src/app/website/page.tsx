@@ -1,6 +1,6 @@
 import {
-  addDaysISO,
   clampDateRange,
+  defaultFromISO,
   fillTrendDateGaps,
   inclusiveDayCount
 } from "@/lib/utils/date";
@@ -23,7 +23,7 @@ export default async function WebsitePage({
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
   const todayISO = todayISTDateString();
   const fallbackTo = todayISO;
-  const fallbackFrom = addDaysISO(todayISO, -29);
+  const fallbackFrom = defaultFromISO(todayISO);
 
   let fromISO = fallbackFrom;
   let toISO = fallbackTo;

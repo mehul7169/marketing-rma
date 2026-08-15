@@ -3,7 +3,7 @@ import LeadRow from "@/components/leads/LeadRow";
 import LeadsFilters from "@/components/leads/LeadsFilters";
 import StageBadge from "@/components/leads/StageBadge";
 import { listDistinctLeadSources, listLeads } from "@/lib/db/leads";
-import { addDaysISO, clampDateRange } from "@/lib/utils/date";
+import { clampDateRange, defaultFromISO } from "@/lib/utils/date";
 import { formatISTDateTime, todayISTDateString } from "@/lib/timezone";
 
 function parseList(value: string | undefined): string[] {
@@ -28,7 +28,7 @@ export default async function LeadsPage({
   };
 }) {
   const todayISO = todayISTDateString();
-  let fromISO = addDaysISO(todayISO, -29);
+  let fromISO = defaultFromISO(todayISO);
   let toISO = todayISO;
   try {
     if (searchParams.from && searchParams.to) {

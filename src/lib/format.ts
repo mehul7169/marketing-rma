@@ -47,7 +47,7 @@ export function formatPercentNullable(value: number | null): string {
   return formatPercent(value);
 }
 
-/** Period-over-period change subtext, e.g. "↑ 12% vs prior 30 days". */
+/** Period-over-period change subtext, e.g. "↑ 12% vs prior 7 days". */
 export function formatPeriodComparison(
   current: number,
   prior: number,

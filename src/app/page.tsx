@@ -4,7 +4,7 @@ import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
 import { FUNNEL_STEPS } from "@/lib/leads/computeStage";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatCurrency, formatInteger, formatPercent } from "@/lib/format";
-import { addDaysISO, clampDateRange } from "@/lib/utils/date";
+import { clampDateRange, defaultFromISO } from "@/lib/utils/date";
 import { todayISTDateString } from "@/lib/timezone";
 
 function rate(num: number, den: number): number {
@@ -64,7 +64,7 @@ export default async function HomePage({
   searchParams: { from?: string; to?: string; source?: string };
 }) {
   const todayISO = todayISTDateString();
-  let fromISO = addDaysISO(todayISO, -29);
+  let fromISO = defaultFromISO(todayISO);
   let toISO = todayISO;
   try {
     if (searchParams.from && searchParams.to) {

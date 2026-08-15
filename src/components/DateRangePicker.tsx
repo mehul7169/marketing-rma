@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { DEFAULT_DATE_RANGE_DAYS } from "@/lib/utils/date";
 
 function isoToLocalDateValue(iso: string) {
   // iso is YYYY-MM-DD; <input type="date"> expects that exact format.
@@ -74,7 +75,7 @@ export default function DateRangePicker({
           </div>
         ) : (
           <div className="mt-1 text-[11px] text-slate-500">
-            Default: last 30 days (IST)
+            Default: last {DEFAULT_DATE_RANGE_DAYS} days (IST)
           </div>
         )}
       </div>

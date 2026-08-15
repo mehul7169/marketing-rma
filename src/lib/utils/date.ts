@@ -36,6 +36,13 @@ export function addDaysISO(iso: string, days: number): string {
   return formatCivil(y, m, d + days);
 }
 
+/** Inclusive default window ending on today (IST calendar days). */
+export const DEFAULT_DATE_RANGE_DAYS = 7;
+
+export function defaultFromISO(toISO: string): string {
+  return addDaysISO(toISO, -(DEFAULT_DATE_RANGE_DAYS - 1));
+}
+
 /** Inclusive day count between two YYYY-MM-DD calendar dates. */
 export function inclusiveDayCount(fromISO: string, toISO: string): number {
   const [y1, m1, d1] = parseCivil(fromISO);
