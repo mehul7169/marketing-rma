@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import LeadActions from "@/components/leads/LeadActions";
+import LeadFollowUps from "@/components/leads/LeadFollowUps";
 import StageBadge, { stageLabel } from "@/components/leads/StageBadge";
+import { listRemindersForLead } from "@/lib/db/lead_reminders";
 import { getLeadById } from "@/lib/db/leads";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatCurrencyNullable } from "@/lib/format";
@@ -41,6 +43,7 @@ export default async function LeadDetailPage({
   const lead = await getLeadById(params.id);
   if (!lead) notFound();
 
+  const reminders = await listRemindersForLead(lead.id);
   const touch = lastTouch(lead);
 
   return (
@@ -83,6 +86,16 @@ export default async function LeadDetailPage({
             <Field label="Form filled" value={fmtWhen(lead.form_filled_at)} />
             <Field label="Call booked" value={fmtWhen(lead.call_booked_at)} />
             <Field label="Call scheduled" value={fmtWhen(lead.call_scheduled_for)} />
+            <Field
+              label="Booking source"
+              value={
+                lead.booking_source === "manual"
+                  ? "Manual"
+                  : lead.booking_source === "cal_com"
+                    ? "Cal.com"
+                    : null
+              }
+            />
             <Field label="Cal.com booking" value={lead.cal_com_booking_id} />
             <Field label="Cancelled" value={fmtWhen(lead.call_cancelled_at)} />
             <Field label="Deal value" value={formatCurrencyNullable(lead.deal_value)} />
@@ -132,7 +145,11 @@ export default async function LeadDetailPage({
         <section className="space-y-4">
           <h2 className="text-sm font-medium text-slate-900">Actions</h2>
           <div className="rounded border border-slate-200 p-4">
-            <LeadActions lead={lead} />
+            <LeadActions key={lead.updated_at} lead={lead} />
+          </div>
+          <h2 className="text-sm font-medium text-slate-900">Follow-ups</h2>
+          <div className="rounded border border-slate-200 p-4">
+            <LeadFollowUps key={`${lead.id}-followups-${reminders.length}`} leadId={lead.id} reminders={reminders} />
           </div>
         </section>
       </div>

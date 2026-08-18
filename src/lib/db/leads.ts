@@ -1,12 +1,43 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
+import { listLeadIdsWithDueFollowUps } from "@/lib/db/lead_reminders";
 import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
 import { computeStage } from "@/lib/leads/computeStage";
-import type { LeadListFilters, LeadRow } from "@/lib/leads/types";
+import type {
+  BookingHistoryEntry,
+  BookingSource,
+  LeadListFilters,
+  LeadRow
+} from "@/lib/leads/types";
 import { istDayEndUtcIso, istDayStartUtcIso } from "@/lib/timezone";
 
 function requireDb() {
   if (!supabaseAdmin) throw new Error("Supabase is not configured.");
   return supabaseAdmin;
+}
+
+function parseBookingHistory(raw: unknown): BookingHistoryEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: BookingHistoryEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const e = item as Record<string, unknown>;
+    if (typeof e.new_scheduled_for !== "string") continue;
+    const source: BookingSource = e.source === "cal_com" ? "cal_com" : "manual";
+    out.push({
+      changed_at: typeof e.changed_at === "string" ? e.changed_at : "",
+      previous_scheduled_for:
+        typeof e.previous_scheduled_for === "string" ? e.previous_scheduled_for : null,
+      new_scheduled_for: e.new_scheduled_for,
+      source,
+      changed_by: typeof e.changed_by === "string" ? e.changed_by : ""
+    });
+  }
+  return out;
+}
+
+function parseBookingSource(raw: unknown): BookingSource | null {
+  if (raw === "cal_com" || raw === "manual") return raw;
+  return null;
 }
 
 function asLead(row: unknown): LeadRow {
@@ -17,7 +48,9 @@ function asLead(row: unknown): LeadRow {
     deal_value:
       rawValue === null || rawValue === undefined || rawValue === ""
         ? null
-        : Number(rawValue)
+        : Number(rawValue),
+    booking_source: parseBookingSource((r as LeadRow).booking_source),
+    booking_history: parseBookingHistory((r as LeadRow).booking_history)
   };
 }
 
@@ -95,6 +128,8 @@ export async function insertLead(row: Partial<LeadRow> & { email: string }): Pro
     call_booked_at: row.call_booked_at ?? null,
     call_scheduled_for: row.call_scheduled_for ?? null,
     cal_com_booking_id: row.cal_com_booking_id ?? null,
+    booking_source: row.booking_source ?? null,
+    booking_history: row.booking_history ?? [],
     call_cancelled_at: row.call_cancelled_at ?? null,
     setter_verified: row.setter_verified ?? null,
     setter_verified_at: row.setter_verified_at ?? null,
@@ -170,13 +205,40 @@ export async function updateLead(existing: LeadRow, patch: Partial<LeadRow>): Pr
   return asLead(data);
 }
 
+export async function scheduleLeadCall(
+  existing: LeadRow,
+  scheduledForIso: string,
+  changedBy: string
+): Promise<LeadRow> {
+  const now = new Date().toISOString();
+  const entry: BookingHistoryEntry = {
+    changed_at: now,
+    previous_scheduled_for: existing.call_scheduled_for,
+    new_scheduled_for: scheduledForIso,
+    source: "manual",
+    changed_by: changedBy
+  };
+  return updateLead(existing, {
+    call_scheduled_for: scheduledForIso,
+    booking_source: "manual",
+    booking_history: [...existing.booking_history, entry],
+    call_booked_at: existing.call_booked_at ?? now
+  });
+}
+
 export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
   let query = db.from("leads").select("*").order("created_at", { ascending: false });
 
-  if (filters.fromISO) query = query.gte("created_at", istDayStartUtcIso(filters.fromISO));
-  if (filters.toISO) query = query.lte("created_at", istDayEndUtcIso(filters.toISO));
+  if (filters.followUpsDue) {
+    const dueIds = await listLeadIdsWithDueFollowUps();
+    if (dueIds.length === 0) return [];
+    query = query.in("id", dueIds);
+  } else {
+    if (filters.fromISO) query = query.gte("created_at", istDayStartUtcIso(filters.fromISO));
+    if (filters.toISO) query = query.lte("created_at", istDayEndUtcIso(filters.toISO));
+  }
   if (filters.stages && filters.stages.length > 0) query = query.in("stage", filters.stages);
   if (filters.sources && filters.sources.length > 0) {
     query = query.in("lead_source", filters.sources);
@@ -199,7 +261,7 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as unknown as LeadRow[];
+  return (data ?? []).map(asLead);
 }
 
 export async function listDistinctLeadSources(): Promise<string[]> {

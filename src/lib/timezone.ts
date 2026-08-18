@@ -1,3 +1,4 @@
+import { differenceInCalendarDays } from "date-fns/differenceInCalendarDays";
 import { format } from "date-fns/format";
 import { fromZonedTime } from "date-fns-tz/fromZonedTime";
 import { toZonedTime } from "date-fns-tz/toZonedTime";
@@ -62,4 +63,45 @@ export function formatISTDateTime(date: Date | string | null | undefined): strin
  */
 export function formatCalendarDate(yyyyMmDd: string, formatStr = "d MMM"): string {
   return formatIST(fromZonedTime(`${yyyyMmDd}T00:00:00`, IST_TIMEZONE), formatStr);
+}
+
+/** UTC instant → value for `<input type="datetime-local">`, treated as IST. */
+export function toDatetimeLocalIST(date: Date | string | null | undefined): string {
+  if (!date) return "";
+  const d = asDate(date);
+  if (Number.isNaN(d.getTime())) return "";
+  return format(toZonedTime(d, IST_TIMEZONE), "yyyy-MM-dd'T'HH:mm");
+}
+
+/** `datetime-local` string (IST wall clock) → UTC ISO. */
+export function fromDatetimeLocalIST(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) throw new Error("Date/time is required");
+  const utc = fromZonedTime(trimmed, IST_TIMEZONE);
+  if (Number.isNaN(utc.getTime())) throw new Error("Invalid date/time");
+  return utc.toISOString();
+}
+
+/**
+ * Due-at display: "Today, 5:00 PM" / "Tomorrow, 5:00 PM" within a few days,
+ * otherwise a full IST date. No due date → "No due date".
+ */
+export function formatDueFriendly(date: Date | string | null | undefined): string {
+  if (!date) return "No due date";
+  const d = asDate(date);
+  if (Number.isNaN(d.getTime())) return "—";
+
+  const zoned = toZonedTime(d, IST_TIMEZONE);
+  const today = toZonedTime(nowInIST(), IST_TIMEZONE);
+  const zonedDay = new Date(zoned.getFullYear(), zoned.getMonth(), zoned.getDate());
+  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dayDiff = differenceInCalendarDays(zonedDay, todayDay);
+  const time = format(zoned, "h:mm a");
+
+  if (dayDiff === 0) return `Today, ${time}`;
+  if (dayDiff === 1) return `Tomorrow, ${time}`;
+  if (dayDiff === -1) return `Yesterday, ${time}`;
+  if (dayDiff > 1 && dayDiff <= 6) return `${format(zoned, "EEEE")}, ${time}`;
+  if (dayDiff < -1 && dayDiff >= -6) return `${format(zoned, "EEE d MMM")}, ${time}`;
+  return format(zoned, "d MMM yyyy, h:mm a");
 }

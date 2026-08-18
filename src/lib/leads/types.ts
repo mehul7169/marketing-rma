@@ -1,3 +1,24 @@
+export type BookingSource = "cal_com" | "manual";
+
+export type BookingHistoryEntry = {
+  changed_at: string;
+  previous_scheduled_for: string | null;
+  new_scheduled_for: string;
+  source: BookingSource;
+  changed_by: string;
+};
+
+export type LeadReminder = {
+  id: string;
+  lead_id: string;
+  text: string;
+  due_at: string | null;
+  created_at: string;
+  created_by: string | null;
+  resolved: boolean;
+  resolved_at: string | null;
+};
+
 export type LeadRow = {
   id: string;
   email: string;
@@ -24,6 +45,8 @@ export type LeadRow = {
   call_booked_at: string | null;
   call_scheduled_for: string | null;
   cal_com_booking_id: string | null;
+  booking_source: BookingSource | null;
+  booking_history: BookingHistoryEntry[];
   call_cancelled_at: string | null;
   setter_verified: boolean | null;
   setter_verified_at: string | null;
@@ -58,4 +81,5 @@ export type LeadListFilters = {
   search?: string;
   lifecycle?: string;
   needsRequal?: boolean;
+  followUpsDue?: boolean;
 };

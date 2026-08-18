@@ -76,13 +76,13 @@ export default function LeadsFilters({
         <button
           type="button"
           className={`rounded border px-3 py-1.5 text-sm ${
-            lifecycle === "needs_requal"
-              ? "border-amber-700 bg-amber-700 text-white"
-              : "border-amber-300 bg-amber-50 text-amber-900"
+            lifecycle === "follow_ups_due"
+              ? "border-red-700 bg-red-700 text-white"
+              : "border-red-200 bg-red-50 text-red-900"
           }`}
-          onClick={() => push({ lifecycle: "needs_requal" })}
+          onClick={() => push({ lifecycle: "follow_ups_due" })}
         >
-          Needs Requalification Call
+          Follow-ups Due
         </button>
       </div>
 

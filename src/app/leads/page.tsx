@@ -1,7 +1,9 @@
 import DateRangePicker from "@/components/DateRangePicker";
+import DueFollowUpBadge from "@/components/leads/DueFollowUpBadge";
 import LeadRow from "@/components/leads/LeadRow";
 import LeadsFilters from "@/components/leads/LeadsFilters";
 import StageBadge from "@/components/leads/StageBadge";
+import { listDueFollowUps } from "@/lib/db/lead_reminders";
 import { listDistinctLeadSources, listLeads } from "@/lib/db/leads";
 import { clampDateRange, defaultFromISO } from "@/lib/utils/date";
 import { formatISTDateTime, todayISTDateString } from "@/lib/timezone";
@@ -53,11 +55,22 @@ export default async function LeadsPage({
       stages,
       sources,
       search,
-      lifecycle: lifecycle === "needs_requal" ? undefined : lifecycle,
-      needsRequal: lifecycle === "needs_requal"
+      lifecycle:
+        lifecycle === "follow_ups_due"
+          ? undefined
+          : lifecycle,
+      followUpsDue: lifecycle === "follow_ups_due"
     }),
     listDistinctLeadSources()
   ]);
+
+  const dueReminders = await listDueFollowUps(rows.map((r) => r.id));
+  const dueByLead = new Map<string, typeof dueReminders>();
+  for (const r of dueReminders) {
+    const list = dueByLead.get(r.lead_id) ?? [];
+    list.push(r);
+    dueByLead.set(r.lead_id, list);
+  }
 
   return (
     <div className="space-y-6">
@@ -65,7 +78,9 @@ export default async function LeadsPage({
         <div>
           <h1 className="text-lg font-semibold text-slate-900">Leads</h1>
           <p className="mt-1 text-sm text-slate-600">
-            {rows.length} in {fromISO} to {toISO}
+            {lifecycle === "follow_ups_due"
+              ? `${rows.length} with follow-ups due today or overdue`
+              : `${rows.length} in ${fromISO} to ${toISO}`}
           </p>
         </div>
         <DateRangePicker
@@ -98,6 +113,7 @@ export default async function LeadsPage({
             <tr className="bg-slate-50 text-slate-700">
               <th className="px-4 py-3 text-left">Name</th>
               <th className="px-4 py-3 text-left">Email</th>
+              <th className="px-4 py-3 text-left">Phone</th>
               <th className="px-4 py-3 text-left">Source</th>
               <th className="px-4 py-3 text-left">Stage</th>
               <th className="px-4 py-3 text-left">Created</th>
@@ -107,7 +123,7 @@ export default async function LeadsPage({
           <tbody className="divide-y divide-slate-200">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
                   No leads in this filter.
                 </td>
               </tr>
@@ -116,8 +132,10 @@ export default async function LeadsPage({
                 <LeadRow key={lead.id} href={`/leads/${lead.id}`}>
                   <td className="px-4 py-3 font-medium text-slate-900">
                     {lead.name || "—"}
+                    <DueFollowUpBadge reminders={dueByLead.get(lead.id) ?? []} />
                   </td>
                   <td className="px-4 py-3 text-slate-700">{lead.email}</td>
+                  <td className="px-4 py-3 text-slate-700">{lead.phone || "—"}</td>
                   <td className="px-4 py-3 text-slate-700">{lead.lead_source || "—"}</td>
                   <td className="px-4 py-3">
                     <StageBadge stage={lead.stage} />

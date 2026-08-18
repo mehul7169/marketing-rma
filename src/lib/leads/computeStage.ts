@@ -100,16 +100,11 @@ export function computeStage(input: StageInput): LeadStage {
   if (input.setter_verified === false && input.call_booked_at) {
     return "dead_unqualified_at_booking";
   }
-  if (input.requalification_result === "still_unqualified") return "dead_unqualified";
   if (isFollowUpStatus(input.post_call_status)) return input.post_call_status;
   if (input.call_showed === true) return "showed";
   if (input.call_showed === false) return "no_show";
   if (input.setter_verified === true) return "verified";
   if (input.call_booked_at) return "booked";
-  if (input.requalification_result === "requalified") return "requalified";
-  if (input.requalification_attempted === true && !input.requalification_result) {
-    return "requalification_in_progress";
-  }
   if (input.qualified === true) return "form_qualified";
   if (input.qualified === false) return "form_unqualified";
   if (input.form_filled_at) return "form_filled";

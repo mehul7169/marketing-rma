@@ -3,8 +3,10 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { SESSION_COOKIE, actorEmailFromSession } from "@/lib/auth/session";
-import { getLeadById, updateLead } from "@/lib/db/leads";
+import { insertLeadReminder, resolveLeadReminder } from "@/lib/db/lead_reminders";
+import { getLeadById, scheduleLeadCall, updateLead } from "@/lib/db/leads";
 import type { PostCallStatus, RequalificationResult } from "@/lib/leads/computeStage";
+import { fromDatetimeLocalIST } from "@/lib/timezone";
 
 export type LeadActionInput = {
   qualified?: boolean | null;
@@ -73,4 +75,43 @@ export async function saveLeadActions(id: string, input: LeadActionInput) {
   revalidatePath(`/leads/${id}`);
   revalidatePath("/");
   return { id: updated.id, stage: updated.stage, lifecycle_status: updated.lifecycle_status };
+}
+
+function revalidateLead(id: string) {
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${id}`);
+  revalidatePath("/");
+}
+
+export async function saveLeadSchedule(id: string, scheduledForLocal: string) {
+  const existing = await getLeadById(id);
+  if (!existing) throw new Error("Lead not found");
+  const iso = fromDatetimeLocalIST(scheduledForLocal);
+  const updated = await scheduleLeadCall(existing, iso, actor());
+  revalidateLead(id);
+  return { id: updated.id, stage: updated.stage, lifecycle_status: updated.lifecycle_status };
+}
+
+export async function addLeadFollowUp(
+  leadId: string,
+  text: string,
+  dueAtLocal: string | null
+) {
+  const existing = await getLeadById(leadId);
+  if (!existing) throw new Error("Lead not found");
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error("Follow-up text is required");
+  const due_at = dueAtLocal && dueAtLocal.trim() ? fromDatetimeLocalIST(dueAtLocal) : null;
+  await insertLeadReminder({
+    lead_id: leadId,
+    text: trimmed,
+    due_at,
+    created_by: actor()
+  });
+  revalidateLead(leadId);
+}
+
+export async function markLeadFollowUpResolved(reminderId: string, leadId: string) {
+  await resolveLeadReminder(reminderId);
+  revalidateLead(leadId);
 }
