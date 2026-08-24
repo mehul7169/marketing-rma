@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import CopyValue from "@/components/CopyValue";
 import LeadActions from "@/components/leads/LeadActions";
 import LeadFollowUps from "@/components/leads/LeadFollowUps";
 import StageBadge, { stageLabel } from "@/components/leads/StageBadge";
@@ -12,11 +13,22 @@ function fmtWhen(iso: string | null): string {
   return formatISTDateTime(iso);
 }
 
-function Field({ label, value }: { label: string; value: string | null | undefined }) {
+function Field({
+  label,
+  value,
+  copyable
+}: {
+  label: string;
+  value: string | null | undefined;
+  copyable?: boolean;
+}) {
   return (
     <div>
       <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-0.5 text-sm text-slate-900">{value || "—"}</div>
+      <div className="mt-0.5 inline-flex items-center gap-1 text-sm text-slate-900">
+        <span>{value || "—"}</span>
+        {copyable ? <CopyValue value={value} /> : null}
+      </div>
     </div>
   );
 }
@@ -73,8 +85,8 @@ export default async function LeadDetailPage({
         <section className="space-y-4">
           <h2 className="text-sm font-medium text-slate-900">Record</h2>
           <div className="grid grid-cols-2 gap-4 rounded border border-slate-200 p-4">
-            <Field label="Email" value={lead.email} />
-            <Field label="Phone" value={lead.phone} />
+            <Field label="Email" value={lead.email} copyable />
+            <Field label="Phone" value={lead.phone} copyable />
             <Field label="Source" value={lead.lead_source} />
             <Field label="Ad set ID" value={lead.ad_set_id} />
             <Field label="UTM source" value={lead.utm_source} />

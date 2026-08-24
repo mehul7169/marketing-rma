@@ -12,7 +12,7 @@ export default function LeadRow({
   const router = useRouter();
   return (
     <tr
-      className="cursor-pointer hover:bg-slate-50/60"
+      className="group cursor-pointer hover:bg-slate-50/60"
       onClick={() => router.push(href)}
     >
       {children}

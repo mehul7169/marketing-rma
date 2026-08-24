@@ -1,3 +1,4 @@
+import CopyValue from "@/components/CopyValue";
 import DateRangePicker from "@/components/DateRangePicker";
 import DueFollowUpBadge from "@/components/leads/DueFollowUpBadge";
 import LeadRow from "@/components/leads/LeadRow";
@@ -134,8 +135,18 @@ export default async function LeadsPage({
                     {lead.name || "—"}
                     <DueFollowUpBadge reminders={dueByLead.get(lead.id) ?? []} />
                   </td>
-                  <td className="px-4 py-3 text-slate-700">{lead.email}</td>
-                  <td className="px-4 py-3 text-slate-700">{lead.phone || "—"}</td>
+                  <td className="px-4 py-3 text-slate-700">
+                    <span className="inline-flex items-center gap-1">
+                      {lead.email}
+                      <CopyValue value={lead.email} hoverReveal />
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    <span className="inline-flex items-center gap-1">
+                      {lead.phone || "—"}
+                      <CopyValue value={lead.phone} hoverReveal />
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-slate-700">{lead.lead_source || "—"}</td>
                   <td className="px-4 py-3">
                     <StageBadge stage={lead.stage} />
