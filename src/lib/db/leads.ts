@@ -50,7 +50,10 @@ function asLead(row: unknown): LeadRow {
         ? null
         : Number(rawValue),
     booking_source: parseBookingSource((r as LeadRow).booking_source),
-    booking_history: parseBookingHistory((r as LeadRow).booking_history)
+    booking_history: parseBookingHistory((r as LeadRow).booking_history),
+    slack_form_notified: Boolean((r as LeadRow).slack_form_notified),
+    slack_booking_notified: Boolean((r as LeadRow).slack_booking_notified),
+    slack_no_booking_notified: Boolean((r as LeadRow).slack_no_booking_notified)
   };
 }
 
@@ -153,6 +156,9 @@ export async function insertLead(row: Partial<LeadRow> & { email: string }): Pro
     post_call_status_updated_at: row.post_call_status_updated_at ?? null,
     post_call_status_updated_by: row.post_call_status_updated_by ?? null,
     lifecycle_status: null,
+    slack_form_notified: row.slack_form_notified ?? false,
+    slack_booking_notified: row.slack_booking_notified ?? false,
+    slack_no_booking_notified: row.slack_no_booking_notified ?? false,
     updated_at: now
   };
   const withStage = stamp(base, {});
@@ -298,4 +304,31 @@ export async function listAllLeads(sources?: string[]): Promise<LeadRow[]> {
     offset += pageSize;
   }
   return all;
+}
+
+export async function listLeadsNeedingSlackNoBookingNudge(
+  delayMinutes: number
+): Promise<LeadRow[]> {
+  if (!supabaseAdmin) return [];
+  const db = requireDb();
+  const cutoff = new Date(Date.now() - delayMinutes * 60_000).toISOString();
+  const { data, error } = await db
+    .from("leads")
+    .select("*")
+    .eq("qualified", true)
+    .is("call_booked_at", null)
+    .eq("slack_no_booking_notified", false)
+    .not("form_filled_at", "is", null)
+    .lte("form_filled_at", cutoff);
+  if (error) throw error;
+  return (data ?? []).map(asLead);
+}
+
+export async function markSlackNoBookingNotified(id: string): Promise<void> {
+  const db = requireDb();
+  const { error } = await db
+    .from("leads")
+    .update({ slack_no_booking_notified: true })
+    .eq("id", id);
+  if (error) throw error;
 }

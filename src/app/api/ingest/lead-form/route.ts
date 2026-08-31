@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLeadByEmail, insertLead, updateLead } from "@/lib/db/leads";
 import type { LeadRow } from "@/lib/leads/types";
+import { notifySlackNewLead } from "@/lib/slack/messages";
 import { assertWebsiteIngestSecret } from "@/lib/utils/ingestAuth";
 
 export const runtime = "nodejs";
@@ -35,6 +36,12 @@ function optionalBool(v: unknown): boolean | null | undefined {
   if (v === null) return null;
   if (typeof v === "boolean") return v;
   return undefined;
+}
+
+async function maybeNotifyNewLead(existing: LeadRow | null, lead: LeadRow): Promise<LeadRow> {
+  if (existing?.slack_form_notified) return lead;
+  await notifySlackNewLead(lead);
+  return updateLead(lead, { slack_form_notified: true });
 }
 
 export async function POST(req: NextRequest) {
@@ -83,7 +90,7 @@ export async function POST(req: NextRequest) {
   try {
     const existing = await getLeadByEmail(email);
     if (!existing) {
-      const created = await insertLead({
+      let created = await insertLead({
         email,
         ...patch,
         form_filled_at: now,
@@ -91,13 +98,14 @@ export async function POST(req: NextRequest) {
         qualified_at: qualified === true || qualified === false ? now : null,
         qualified_by: qualified === true || qualified === false ? "form" : null
       });
+      created = await maybeNotifyNewLead(null, created);
       return NextResponse.json({ id: created.id, stage: created.stage, created: true });
     }
 
     const nextQualified =
       qualified === undefined ? existing.qualified : qualified;
 
-    const updated = await updateLead(existing, {
+    let updated = await updateLead(existing, {
       ...Object.fromEntries(
         Object.entries(patch).filter(([, v]) => v !== null)
       ),
@@ -109,6 +117,8 @@ export async function POST(req: NextRequest) {
           ? "form"
           : existing.qualified_by
     });
+
+    updated = await maybeNotifyNewLead(existing, updated);
 
     return NextResponse.json({ id: updated.id, stage: updated.stage, created: false });
   } catch (e) {

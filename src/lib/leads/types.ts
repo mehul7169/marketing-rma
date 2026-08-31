@@ -71,6 +71,9 @@ export type LeadRow = {
   post_call_status_updated_by: string | null;
   lifecycle_status: string | null;
   updated_at: string;
+  slack_form_notified: boolean;
+  slack_booking_notified: boolean;
+  slack_no_booking_notified: boolean;
 };
 
 export type LeadListFilters = {

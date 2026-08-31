@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLeadByEmail, insertLead, updateLead } from "@/lib/db/leads";
+import type { LeadRow } from "@/lib/leads/types";
+import { notifySlackCallBooked } from "@/lib/slack/messages";
 import { assertWebsiteIngestSecret } from "@/lib/utils/ingestAuth";
 
 export const runtime = "nodejs";
@@ -14,6 +16,16 @@ function str(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const t = v.trim();
   return t.length ? t : null;
+}
+
+async function maybeNotifyBooking(
+  hadBooking: boolean,
+  hadNotified: boolean,
+  lead: LeadRow
+): Promise<LeadRow> {
+  if (hadBooking || hadNotified) return lead;
+  await notifySlackCallBooked(lead);
+  return updateLead(lead, { slack_booking_notified: true });
 }
 
 export async function POST(req: NextRequest) {
@@ -46,7 +58,7 @@ export async function POST(req: NextRequest) {
   try {
     const existing = await getLeadByEmail(email);
     if (!existing) {
-      const created = await insertLead({
+      let created = await insertLead({
         email,
         call_booked_at: now,
         call_scheduled_for: callScheduledFor,
@@ -54,6 +66,7 @@ export async function POST(req: NextRequest) {
         booking_source: "cal_com",
         call_cancelled_at: null
       });
+      created = await maybeNotifyBooking(false, false, created);
       return NextResponse.json({
         id: created.id,
         stage: created.stage,
@@ -63,13 +76,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const updated = await updateLead(existing, {
+    const hadBooking = Boolean(existing.call_booked_at);
+    const hadNotified = existing.slack_booking_notified;
+
+    let updated = await updateLead(existing, {
       call_booked_at: existing.call_booked_at ?? now,
       call_scheduled_for: callScheduledFor,
       cal_com_booking_id: calComBookingId,
       booking_source: "cal_com",
       call_cancelled_at: null
     });
+
+    updated = await maybeNotifyBooking(hadBooking, hadNotified, updated);
 
     return NextResponse.json({
       id: updated.id,
