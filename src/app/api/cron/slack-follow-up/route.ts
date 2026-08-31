@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   listLeadsNeedingSlackNoBookingNudge,
-  markSlackNoBookingNotified
+  markSlackNoBookingNotified,
 } from "@/lib/db/leads";
 import { notifySlackNoBookingYet } from "@/lib/slack/messages";
 import { assertCronSecret } from "@/lib/utils/cronAuth";
@@ -9,8 +9,8 @@ import { assertCronSecret } from "@/lib/utils/cronAuth";
 export const runtime = "nodejs";
 
 /** Minutes after form fill before nudging BD about a qualified lead with no booking. */
-export const SLACK_FOLLOWUP_DELAY_MINUTES = Number(
-  process.env.SLACK_FOLLOWUP_DELAY_MINUTES ?? "5"
+const SLACK_FOLLOWUP_DELAY_MINUTES = Number(
+  process.env.SLACK_FOLLOWUP_DELAY_MINUTES ?? "5",
 );
 
 export async function GET(req: NextRequest) {
@@ -21,7 +21,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const leads = await listLeadsNeedingSlackNoBookingNudge(SLACK_FOLLOWUP_DELAY_MINUTES);
+    const leads = await listLeadsNeedingSlackNoBookingNudge(
+      SLACK_FOLLOWUP_DELAY_MINUTES,
+    );
     let notified = 0;
 
     for (const lead of leads) {
