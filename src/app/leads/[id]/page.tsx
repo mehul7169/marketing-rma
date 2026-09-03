@@ -111,6 +111,27 @@ export default async function LeadDetailPage({
             <Field label="Cal.com booking" value={lead.cal_com_booking_id} />
             <Field label="Cancelled" value={fmtWhen(lead.call_cancelled_at)} />
             <Field label="Deal value" value={formatCurrencyNullable(lead.deal_value)} />
+            <div>
+              <div className="text-xs text-slate-500">Recording link</div>
+              <div className="mt-0.5 text-sm text-slate-900">
+                {lead.recording_url ? (
+                  <a
+                    href={
+                      /^https?:\/\//i.test(lead.recording_url)
+                        ? lead.recording_url
+                        : `https://${lead.recording_url}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
+                  >
+                    {lead.recording_url}
+                  </a>
+                ) : (
+                  "—"
+                )}
+              </div>
+            </div>
             <Field label="GHL contact" value={lead.ghl_contact_id} />
             <Field label="Lifecycle" value={lead.lifecycle_status} />
             <Field label="Post-call status" value={lead.post_call_status ? stageLabel(lead.post_call_status) : null} />

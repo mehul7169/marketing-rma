@@ -84,6 +84,17 @@ export default function LeadsFilters({
         >
           Follow-ups Due
         </button>
+        <button
+          type="button"
+          className={`rounded border px-3 py-1.5 text-sm ${
+            lifecycle === "needs_verification"
+              ? "border-slate-900 bg-slate-900 text-white"
+              : "border-slate-200 text-slate-700"
+          }`}
+          onClick={() => push({ lifecycle: "needs_verification" })}
+        >
+          Needs Verification Call
+        </button>
       </div>
 
       <div className="flex flex-wrap gap-2">

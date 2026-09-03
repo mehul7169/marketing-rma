@@ -105,3 +105,29 @@ export function formatDueFriendly(date: Date | string | null | undefined): strin
   if (dayDiff < -1 && dayDiff >= -6) return `${format(zoned, "EEE d MMM")}, ${time}`;
   return format(zoned, "d MMM yyyy, h:mm a");
 }
+
+/** Past instant for attempt history: "today at 3:00 PM" / "2 days ago" / full IST. */
+export function formatLastTriedFriendly(date: Date | string | null | undefined): string {
+  if (!date) return "—";
+  const d = asDate(date);
+  if (Number.isNaN(d.getTime())) return "—";
+
+  const zoned = toZonedTime(d, IST_TIMEZONE);
+  const today = toZonedTime(nowInIST(), IST_TIMEZONE);
+  const zonedDay = new Date(zoned.getFullYear(), zoned.getMonth(), zoned.getDate());
+  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dayDiff = differenceInCalendarDays(zonedDay, todayDay);
+  const time = format(zoned, "h:mm a");
+
+  if (dayDiff === 0) return `today at ${time}`;
+  if (dayDiff === -1) return `yesterday at ${time}`;
+  if (dayDiff < -1 && dayDiff >= -6) return `${Math.abs(dayDiff)} days ago`;
+  return format(zoned, "d MMM yyyy, h:mm a");
+}
+
+/** Tomorrow at the current IST clock time, for datetime-local defaults. */
+export function tomorrowSameTimeLocalIST(from: Date | string = nowInIST()): string {
+  const zoned = toZonedTime(asDate(from), IST_TIMEZONE);
+  zoned.setDate(zoned.getDate() + 1);
+  return format(zoned, "yyyy-MM-dd'T'HH:mm");
+}

@@ -19,6 +19,12 @@ export type LeadReminder = {
   resolved_at: string | null;
 };
 
+export type VerificationCallStatus =
+  | "not_contacted"
+  | "no_answer"
+  | "follow_up_needed"
+  | "reached";
+
 export type LeadRow = {
   id: string;
   email: string;
@@ -51,6 +57,9 @@ export type LeadRow = {
   setter_verified: boolean | null;
   setter_verified_at: string | null;
   setter_verified_by: string | null;
+  verification_call_status: VerificationCallStatus;
+  verification_call_attempts: number;
+  last_verification_call_at: string | null;
   reminder_sent: boolean | null;
   reminder_sent_at: string | null;
   call_showed: boolean | null;
@@ -61,6 +70,7 @@ export type LeadRow = {
   closed_at: string | null;
   closed_by: string | null;
   notes: string | null;
+  recording_url: string | null;
   stage: string | null;
   requalification_attempted: boolean | null;
   requalification_called_at: string | null;
@@ -88,5 +98,7 @@ export type LeadListFilters = {
   search?: string;
   lifecycle?: string;
   needsRequal?: boolean;
+  /** Booked, setter_verified unset, verification not yet reached. */
+  needsVerificationCall?: boolean;
   followUpsDue?: boolean;
 };

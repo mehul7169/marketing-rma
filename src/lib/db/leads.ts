@@ -48,12 +48,30 @@ function parseBookingSource(raw: unknown): BookingSource | null {
 function asLead(row: unknown): LeadRow {
   const r = row as LeadRow;
   const rawValue = r.deal_value as unknown;
+  const attemptsRaw = (r as LeadRow).verification_call_attempts as unknown;
+  const attempts =
+    typeof attemptsRaw === "number"
+      ? attemptsRaw
+      : attemptsRaw === null || attemptsRaw === undefined || attemptsRaw === ""
+        ? 0
+        : Number(attemptsRaw);
+  const statusRaw = (r as LeadRow).verification_call_status;
+  const status: LeadRow["verification_call_status"] =
+    statusRaw === "no_answer" ||
+    statusRaw === "follow_up_needed" ||
+    statusRaw === "reached" ||
+    statusRaw === "not_contacted"
+      ? statusRaw
+      : "not_contacted";
   return {
     ...r,
     deal_value:
       rawValue === null || rawValue === undefined || rawValue === ""
         ? null
         : Number(rawValue),
+    verification_call_status: status,
+    verification_call_attempts: Number.isFinite(attempts) ? attempts : 0,
+    last_verification_call_at: (r as LeadRow).last_verification_call_at ?? null,
     booking_source: parseBookingSource((r as LeadRow).booking_source),
     booking_history: parseBookingHistory((r as LeadRow).booking_history),
     slack_form_notified: Boolean((r as LeadRow).slack_form_notified),
@@ -142,6 +160,9 @@ export async function insertLead(row: Partial<LeadRow> & { email: string }): Pro
     setter_verified: row.setter_verified ?? null,
     setter_verified_at: row.setter_verified_at ?? null,
     setter_verified_by: row.setter_verified_by ?? null,
+    verification_call_status: row.verification_call_status ?? "not_contacted",
+    verification_call_attempts: row.verification_call_attempts ?? 0,
+    last_verification_call_at: row.last_verification_call_at ?? null,
     reminder_sent: row.reminder_sent ?? false,
     reminder_sent_at: row.reminder_sent_at ?? null,
     call_showed: row.call_showed ?? null,
@@ -152,6 +173,7 @@ export async function insertLead(row: Partial<LeadRow> & { email: string }): Pro
     closed_at: row.closed_at ?? null,
     closed_by: row.closed_by ?? null,
     notes: row.notes ?? null,
+    recording_url: row.recording_url ?? null,
     stage: null,
     requalification_attempted: row.requalification_attempted ?? false,
     requalification_called_at: row.requalification_called_at ?? null,
@@ -248,13 +270,27 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   const eventStage = cohortStage ? null : parseUrlEvent(filters.event);
   const dateField = eventStage ? funnelEventField(eventStage) : "created_at";
 
-  let query = db.from("leads").select("*").order(dateField, { ascending: false });
+  let query = db.from("leads").select("*");
+
+  if (filters.needsVerificationCall) {
+    // Operational queue — not clipped by the page date range.
+    // Never-contacted (null last_verification_call_at) first, then oldest tries.
+    query = query
+      .not("call_booked_at", "is", null)
+      .is("setter_verified", null)
+      .or(
+        "verification_call_status.is.null,verification_call_status.eq.not_contacted,verification_call_status.eq.no_answer,verification_call_status.eq.follow_up_needed"
+      )
+      .order("last_verification_call_at", { ascending: true, nullsFirst: true });
+  } else {
+    query = query.order(dateField, { ascending: false });
+  }
 
   if (filters.followUpsDue) {
     const dueIds = await listLeadIdsWithDueFollowUps();
     if (dueIds.length === 0) return [];
     query = query.in("id", dueIds);
-  } else {
+  } else if (!filters.needsVerificationCall) {
     if (filters.fromISO) query = query.gte(dateField, istDayStartUtcIso(filters.fromISO));
     if (filters.toISO) query = query.lte(dateField, istDayEndUtcIso(filters.toISO));
     if (eventStage && dateField !== "created_at") {
@@ -285,7 +321,11 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
     query = query
       .eq("qualified", false)
       .or("requalification_attempted.eq.false,requalification_attempted.is.null");
-  } else if (filters.lifecycle && filters.lifecycle !== "all") {
+  } else if (
+    !filters.needsVerificationCall &&
+    filters.lifecycle &&
+    filters.lifecycle !== "all"
+  ) {
     if (filters.lifecycle === "active") {
       query = query.or("lifecycle_status.eq.active,lifecycle_status.is.null");
     } else {
@@ -305,6 +345,17 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
     rows = rows.filter((lead) =>
       leadMatchesFunnelStage(lead, "booked", filters.fromISO!, filters.toISO!)
     );
+  }
+
+  if (filters.needsVerificationCall) {
+    rows = [...rows].sort((a, b) => {
+      const aAt = a.last_verification_call_at;
+      const bAt = b.last_verification_call_at;
+      if (!aAt && !bAt) return 0;
+      if (!aAt) return -1;
+      if (!bAt) return 1;
+      return aAt < bAt ? -1 : aAt > bAt ? 1 : 0;
+    });
   }
 
   return rows;

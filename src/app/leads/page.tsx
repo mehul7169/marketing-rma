@@ -3,6 +3,7 @@ import DateRangePicker from "@/components/DateRangePicker";
 import DueFollowUpBadge from "@/components/leads/DueFollowUpBadge";
 import LeadRow from "@/components/leads/LeadRow";
 import LeadsFilters from "@/components/leads/LeadsFilters";
+import RecordingLinkBadge from "@/components/leads/RecordingLinkBadge";
 import StageBadge from "@/components/leads/StageBadge";
 import { listDueFollowUps } from "@/lib/db/lead_reminders";
 import { listDistinctLeadSources, listLeads } from "@/lib/db/leads";
@@ -62,6 +63,8 @@ export default async function LeadsPage({
   const lifecycle =
     searchParams.lifecycle ?? (deepLinkStage ? "all" : "active");
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
+  const needsVerificationCall = lifecycle === "needs_verification";
+  const followUpsDue = lifecycle === "follow_ups_due";
 
   const [rows, allSources] = await Promise.all([
     listLeads({
@@ -73,10 +76,9 @@ export default async function LeadsPage({
       sources,
       search,
       lifecycle:
-        lifecycle === "follow_ups_due"
-          ? undefined
-          : lifecycle,
-      followUpsDue: lifecycle === "follow_ups_due"
+        followUpsDue || needsVerificationCall ? undefined : lifecycle,
+      followUpsDue,
+      needsVerificationCall
     }),
     listDistinctLeadSources()
   ]);
@@ -97,7 +99,9 @@ export default async function LeadsPage({
           <p className="mt-1 text-sm text-slate-600">
             {lifecycle === "follow_ups_due"
               ? `${rows.length} with follow-ups due today or overdue`
-              : `${rows.length} in ${fromISO} to ${toISO}`}
+              : lifecycle === "needs_verification"
+                ? `${rows.length} needing a verification call`
+                : `${rows.length} in ${fromISO} to ${toISO}`}
           </p>
         </div>
         <DateRangePicker
@@ -162,6 +166,7 @@ export default async function LeadsPage({
                   <td className="px-4 py-3 font-medium text-slate-900">
                     {lead.name || "—"}
                     <DueFollowUpBadge reminders={dueByLead.get(lead.id) ?? []} />
+                    <RecordingLinkBadge url={lead.recording_url} />
                   </td>
                   <td className="px-4 py-3 text-slate-700">
                     <span className="inline-flex items-center gap-1">

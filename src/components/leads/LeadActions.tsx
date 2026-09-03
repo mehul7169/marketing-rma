@@ -2,15 +2,25 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import type { BookingHistoryEntry, LeadRow } from "@/lib/leads/types";
-import { saveLeadActions, saveLeadSchedule } from "@/app/leads/actions";
+import type { BookingHistoryEntry, LeadRow, VerificationCallStatus } from "@/lib/leads/types";
+import {
+  addLeadFollowUp,
+  logVerificationCallAttempt,
+  saveLeadActions,
+  saveLeadSchedule
+} from "@/app/leads/actions";
 import { formatCurrencyNullable } from "@/lib/format";
 import {
   POST_CALL_STATUSES,
   type PostCallStatus
 } from "@/lib/leads/computeStage";
 import { stageLabel } from "@/components/leads/StageBadge";
-import { formatISTDateTime, toDatetimeLocalIST } from "@/lib/timezone";
+import {
+  formatISTDateTime,
+  formatLastTriedFriendly,
+  toDatetimeLocalIST,
+  tomorrowSameTimeLocalIST
+} from "@/lib/timezone";
 
 function TriToggle({
   label,
@@ -110,6 +120,180 @@ function ActionSection({
         {title}
       </h3>
       <div className="mt-3 space-y-5">{children}</div>
+    </div>
+  );
+}
+
+function ordinal(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
+function verificationStatusLabel(status: VerificationCallStatus): string {
+  switch (status) {
+    case "no_answer":
+      return "No answer";
+    case "follow_up_needed":
+      return "Follow-up needed";
+    case "reached":
+      return "Reached";
+    default:
+      return "Not contacted";
+  }
+}
+
+function VerificationCallBlock({
+  lead,
+  saving,
+  onError,
+  onSaving
+}: {
+  lead: LeadRow;
+  saving: boolean;
+  onError: (msg: string | null) => void;
+  onSaving: (v: boolean) => void;
+}) {
+  const router = useRouter();
+  const done = lead.setter_verified === true || lead.setter_verified === false;
+  const [showReminderPrompt, setShowReminderPrompt] = useState(false);
+  const [due, setDue] = useState(tomorrowSameTimeLocalIST());
+
+  async function logAttempt(status: "no_answer" | "follow_up_needed" | "reached") {
+    onError(null);
+    onSaving(true);
+    try {
+      await logVerificationCallAttempt(lead.id, status);
+      router.refresh();
+      if (status === "follow_up_needed") {
+        setDue(tomorrowSameTimeLocalIST());
+        setShowReminderPrompt(true);
+      } else {
+        setShowReminderPrompt(false);
+      }
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      onSaving(false);
+    }
+  }
+
+  async function saveReminder() {
+    onError(null);
+    onSaving(true);
+    try {
+      await addLeadFollowUp(
+        lead.id,
+        "Verification call follow-up",
+        due || null
+      );
+      setShowReminderPrompt(false);
+      router.refresh();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      onSaving(false);
+    }
+  }
+
+  const attempts = lead.verification_call_attempts ?? 0;
+  const historyLine =
+    attempts > 0
+      ? `${ordinal(attempts)} attempt — last tried ${formatLastTriedFriendly(lead.last_verification_call_at)}`
+      : null;
+
+  const btnClass = (active: boolean) =>
+    `rounded border px-3 py-1.5 text-sm ${
+      active
+        ? "border-slate-900 bg-slate-900 text-white"
+        : "border-slate-200 text-slate-700"
+    } ${done ? "cursor-default opacity-70" : ""}`;
+
+  return (
+    <div className={done ? "opacity-55" : undefined}>
+      <div className="space-y-1.5">
+        <div className="text-xs text-slate-600">Verification call</div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={saving || done}
+            className={btnClass(lead.verification_call_status === "no_answer")}
+            onClick={() => logAttempt("no_answer")}
+          >
+            No Answer
+          </button>
+          <button
+            type="button"
+            disabled={saving || done}
+            className={btnClass(lead.verification_call_status === "follow_up_needed")}
+            onClick={() => logAttempt("follow_up_needed")}
+          >
+            Follow-up Needed
+          </button>
+          <button
+            type="button"
+            disabled={saving || done}
+            className={btnClass(lead.verification_call_status === "reached")}
+            onClick={() => logAttempt("reached")}
+          >
+            Reached
+          </button>
+        </div>
+        {attempts > 0 ? (
+          <p className="text-xs text-slate-500">
+            {verificationStatusLabel(lead.verification_call_status)} · {historyLine}
+          </p>
+        ) : null}
+        {done ? (
+          <p className="text-xs text-slate-500">
+            Setter outcome recorded — attempt history kept for reference.
+          </p>
+        ) : null}
+      </div>
+
+      {showReminderPrompt && !done ? (
+        <div className="mt-3 space-y-2 rounded border border-slate-200 bg-slate-50 px-3 py-3">
+          <p className="text-xs text-slate-600">
+            Set a follow-up reminder (defaults to tomorrow, same time).
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="text-xs text-slate-600">
+              Due (IST)
+              <input
+                type="datetime-local"
+                value={due}
+                onChange={(e) => setDue(e.target.value)}
+                className="mt-1 block rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={saving || !due}
+              onClick={saveReminder}
+              className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+            >
+              {saving ? "Saving…" : "Save reminder"}
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => setShowReminderPrompt(false)}
+              className="text-xs text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+            >
+              Skip
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -225,6 +409,8 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState(lead.notes ?? "");
+  const [recordingUrl, setRecordingUrl] = useState(lead.recording_url ?? "");
+  const [editingRecording, setEditingRecording] = useState(!lead.recording_url);
   const [dealValue, setDealValue] = useState(
     lead.deal_value !== null && lead.deal_value !== undefined
       ? String(lead.deal_value)
@@ -246,8 +432,22 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
     }
   }
 
+  async function saveRecording() {
+    const trimmed = recordingUrl.trim();
+    await patch({ recording_url: trimmed.length > 0 ? trimmed : null });
+    setRecordingUrl(trimmed);
+    setEditingRecording(trimmed.length === 0);
+  }
+
   const showPostCall = lead.call_showed === true && lead.deal_closed !== true;
+  const showRecording = lead.call_showed === true;
   const afterCallReady = lead.call_showed !== null;
+  const savedRecording = lead.recording_url?.trim() || null;
+  const recordingHref = savedRecording
+    ? /^https?:\/\//i.test(savedRecording)
+      ? savedRecording
+      : `https://${savedRecording}`
+    : null;
 
   return (
     <div className="space-y-8">
@@ -260,6 +460,14 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
           unset="Not yet decided"
           onChange={(qualified) => patch({ qualified })}
         />
+        {lead.call_booked_at ? (
+          <VerificationCallBlock
+            lead={lead}
+            saving={saving}
+            onError={setError}
+            onSaving={setSaving}
+          />
+        ) : null}
         <BoolToggle
           label="Setter verified"
           value={lead.setter_verified}
@@ -312,6 +520,66 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
               ))}
             </select>
           </label>
+        ) : null}
+        {showRecording ? (
+          <div className="space-y-1.5">
+            <div className="text-xs text-slate-600">Recording link</div>
+            {savedRecording && !editingRecording && recordingHref ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <a
+                  href={recordingHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="max-w-full truncate text-sm text-slate-900 underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
+                >
+                  {savedRecording}
+                </a>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    setRecordingUrl(savedRecording);
+                    setEditingRecording(true);
+                  }}
+                  className="text-xs text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+                >
+                  Edit
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-end gap-2">
+                <input
+                  type="text"
+                  inputMode="url"
+                  placeholder="https://…"
+                  value={recordingUrl}
+                  onChange={(e) => setRecordingUrl(e.target.value)}
+                  className="min-w-[16rem] flex-1 rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+                />
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={saveRecording}
+                  className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {saving ? "Saving…" : "Save"}
+                </button>
+                {savedRecording ? (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setRecordingUrl(savedRecording);
+                      setEditingRecording(false);
+                    }}
+                    className="text-xs text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </div>
         ) : null}
         <TriToggle
           label="Deal"
