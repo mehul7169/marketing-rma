@@ -31,7 +31,7 @@ export default function MetaSummaryCards({
 
   return (
     <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <div className="rounded border border-slate-200 p-5">
+      <div className="stat-card">
         <div className="text-xs text-slate-600">Total Spend</div>
         <div className="mt-2 text-xl font-semibold text-slate-900">
           {formatCurrency(totals.totalSpend)}
@@ -48,7 +48,7 @@ export default function MetaSummaryCards({
           }
         />
       </div>
-      <div className="rounded border border-slate-200 p-5">
+      <div className="stat-card">
         <div className="text-xs text-slate-600">Total Leads</div>
         <div className="mt-2 text-xl font-semibold text-slate-900">
           {formatInteger(totals.totalLeads)}
@@ -65,7 +65,7 @@ export default function MetaSummaryCards({
           }
         />
       </div>
-      <div className="rounded border border-slate-200 p-5">
+      <div className="stat-card">
         <div className="text-xs text-slate-600">Blended Cost / Lead</div>
         <div className="mt-2 text-xl font-semibold text-slate-900">
           {formatCurrencyNullable(totals.blendedCostPerLead)}
@@ -84,7 +84,7 @@ export default function MetaSummaryCards({
           }
         />
       </div>
-      <div className="rounded border border-slate-200 p-5">
+      <div className="stat-card">
         <div className="text-xs text-slate-600">Average CTR%</div>
         <div className="mt-2 text-xl font-semibold text-slate-900">
           {formatPercent(totals.averageCtrPercent)}

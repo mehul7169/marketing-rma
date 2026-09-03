@@ -18,7 +18,7 @@ function Card({
       : `${Math.round(stat.rate).toLocaleString("en-IN")}%`;
 
   return (
-    <div className="rounded border border-slate-200 p-5">
+    <div className="stat-card">
       <div className="flex items-center gap-1.5 text-xs text-slate-600">
         <span>{label}</span>
         <InfoTip text={tip} />

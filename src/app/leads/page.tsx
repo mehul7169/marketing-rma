@@ -95,7 +95,7 @@ export default async function LeadsPage({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">Leads</h1>
+          <h1 className="page-title">Leads</h1>
           <p className="mt-1 text-sm text-slate-600">
             {lifecycle === "follow_ups_due"
               ? `${rows.length} with follow-ups due today or overdue`

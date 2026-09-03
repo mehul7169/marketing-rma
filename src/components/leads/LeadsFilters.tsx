@@ -65,7 +65,7 @@ export default function LeadsFilters({
             type="button"
             className={`rounded border px-3 py-1.5 text-sm ${
               lifecycle === tab.id
-                ? "border-slate-900 bg-slate-900 text-white"
+                ? "ui-active"
                 : "border-slate-200 text-slate-700"
             }`}
             onClick={() => push({ lifecycle: tab.id })}
@@ -88,7 +88,7 @@ export default function LeadsFilters({
           type="button"
           className={`rounded border px-3 py-1.5 text-sm ${
             lifecycle === "needs_verification"
-              ? "border-slate-900 bg-slate-900 text-white"
+              ? "ui-active"
               : "border-slate-200 text-slate-700"
           }`}
           onClick={() => push({ lifecycle: "needs_verification" })}
@@ -100,21 +100,21 @@ export default function LeadsFilters({
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          className={`rounded border px-3 py-1.5 text-sm ${sourceKey === "" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
+          className={`rounded border px-3 py-1.5 text-sm ${sourceKey === "" ? "ui-active" : "border-slate-200 text-slate-700"}`}
           onClick={() => push({ sources: [] })}
         >
           All sources
         </button>
         <button
           type="button"
-          className={`rounded border px-3 py-1.5 text-sm ${sourceKey === "meta" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
+          className={`rounded border px-3 py-1.5 text-sm ${sourceKey === "meta" ? "ui-active" : "border-slate-200 text-slate-700"}`}
           onClick={() => push({ sources: ["meta"] })}
         >
           Meta Ads
         </button>
         <button
           type="button"
-          className={`rounded border px-3 py-1.5 text-sm ${sourceKey === "youtube" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
+          className={`rounded border px-3 py-1.5 text-sm ${sourceKey === "youtube" ? "ui-active" : "border-slate-200 text-slate-700"}`}
           onClick={() => push({ sources: ["youtube"] })}
         >
           YouTube

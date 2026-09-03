@@ -84,7 +84,7 @@ export default async function MetaAdsPage({
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">
+          <h1 className="page-title">
             Meta Ads Performance
           </h1>
           <p className="mt-1 text-sm text-slate-600">

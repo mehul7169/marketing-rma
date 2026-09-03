@@ -65,7 +65,7 @@ export default function DateRangePicker({
       <div className="flex flex-col">
         <button
           type="submit"
-          className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          className="btn-brand"
         >
           Update
         </button>

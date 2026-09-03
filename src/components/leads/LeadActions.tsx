@@ -45,7 +45,7 @@ function TriToggle({
       onClick={() => onChange(v)}
       className={`rounded border px-3 py-1.5 text-sm ${
         value === v
-          ? "border-slate-900 bg-slate-900 text-white"
+          ? "ui-active"
           : "border-slate-200 text-slate-700"
       }`}
     >
@@ -88,14 +88,14 @@ function BoolToggle({
         <button
           type="button"
           onClick={() => onChange(true)}
-          className={`rounded border px-3 py-1.5 text-sm ${value === true ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
+          className={`rounded border px-3 py-1.5 text-sm ${value === true ? "ui-active" : "border-slate-200 text-slate-700"}`}
         >
           {onLabel}
         </button>
         <button
           type="button"
           onClick={() => onChange(false)}
-          className={`rounded border px-3 py-1.5 text-sm ${value === false ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
+          className={`rounded border px-3 py-1.5 text-sm ${value === false ? "ui-active" : "border-slate-200 text-slate-700"}`}
         >
           {offLabel}
         </button>
@@ -116,7 +116,7 @@ function ActionSection({
 }) {
   return (
     <div className={muted ? "opacity-55" : undefined}>
-      <h3 className="text-xs font-medium uppercase tracking-wide text-slate-500">
+      <h3 className="section-label">
         {title}
       </h3>
       <div className="mt-3 space-y-5">{children}</div>
@@ -214,7 +214,7 @@ function VerificationCallBlock({
   const btnClass = (active: boolean) =>
     `rounded border px-3 py-1.5 text-sm ${
       active
-        ? "border-slate-900 bg-slate-900 text-white"
+        ? "ui-active"
         : "border-slate-200 text-slate-700"
     } ${done ? "cursor-default opacity-70" : ""}`;
 
@@ -279,7 +279,7 @@ function VerificationCallBlock({
               type="button"
               disabled={saving || !due}
               onClick={saveReminder}
-              className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+              className="btn-brand disabled:opacity-60"
             >
               {saving ? "Saving…" : "Save reminder"}
             </button>
@@ -363,7 +363,7 @@ function ScheduleCall({
           type="button"
           disabled={saving || !when}
           onClick={save}
-          className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+          className="btn-brand disabled:opacity-60"
         >
           {saving ? "Saving…" : "Save"}
         </button>
@@ -560,7 +560,7 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
                   type="button"
                   disabled={saving}
                   onClick={saveRecording}
-                  className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                  className="btn-brand disabled:opacity-60"
                 >
                   {saving ? "Saving…" : "Save"}
                 </button>
@@ -636,7 +636,7 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
         type="button"
         disabled={saving}
         onClick={() => patch({ notes })}
-        className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+        className="btn-brand disabled:opacity-60"
       >
         {saving ? "Saving…" : "Save notes"}
       </button>

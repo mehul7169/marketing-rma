@@ -2,7 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Minimal internal-tool feel */
+:root {
+  --brand-navy-900: #0b1220;
+  --brand-navy-700: #1e293b;
+  --brand-accent-600: #2563eb;
+  --brand-accent-500: #3b82f6;
+  --brand-gradient: linear-gradient(
+    135deg,
+    var(--brand-navy-900) 0%,
+    var(--brand-accent-600) 100%
+  );
+}
+
 html,
 body {
   height: 100%;
@@ -10,6 +21,63 @@ body {
 
 body {
   background: #ffffff;
-  color: #111827; /* slate-900-ish */
+  color: #111827;
 }
 
+@layer components {
+  .btn-brand {
+    @apply rounded px-4 py-2 text-sm font-medium text-white disabled:opacity-60;
+    background-image: var(--brand-gradient);
+    background-color: var(--brand-navy-900);
+  }
+
+  .btn-brand:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  .ui-active {
+    @apply border text-white;
+    border-color: var(--brand-navy-900);
+    background-image: var(--brand-gradient);
+    background-color: var(--brand-navy-900);
+  }
+
+  .page-title {
+    @apply text-lg font-semibold;
+    background-image: var(--brand-gradient);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+
+  .stat-card {
+    @apply relative overflow-hidden rounded border border-slate-200 bg-white p-5;
+  }
+
+  .stat-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2.5px;
+    background-image: var(--brand-gradient);
+  }
+
+  .section-label {
+    @apply text-xs font-medium uppercase text-slate-500;
+    letter-spacing: 0.08em;
+  }
+
+  .nav-brand-bar {
+    position: relative;
+  }
+
+  .nav-brand-bar::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background-image: var(--brand-gradient);
+  }
+}

@@ -54,7 +54,7 @@ export default async function InsightsPage({
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">Insights</h1>
+          <h1 className="page-title">Insights</h1>
           <p className="mt-1 text-sm text-slate-600">
             {fromISO} to {toISO}
           </p>

@@ -125,7 +125,7 @@ export default async function HomePage({
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">Funnel overview</h1>
+          <h1 className="page-title">Funnel overview</h1>
           <p className="mt-1 text-sm text-slate-600">
             {fromISO} to {toISO}
           </p>
@@ -142,7 +142,7 @@ export default async function HomePage({
       <div className="flex flex-wrap gap-2">
         <a
           href={`/?from=${fromISO}&to=${toISO}`}
-          className={`rounded border px-3 py-1.5 text-sm ${!source ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
+          className={`rounded border px-3 py-1.5 text-sm ${!source ? "ui-active" : "border-slate-200 text-slate-700"}`}
         >
           All sources
         </a>
@@ -150,7 +150,7 @@ export default async function HomePage({
           <a
             key={s}
             href={`/?from=${fromISO}&to=${toISO}&source=${encodeURIComponent(s)}`}
-            className={`rounded border px-3 py-1.5 text-sm ${source === s ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700"}`}
+            className={`rounded border px-3 py-1.5 text-sm ${source === s ? "ui-active" : "border-slate-200 text-slate-700"}`}
           >
             {s}
           </a>
@@ -176,29 +176,29 @@ export default async function HomePage({
       </p>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="rounded border border-slate-200 p-5">
+        <div className="stat-card">
           <div className="text-xs text-slate-600">Total Leads</div>
           <div className="mt-2 text-xl font-semibold">{formatInteger(f.total)}</div>
         </div>
-        <div className="rounded border border-slate-200 p-5">
+        <div className="stat-card">
           <div className="text-xs text-slate-600">Qualified Rate</div>
           <div className="mt-2 text-xl font-semibold">
             {formatPercent(rate(f.qualified, f.formFilled || f.total))}
           </div>
         </div>
-        <div className="rounded border border-slate-200 p-5">
+        <div className="stat-card">
           <div className="text-xs text-slate-600">Show-up Rate</div>
           <div className="mt-2 text-xl font-semibold">
             {formatPercent(rate(f.showed, f.booked))}
           </div>
         </div>
-        <div className="rounded border border-slate-200 p-5">
+        <div className="stat-card">
           <div className="text-xs text-slate-600">Closing Rate</div>
           <div className="mt-2 text-xl font-semibold">
             {formatPercent(rate(f.closed, f.showed))}
           </div>
         </div>
-        <div className="rounded border border-slate-200 p-5">
+        <div className="stat-card">
           <div className="text-xs text-slate-600">Total Revenue</div>
           <div className="mt-2 text-xl font-semibold">{formatCurrency(f.revenue)}</div>
         </div>

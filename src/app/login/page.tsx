@@ -43,7 +43,7 @@ export default function LoginPage() {
         onSubmit={onSubmit}
         className="w-full max-w-sm space-y-4 rounded border border-slate-200 p-6"
       >
-        <h1 className="text-lg font-semibold text-slate-900">Log in</h1>
+        <h1 className="page-title">Log in</h1>
         <p className="text-sm text-slate-600">
           Internal dashboard — sign in to continue.
         </p>
@@ -83,7 +83,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+          className="btn-brand w-full disabled:opacity-60"
         >
           {submitting ? "Signing in…" : "Sign in"}
         </button>

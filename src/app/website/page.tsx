@@ -64,7 +64,7 @@ export default async function WebsitePage({
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">
+          <h1 className="page-title">
             Website & Video Analytics
           </h1>
           <p className="mt-1 text-sm text-slate-600">
@@ -96,25 +96,25 @@ export default async function WebsitePage({
       ) : (
         <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded border border-slate-200 p-5">
+            <div className="stat-card">
               <div className="text-xs text-slate-600">Landing Page Visits</div>
               <div className="mt-2 text-xl font-semibold text-slate-900">
                 {formatInteger(totals.totalLandingPageVisits)}
               </div>
             </div>
-            <div className="rounded border border-slate-200 p-5">
+            <div className="stat-card">
               <div className="text-xs text-slate-600">Video Plays</div>
               <div className="mt-2 text-xl font-semibold text-slate-900">
                 {formatInteger(totals.totalVideoPlays)}
               </div>
             </div>
-            <div className="rounded border border-slate-200 p-5">
+            <div className="stat-card">
               <div className="text-xs text-slate-600">Average Watch %</div>
               <div className="mt-2 text-xl font-semibold text-slate-900">
                 {formatPercentNullable(totals.averageWatchPercent)}
               </div>
             </div>
-            <div className="rounded border border-slate-200 p-5">
+            <div className="stat-card">
               <div className="text-xs text-slate-600">Form Completion Rate</div>
               <div className="mt-2 text-xl font-semibold text-slate-900">
                 {formatPercentNullable(totals.formCompletionRatePercent)}
