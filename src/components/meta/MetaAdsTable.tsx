@@ -14,6 +14,8 @@ import {
   formatInteger,
   formatPercent
 } from "@/lib/format";
+import InfoTip from "@/components/InfoTip";
+import { INSIGHTS_TOOLTIPS } from "@/lib/insights/tooltips";
 
 export type ColumnPreset = "standard" | "rma";
 
@@ -36,7 +38,12 @@ type SortKey =
   | "unique_outbound_ctr"
   | "cost_per_unique_outbound_click"
   | "appointments_scheduled"
-  | "cost_per_appointment_scheduled";
+  | "cost_per_appointment_scheduled"
+  | "formFilled"
+  | "booked"
+  | "showed"
+  | "dealsClosed"
+  | "dealValue";
 
 type ColumnDef = {
   key: SortKey | "actions";
@@ -44,7 +51,16 @@ type ColumnDef = {
   sortable: boolean;
 };
 
+const FUNNEL_COLUMNS: ColumnDef[] = [
+  { key: "formFilled", label: "Form Filled", sortable: true },
+  { key: "booked", label: "Booked", sortable: true },
+  { key: "showed", label: "Showed", sortable: true },
+  { key: "dealsClosed", label: "Deals Closed", sortable: true },
+  { key: "dealValue", label: "Deal Value", sortable: true }
+];
+
 const STANDARD_COLUMNS: ColumnDef[] = [
+  ...FUNNEL_COLUMNS,
   { key: "spend", label: "Adspend", sortable: true },
   { key: "impressions", label: "Impr", sortable: true },
   { key: "reach", label: "Reach", sortable: true },
@@ -58,6 +74,7 @@ const STANDARD_COLUMNS: ColumnDef[] = [
 ];
 
 const RMA_COLUMNS: ColumnDef[] = [
+  ...FUNNEL_COLUMNS,
   { key: "results", label: "Results", sortable: true },
   { key: "cost_per_result", label: "Cost / Result", sortable: true },
   { key: "actions", label: "Actions", sortable: false },
@@ -162,6 +179,11 @@ function computeTotals(campaigns: MetaCampaignNode[]): MetaAdsMetrics | null {
     (s, r) => s + r.appointments_scheduled,
     0
   );
+  const formFilled = campaigns.reduce((s, r) => s + r.formFilled, 0);
+  const booked = campaigns.reduce((s, r) => s + r.booked, 0);
+  const showed = campaigns.reduce((s, r) => s + r.showed, 0);
+  const dealsClosed = campaigns.reduce((s, r) => s + r.dealsClosed, 0);
+  const dealValue = campaigns.reduce((s, r) => s + r.dealValue, 0);
   const actions = mergeActionMaps(campaigns.map((c) => c.actions));
 
   return {
@@ -174,6 +196,11 @@ function computeTotals(campaigns: MetaCampaignNode[]): MetaAdsMetrics | null {
     unique_outbound_clicks,
     appointments_scheduled,
     actions,
+    formFilled,
+    booked,
+    showed,
+    dealsClosed,
+    dealValue,
     blended_cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
     ctr_percent: impressions > 0 ? (clicks / impressions) * 100 : 0,
     cpc: clicks > 0 ? spend / clicks : 0,
@@ -197,6 +224,7 @@ function formatCell(key: SortKey | "actions", m: MetaAdsMetrics): ReactNode {
     case "spend":
     case "blended_cpm":
     case "cpc":
+    case "dealValue":
       return formatCurrency(m[key]);
     case "cost_per_lead":
     case "cost_per_result":
@@ -214,6 +242,10 @@ function formatCell(key: SortKey | "actions", m: MetaAdsMetrics): ReactNode {
     case "results":
     case "unique_outbound_clicks":
     case "appointments_scheduled":
+    case "formFilled":
+    case "booked":
+    case "showed":
+    case "dealsClosed":
       return formatInteger(m[key]);
     default:
       return "—";
@@ -306,7 +338,13 @@ function readStoredPreset(): ColumnPreset {
   return "standard";
 }
 
-export default function MetaAdsTable({ rows }: { rows: MetaCampaignNode[] }) {
+export default function MetaAdsTable({
+  rows,
+  unmatchedLeadCount = 0
+}: {
+  rows: MetaCampaignNode[];
+  unmatchedLeadCount?: number;
+}) {
   const [preset, setPreset] = useState<ColumnPreset>("standard");
   const [hydrated, setHydrated] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("spend");
@@ -406,8 +444,16 @@ export default function MetaAdsTable({ rows }: { rows: MetaCampaignNode[] }) {
         </label>
       </div>
 
+      <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+        <span>Unmatched leads: {formatInteger(unmatchedLeadCount)}</span>
+        <InfoTip text={INSIGHTS_TOOLTIPS.creativeUnmatched} />
+        <span className="text-slate-400">
+          (utm_content vs Meta ad name — not an ID match)
+        </span>
+      </p>
+
       <div className="overflow-x-auto rounded border border-slate-200">
-        <table className="min-w-[960px] w-full border-collapse text-sm">
+        <table className="min-w-[1200px] w-full border-collapse text-sm">
           <thead>
             <tr className="bg-slate-50 text-slate-700">
               <th className="px-4 py-3 text-left">Name</th>

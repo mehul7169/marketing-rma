@@ -59,6 +59,12 @@ export type MetaAdsMetrics = {
   cost_per_unique_outbound_click: number | null;
   appointments_scheduled: number;
   cost_per_appointment_scheduled: number | null;
+  /** Cohort funnel outcomes (created_at in range, utm_content ↔ ad_name). */
+  formFilled: number;
+  booked: number;
+  showed: number;
+  dealsClosed: number;
+  dealValue: number;
 };
 
 export type MetaAdNode = MetaAdsMetrics & {
@@ -421,6 +427,11 @@ export async function getMetaAdsHierarchy(
       unique_outbound_clicks: acc.unique_outbound_clicks,
       appointments_scheduled: acc.appointments_scheduled,
       actions: actionsFromMap(acc.actionMap),
+      formFilled: 0,
+      booked: 0,
+      showed: 0,
+      dealsClosed: 0,
+      dealValue: 0,
     };
   }
 

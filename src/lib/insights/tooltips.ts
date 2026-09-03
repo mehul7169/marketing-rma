@@ -1,31 +1,31 @@
-/** Plain-language + calculation copy for Insights info tips. */
+/** Plain-language + calculation copy for Insights info tips (cohort-based). */
 export const INSIGHTS_TOOLTIPS = {
   formQualified:
-    "Percentage of leads who filled the form and were marked qualified by the form's built-in criteria. Calculation: qualified leads ÷ leads who filled the form, for the selected date range.",
+    "Of leads created in this date range who filled the form, what share were marked qualified by the form's criteria — regardless of when qualification was recorded. Calculation: cohort members with qualified = true ÷ cohort members with form_filled_at set.",
   setterVerified:
-    "Percentage of booked calls that Vriddhi confirmed are genuinely qualified after speaking with the lead. Calculation: setter-verified leads ÷ leads with a call booked, for the selected date range.",
+    "Of leads created in this date range who booked a call, what share Vriddhi confirmed as genuinely qualified — regardless of when verification happened. Calculation: cohort members with setter_verified = true ÷ cohort members with call_booked_at set.",
   showUp:
-    "Percentage of setter-verified (qualified) calls where the lead actually showed up. Calculation: verified leads who showed ÷ all setter-verified leads, for the selected date range. Only counts verified leads — not every booked call.",
+    "Of setter-verified cohort members, what share showed up — regardless of when the show was logged. Calculation: verified + showed ÷ setter-verified, among leads created in the selected range.",
   closure:
-    "Percentage of qualified calls that showed up and turned into a closed deal. Calculation: closed deals ÷ setter-verified leads who showed up, for the selected date range.",
+    "Of setter-verified cohort members who showed, what share closed a deal — regardless of when. Calculation: deal_closed ÷ (setter_verified and call_showed), among leads created in the selected range.",
   creativeSpend:
-    "Total Meta ad spend attributed to this creative for the selected date range, from Meta's own reporting.",
+    "Total Meta ad spend attributed to this creative for the selected date range, from Meta's own reporting (period spend — not cohort-based).",
   creativeCallsBooked:
-    "Count of leads whose UTM Content matches this creative's ad name and who booked a call in the selected date range.",
+    "Of leads created in this range whose UTM Content matches this creative, how many have call_booked_at set — regardless of when they booked.",
   creativeQualified:
-    "Of the calls booked for this creative, how many were setter-verified as genuinely qualified.",
+    "Of leads created in this range matched to this creative, how many are setter-verified — regardless of when verification happened.",
   creativeShowed:
-    "Of the setter-verified calls for this creative, how many actually showed up.",
+    "Of leads created in this range matched to this creative, how many have call_showed = true — regardless of when.",
   creativeDealsClosed:
-    "Of the leads for this creative, how many resulted in a closed deal.",
+    "Of leads created in this range matched to this creative, how many have deal_closed = true — regardless of when.",
   creativeCostPerBooked:
-    "Spend ÷ Calls Booked for this creative, in the selected date range.",
+    "Period spend ÷ cohort Calls Booked for this creative. Blank/dash if zero bookings.",
   creativeCostPerDeal:
-    "Spend ÷ Deals Closed for this creative, in the selected date range. Blank/dash if zero deals closed (don't show a divide-by-zero artifact).",
+    "Period spend ÷ cohort Deals Closed for this creative. Blank/dash if zero deals closed.",
   creativeUnmatched:
-    "Leads whose UTM Content didn't match any known ad creative name from Meta. If this number is high, UTM Content values may not be matching your actual ad names — worth checking.",
+    "Cohort leads (created in this range) whose UTM Content didn't match any known ad creative name from Meta. If this number is high, UTM Content values may not be matching your actual ad names — worth checking.",
   sourceBooked:
-    "Count of leads with a call booked in the selected date range, grouped by lead source (e.g. Meta, YouTube) as recorded at the time the lead filled the form.",
+    "Of leads created in this range who have call_booked_at set, grouped by lead source (e.g. Meta, YouTube) as recorded when the lead filled the form — regardless of when they booked.",
   dailyTrend:
-    "Each line counts leads by the date the relevant event happened (booking date, show date, or close date respectively), in IST. Not cumulative — each day shows that day's count only."
+    "Each line counts leads by the date the relevant event happened (booking date, show date, or close date respectively), in IST. Not cumulative — each day shows that day's count only. Unlike the tables above, this stays event-based."
 } as const;

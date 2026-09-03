@@ -6,6 +6,11 @@ import LeadsFilters from "@/components/leads/LeadsFilters";
 import StageBadge from "@/components/leads/StageBadge";
 import { listDueFollowUps } from "@/lib/db/lead_reminders";
 import { listDistinctLeadSources, listLeads } from "@/lib/db/leads";
+import {
+  cohortBannerCopy,
+  eventBannerCopy,
+  parseUrlEvent
+} from "@/lib/leads/stageEvents";
 import { clampDateRange, defaultFromISO } from "@/lib/utils/date";
 import { formatISTDateTime, todayISTDateString } from "@/lib/timezone";
 
@@ -25,6 +30,8 @@ export default async function LeadsPage({
     from?: string;
     to?: string;
     stage?: string;
+    event?: string;
+    cohort?: string;
     source?: string;
     q?: string;
     lifecycle?: string;
@@ -44,16 +51,25 @@ export default async function LeadsPage({
   }
 
   const stages = parseList(searchParams.stage);
+  const cohort = searchParams.cohort?.trim() || undefined;
+  const event = searchParams.event?.trim() || undefined;
+  const cohortStage = parseUrlEvent(cohort);
+  const eventStage = cohortStage ? null : parseUrlEvent(event);
+  const deepLinkStage = cohortStage ?? eventStage;
   const sources = parseList(searchParams.source);
   const search = searchParams.q ?? "";
-  const lifecycle = searchParams.lifecycle ?? "active";
+  // Overview deep links should not be clipped by Active-only default.
+  const lifecycle =
+    searchParams.lifecycle ?? (deepLinkStage ? "all" : "active");
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
 
   const [rows, allSources] = await Promise.all([
     listLeads({
       fromISO,
       toISO,
-      stages,
+      stages: deepLinkStage ? undefined : stages,
+      cohort,
+      event: cohortStage ? undefined : event,
       sources,
       search,
       lifecycle:
@@ -90,7 +106,9 @@ export default async function LeadsPage({
           hasCustomRange={hasCustomRange}
           pathname="/leads"
           extraParams={{
-            stage: stages.join(","),
+            stage: deepLinkStage ? undefined : stages.join(","),
+            cohort,
+            event: cohortStage ? undefined : event,
             source: sources.join(","),
             q: search,
             lifecycle
@@ -98,9 +116,19 @@ export default async function LeadsPage({
         />
       </div>
 
+      {cohortStage ? (
+        <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          {cohortBannerCopy(cohortStage)}
+        </p>
+      ) : eventStage ? (
+        <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          {eventBannerCopy(eventStage)}
+        </p>
+      ) : null}
+
       <LeadsFilters
         sources={allSources}
-        selectedStages={stages}
+        selectedStages={deepLinkStage ? [] : stages}
         selectedSources={sources}
         search={search}
         fromISO={fromISO}

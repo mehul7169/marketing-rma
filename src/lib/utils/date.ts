@@ -37,11 +37,26 @@ export function addDaysISO(iso: string, days: number): string {
 }
 
 /** Inclusive default window ending on today (IST calendar days). */
-export const DEFAULT_DATE_RANGE_DAYS = 7;
+export const DEFAULT_DATE_RANGE_DAYS = 30;
 
 export function defaultFromISO(toISO: string): string {
   return addDaysISO(toISO, -(DEFAULT_DATE_RANGE_DAYS - 1));
 }
+
+/**
+ * If the selected range's `to` date falls within this many IST days of today,
+ * cohort funnel numbers may still grow as leads progress.
+ */
+export const COHORT_MATURITY_DAYS = 14;
+
+/** True when `toISO` is within the last COHORT_MATURITY_DAYS of `todayISO`. */
+export function isCohortImmature(toISO: string, todayISO: string): boolean {
+  if (toISO > todayISO) return true;
+  return inclusiveDayCount(toISO, todayISO) <= COHORT_MATURITY_DAYS;
+}
+
+export const COHORT_MATURITY_NOTE =
+  "This cohort includes recent leads who may still be moving through the funnel — later-stage numbers may increase as follow-ups complete.";
 
 /** Inclusive day count between two YYYY-MM-DD calendar dates. */
 export function inclusiveDayCount(fromISO: string, toISO: string): number {

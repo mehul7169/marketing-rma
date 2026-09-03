@@ -1,3 +1,4 @@
+import CohortMaturityNote from "@/components/CohortMaturityNote";
 import DateRangePicker from "@/components/DateRangePicker";
 import InfoTip from "@/components/InfoTip";
 import InsightsCreativeTable from "@/components/insights/InsightsCreativeTable";
@@ -7,7 +8,12 @@ import InsightsSourceBooked from "@/components/insights/InsightsSourceBooked";
 import InsightsTrendSection from "@/components/insights/InsightsTrendSection";
 import { getInsightsData } from "@/lib/db/insights";
 import { INSIGHTS_TOOLTIPS } from "@/lib/insights/tooltips";
-import { clampDateRange, defaultFromISO, inclusiveDayCount } from "@/lib/utils/date";
+import {
+  clampDateRange,
+  defaultFromISO,
+  inclusiveDayCount,
+  isCohortImmature
+} from "@/lib/utils/date";
 import { todayISTDateString } from "@/lib/timezone";
 
 function parseList(value: string | undefined): string[] {
@@ -36,6 +42,7 @@ export default async function InsightsPage({
   const sources = parseList(searchParams.source);
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
   const rangeDays = inclusiveDayCount(fromISO, toISO);
+  const immature = isCohortImmature(toISO, todayISO);
 
   const { metrics, sources: allSources } = await getInsightsData(
     fromISO,
@@ -68,30 +75,36 @@ export default async function InsightsPage({
         toISO={toISO}
       />
 
-      <InsightsRateCards
-        formQualified={metrics.formQualified}
-        setterVerified={metrics.setterVerified}
-        showUp={metrics.showUp}
-        closure={metrics.closure}
-      />
+      <div className="space-y-3">
+        {immature ? <CohortMaturityNote /> : null}
+        <InsightsRateCards
+          formQualified={metrics.formQualified}
+          setterVerified={metrics.setterVerified}
+          showUp={metrics.showUp}
+          closure={metrics.closure}
+        />
+      </div>
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        <section className="space-y-3 lg:col-span-2">
-          <h2 className="text-sm font-medium text-slate-900">Ad creative</h2>
-          <InsightsCreativeTable
-            rows={metrics.creatives}
-            unmatchedLeadCount={metrics.unmatchedLeadCount}
-          />
-        </section>
-        <section className="space-y-3">
-          <h2 className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
-            Source → calls booked
-            <InfoTip text={INSIGHTS_TOOLTIPS.sourceBooked} />
-          </h2>
-          <div className="rounded border border-slate-200 p-4">
-            <InsightsSourceBooked rows={metrics.sourceBooked} />
-          </div>
-        </section>
+      <div className="space-y-3">
+        {immature ? <CohortMaturityNote /> : null}
+        <div className="grid gap-8 lg:grid-cols-3">
+          <section className="space-y-3 lg:col-span-2">
+            <h2 className="text-sm font-medium text-slate-900">Ad creative</h2>
+            <InsightsCreativeTable
+              rows={metrics.creatives}
+              unmatchedLeadCount={metrics.unmatchedLeadCount}
+            />
+          </section>
+          <section className="space-y-3">
+            <h2 className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+              Source → calls booked
+              <InfoTip text={INSIGHTS_TOOLTIPS.sourceBooked} />
+            </h2>
+            <div className="rounded border border-slate-200 p-4">
+              <InsightsSourceBooked rows={metrics.sourceBooked} />
+            </div>
+          </section>
+        </div>
       </div>
 
       <section className="space-y-3">

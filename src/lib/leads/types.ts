@@ -80,6 +80,10 @@ export type LeadListFilters = {
   fromISO?: string;
   toISO?: string;
   stages?: string[];
+  /** Legacy event-in-range deep link (timestamp of the event in range). */
+  event?: string;
+  /** Cohort deep link: created_at in range + ever reached this stage. */
+  cohort?: string;
   sources?: string[];
   search?: string;
   lifecycle?: string;

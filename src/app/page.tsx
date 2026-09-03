@@ -1,10 +1,20 @@
+import CohortMaturityNote from "@/components/CohortMaturityNote";
 import DateRangePicker from "@/components/DateRangePicker";
 import { listDistinctLeadSources, listLeadsInRange } from "@/lib/db/leads";
 import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
 import { FUNNEL_STEPS } from "@/lib/leads/computeStage";
+import {
+  leadReachedCohortStage,
+  urlCohortForFunnelStage,
+  type FunnelEventStage
+} from "@/lib/leads/stageEvents";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatCurrency, formatInteger, formatPercent } from "@/lib/format";
-import { clampDateRange, defaultFromISO } from "@/lib/utils/date";
+import {
+  clampDateRange,
+  defaultFromISO,
+  isCohortImmature
+} from "@/lib/utils/date";
 import { todayISTDateString } from "@/lib/timezone";
 
 function rate(num: number, den: number): number {
@@ -12,20 +22,20 @@ function rate(num: number, den: number): number {
   return (num / den) * 100;
 }
 
-function funnelCounts(leads: LeadRow[]) {
-  const total = leads.length;
-  const formFilled = leads.filter((l) => l.form_filled_at).length;
-  const qualified = leads.filter((l) => l.qualified === true).length;
-  const booked = leads.filter((l) => {
-    if (!l.call_booked_at) return false;
-    if (!l.call_cancelled_at) return true;
-    return l.call_booked_at > l.call_cancelled_at;
-  }).length;
-  const verified = leads.filter((l) => l.setter_verified === true).length;
-  const showed = leads.filter((l) => l.call_showed === true).length;
-  const closed = leads.filter((l) => l.deal_closed === true).length;
-  const revenue = leads
-    .filter((l) => l.deal_closed === true)
+/** Cohort = created_at in range; counts are “ever reached” via raw fields. */
+function funnelCounts(cohort: LeadRow[]) {
+  const count = (stage: FunnelEventStage) =>
+    cohort.filter((l) => leadReachedCohortStage(l, stage)).length;
+
+  const total = cohort.length;
+  const formFilled = count("form_filled");
+  const qualified = count("form_qualified");
+  const booked = count("booked");
+  const verified = count("verified");
+  const showed = count("showed");
+  const closed = count("closed");
+  const revenue = cohort
+    .filter((l) => leadReachedCohortStage(l, "closed"))
     .reduce((s, l) => s + (l.deal_value ?? 0), 0);
 
   const counts: Record<string, number> = {
@@ -79,14 +89,15 @@ export default async function HomePage({
   const source = searchParams.source ?? "";
   const sources = source ? source.split(",").filter(Boolean) : undefined;
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
+  const immature = isCohortImmature(toISO, todayISO);
 
-  const [leads, allSources] = await Promise.all([
+  const [cohort, allSources] = await Promise.all([
     listLeadsInRange(fromISO, toISO, sources),
     listDistinctLeadSources()
   ]);
 
-  const f = funnelCounts(leads);
-  const life = lifecyclePulse(leads);
+  const f = funnelCounts(cohort);
+  const life = lifecyclePulse(cohort);
   const prevCounts = [
     f.total,
     f.formFilled,
@@ -103,7 +114,10 @@ export default async function HomePage({
     params.set("to", toISO);
     params.set("lifecycle", lifecycle ?? "all");
     if (source) params.set("source", source);
-    if (stage && stage !== "lead") params.set("stage", stage);
+    if (stage) {
+      const cohortKey = urlCohortForFunnelStage(stage as FunnelEventStage);
+      if (cohortKey) params.set("cohort", cohortKey);
+    }
     return `/leads?${params.toString()}`;
   }
 
@@ -192,6 +206,7 @@ export default async function HomePage({
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-slate-900">Funnel</h2>
+        {immature ? <CohortMaturityNote /> : null}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
           {FUNNEL_STEPS.map((step, i) => {
             const count = f.counts[step.stage] ?? 0;

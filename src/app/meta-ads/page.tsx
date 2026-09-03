@@ -3,7 +3,8 @@ import {
   defaultFromISO,
   fillTrendDateGaps,
   getPriorPeriod,
-  inclusiveDayCount
+  inclusiveDayCount,
+  isCohortImmature
 } from "@/lib/utils/date";
 import { todayISTDateString } from "@/lib/timezone";
 import {
@@ -11,6 +12,10 @@ import {
   getMetaAdsTotals,
   getMetaAdsTrend
 } from "@/lib/db/meta_ads_daily";
+import { listKnownAdNames } from "@/lib/db/insights";
+import { listLeadsInRange } from "@/lib/db/leads";
+import { attachMetaFunnelOutcomes } from "@/lib/meta/funnelOutcomes";
+import CohortMaturityNote from "@/components/CohortMaturityNote";
 import DateRangePicker from "@/components/DateRangePicker";
 import MetaAdsTable from "@/components/meta/MetaAdsTable";
 import MetaSummaryCards from "@/components/meta/MetaSummaryCards";
@@ -41,13 +46,25 @@ export default async function MetaAdsPage({
 
   const priorPeriod = getPriorPeriod(fromISO, toISO);
   const rangeDays = inclusiveDayCount(fromISO, toISO);
+  const immature = isCohortImmature(toISO, todayISO);
 
-  const [totals, priorTotals, trendRaw, table] = await Promise.all([
-    getMetaAdsTotals(fromISO, toISO),
-    getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO),
-    getMetaAdsTrend(fromISO, toISO),
-    getMetaAdsHierarchy(fromISO, toISO)
-  ]);
+  const [totals, priorTotals, trendRaw, hierarchy, cohortLeads, knownAdNames] =
+    await Promise.all([
+      getMetaAdsTotals(fromISO, toISO),
+      getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO),
+      getMetaAdsTrend(fromISO, toISO),
+      getMetaAdsHierarchy(fromISO, toISO),
+      listLeadsInRange(fromISO, toISO),
+      listKnownAdNames()
+    ]);
+
+  const { campaigns: table, unmatchedLeadCount } = attachMetaFunnelOutcomes(
+    hierarchy,
+    cohortLeads,
+    knownAdNames,
+    fromISO,
+    toISO
+  );
 
   const hasAnyData = trendRaw.length > 0 || table.length > 0;
 
@@ -101,12 +118,13 @@ export default async function MetaAdsPage({
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-slate-900">
-              Campaigns
-            </h2>
-            <MetaAdsTable rows={table} />
+            <h2 className="text-sm font-medium text-slate-900">Campaigns</h2>
+            {immature ? <CohortMaturityNote /> : null}
+            <MetaAdsTable rows={table} unmatchedLeadCount={unmatchedLeadCount} />
             <div className="text-xs text-slate-500">
               Click a row to expand ad sets, then ads. Sort applies at every level.
+              Funnel columns are cohort-based (leads created in this range, matched by
+              utm_content → ad name).
             </div>
           </section>
         </>

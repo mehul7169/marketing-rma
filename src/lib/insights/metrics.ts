@@ -47,20 +47,14 @@ export type InsightsMetrics = {
 };
 
 /**
- * Date fields for each rate — using created_at for all of these would mix
- * people who filled a form last month with calls that happen this week.
+ * Rates + creative/source outcome columns: cohort-based.
+ * Cohort = created_at in the selected range; stage counts are "ever reached"
+ * via raw boolean/timestamp fields (any time).
  *
- * Form-qualified: form_filled_at. Denominator is form submits in range.
- * Setter-verified: call_booked_at. Of bookings made in range, how many the
- *   setter marked verified (verified is a property of the booking).
- * Show-up: call_scheduled_for. Of setter-verified calls scheduled in range,
- *   how many showed — not created_at, and not call_showed_at (a show logged
- *   late would otherwise leave the period of the actual call).
- * Closure: call_scheduled_for on the showed + setter-verified set. Same call
- *   cohort as the show-up numerator, so the two rates chain on the same calls.
+ * Spend stays period-based (money spent in the range).
+ * Daily trend stays event-based (bucketed by event timestamp in range).
  *
- * Daily series use the event timestamps specified in the insights page:
- * call_booked_at, call_showed_at, closed_at — bucketed by IST calendar day.
+ * Creative "Qualified" = setter_verified (column label historical meaning).
  */
 function datePart(iso: string): string {
   return toISTDateString(iso);
@@ -124,16 +118,16 @@ export function computeInsights(
     if (!known.has(key)) known.set(key, v.displayName);
   }
 
-  const formFilled = leads.filter((l) => inRange(l.form_filled_at, fromISO, toISO));
+  const cohort = leads.filter((l) => inRange(l.created_at, fromISO, toISO));
+
+  const formFilled = cohort.filter((l) => Boolean(l.form_filled_at));
   const formQualifiedNum = formFilled.filter((l) => l.qualified === true).length;
 
-  const booked = leads.filter((l) => inRange(l.call_booked_at, fromISO, toISO));
+  const booked = cohort.filter((l) => Boolean(l.call_booked_at));
   const setterVerifiedNum = booked.filter((l) => l.setter_verified === true).length;
 
-  const scheduledVerified = leads.filter(
-    (l) => l.setter_verified === true && inRange(l.call_scheduled_for, fromISO, toISO)
-  );
-  const showedVerified = scheduledVerified.filter((l) => l.call_showed === true);
+  const verified = cohort.filter((l) => l.setter_verified === true);
+  const showedVerified = verified.filter((l) => l.call_showed === true);
   const closedFromShowed = showedVerified.filter((l) => l.deal_closed === true);
 
   const dailyMap = new Map(emptyDaily(fromISO, toISO).map((p) => [p.date, p]));
@@ -196,45 +190,33 @@ export function computeInsights(
     return unmatched;
   }
 
-  function touch(lead: LeadRow, acc: Acc) {
+  for (const lead of cohort) {
+    const acc = bucketFor(lead);
     acc.leadIds.add(lead.id);
-  }
 
-  for (const lead of leads) {
-    if (inRange(lead.call_booked_at, fromISO, toISO)) {
+    if (lead.call_booked_at) {
+      acc.callsBooked += 1;
       const src = lead.lead_source?.trim() || "(none)";
       sourceCounts.set(src, (sourceCounts.get(src) ?? 0) + 1);
-      const day = dailyMap.get(datePart(lead.call_booked_at!));
-      if (day) day.callsBooked += 1;
-      const acc = bucketFor(lead);
-      acc.callsBooked += 1;
-      touch(lead, acc);
     }
-
-    if (lead.setter_verified === true && inRange(lead.setter_verified_at ?? lead.call_booked_at, fromISO, toISO)) {
-      const acc = bucketFor(lead);
-      acc.qualified += 1;
-      touch(lead, acc);
-    }
-
-    if (lead.call_showed === true && inRange(lead.call_showed_at ?? lead.call_scheduled_for, fromISO, toISO)) {
-      const acc = bucketFor(lead);
-      acc.showed += 1;
-      touch(lead, acc);
-    }
-
-    if (lead.deal_closed === true && inRange(lead.closed_at, fromISO, toISO)) {
-      const acc = bucketFor(lead);
+    if (lead.setter_verified === true) acc.qualified += 1;
+    if (lead.call_showed === true) acc.showed += 1;
+    if (lead.deal_closed === true) {
       acc.dealsClosed += 1;
       acc.revenue += lead.deal_value ?? 0;
-      touch(lead, acc);
     }
+  }
 
+  // Daily trend: still event-in-range (any lead), not cohort-scoped.
+  for (const lead of leads) {
+    if (inRange(lead.call_booked_at, fromISO, toISO)) {
+      const day = dailyMap.get(datePart(lead.call_booked_at!));
+      if (day) day.callsBooked += 1;
+    }
     if (lead.call_showed === true && inRange(lead.call_showed_at, fromISO, toISO)) {
       const day = dailyMap.get(datePart(lead.call_showed_at!));
       if (day) day.showUpCalls += 1;
     }
-
     if (lead.deal_closed === true && inRange(lead.closed_at, fromISO, toISO)) {
       const day = dailyMap.get(datePart(lead.closed_at!));
       if (day) day.dealsClosed += 1;
@@ -269,7 +251,7 @@ export function computeInsights(
   return {
     formQualified: rate(formQualifiedNum, formFilled.length),
     setterVerified: rate(setterVerifiedNum, booked.length),
-    showUp: rate(showedVerified.length, scheduledVerified.length),
+    showUp: rate(showedVerified.length, verified.length),
     closure: rate(closedFromShowed.length, showedVerified.length),
     creatives,
     unmatchedLeadCount: unmatched.leadIds.size,

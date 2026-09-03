@@ -2,6 +2,11 @@ import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 import { listLeadIdsWithDueFollowUps } from "@/lib/db/lead_reminders";
 import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
 import { computeStage } from "@/lib/leads/computeStage";
+import {
+  funnelEventField,
+  leadMatchesFunnelStage,
+  parseUrlEvent
+} from "@/lib/leads/stageEvents";
 import type {
   BookingHistoryEntry,
   BookingSource,
@@ -235,17 +240,44 @@ export async function scheduleLeadCall(
 export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
-  let query = db.from("leads").select("*").order("created_at", { ascending: false });
+
+  // cohort: created_at in range + ever reached stage (Overview funnel deep link).
+  // event: event timestamp in range (legacy).
+  // stage: current state + created_at (manual Stage dropdown).
+  const cohortStage = parseUrlEvent(filters.cohort);
+  const eventStage = cohortStage ? null : parseUrlEvent(filters.event);
+  const dateField = eventStage ? funnelEventField(eventStage) : "created_at";
+
+  let query = db.from("leads").select("*").order(dateField, { ascending: false });
 
   if (filters.followUpsDue) {
     const dueIds = await listLeadIdsWithDueFollowUps();
     if (dueIds.length === 0) return [];
     query = query.in("id", dueIds);
   } else {
-    if (filters.fromISO) query = query.gte("created_at", istDayStartUtcIso(filters.fromISO));
-    if (filters.toISO) query = query.lte("created_at", istDayEndUtcIso(filters.toISO));
+    if (filters.fromISO) query = query.gte(dateField, istDayStartUtcIso(filters.fromISO));
+    if (filters.toISO) query = query.lte(dateField, istDayEndUtcIso(filters.toISO));
+    if (eventStage && dateField !== "created_at") {
+      query = query.not(dateField, "is", null);
+    }
   }
-  if (filters.stages && filters.stages.length > 0) query = query.in("stage", filters.stages);
+
+  if (cohortStage) {
+    if (cohortStage === "form_filled") query = query.not("form_filled_at", "is", null);
+    if (cohortStage === "form_qualified") query = query.eq("qualified", true);
+    if (cohortStage === "booked") query = query.not("call_booked_at", "is", null);
+    if (cohortStage === "verified") query = query.eq("setter_verified", true);
+    if (cohortStage === "showed") query = query.eq("call_showed", true);
+    if (cohortStage === "closed") query = query.eq("deal_closed", true);
+  } else if (eventStage) {
+    if (eventStage === "form_qualified") query = query.eq("qualified", true);
+    if (eventStage === "verified") query = query.eq("setter_verified", true);
+    if (eventStage === "showed") query = query.eq("call_showed", true);
+    if (eventStage === "closed") query = query.eq("deal_closed", true);
+  } else if (filters.stages && filters.stages.length > 0) {
+    query = query.in("stage", filters.stages);
+  }
+
   if (filters.sources && filters.sources.length > 0) {
     query = query.in("lead_source", filters.sources);
   }
@@ -267,7 +299,15 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []).map(asLead);
+  let rows = (data ?? []).map(asLead);
+
+  if (eventStage === "booked" && filters.fromISO && filters.toISO) {
+    rows = rows.filter((lead) =>
+      leadMatchesFunnelStage(lead, "booked", filters.fromISO!, filters.toISO!)
+    );
+  }
+
+  return rows;
 }
 
 export async function listDistinctLeadSources(): Promise<string[]> {
@@ -286,7 +326,7 @@ export async function listLeadsInRange(fromISO: string, toISO: string, sources?:
   return listLeads({ fromISO, toISO, sources });
 }
 
-/** All leads, optionally by source. Date windows are applied per-metric in insights. */
+/** All leads, optionally by source. Cohort/event windows applied in computeInsights. */
 export async function listAllLeads(sources?: string[]): Promise<LeadRow[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
