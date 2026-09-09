@@ -7,6 +7,7 @@ import {
   isCohortImmature
 } from "@/lib/utils/date";
 import { todayISTDateString } from "@/lib/timezone";
+import { getRmaAccountId } from "@/lib/ad-accounts/getRmaAccountId";
 import {
   getMetaAdsHierarchy,
   getMetaAdsTotals,
@@ -48,15 +49,36 @@ export default async function MetaAdsPage({
   const rangeDays = inclusiveDayCount(fromISO, toISO);
   const immature = isCohortImmature(toISO, todayISO);
 
+  const rmaAccountId = await getRmaAccountId();
+
   const [totals, priorTotals, trendRaw, hierarchy, cohortLeads, knownAdNames] =
-    await Promise.all([
-      getMetaAdsTotals(fromISO, toISO),
-      getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO),
-      getMetaAdsTrend(fromISO, toISO),
-      getMetaAdsHierarchy(fromISO, toISO),
-      listLeadsInRange(fromISO, toISO),
-      listKnownAdNames()
-    ]);
+    rmaAccountId
+      ? await Promise.all([
+          getMetaAdsTotals(fromISO, toISO, rmaAccountId),
+          getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO, rmaAccountId),
+          getMetaAdsTrend(fromISO, toISO, rmaAccountId),
+          getMetaAdsHierarchy(fromISO, toISO, rmaAccountId),
+          listLeadsInRange(fromISO, toISO),
+          listKnownAdNames()
+        ])
+      : [
+          {
+            totalSpend: 0,
+            totalLeads: 0,
+            blendedCostPerLead: null as number | null,
+            averageCtrPercent: 0
+          },
+          {
+            totalSpend: 0,
+            totalLeads: 0,
+            blendedCostPerLead: null as number | null,
+            averageCtrPercent: 0
+          },
+          [] as Awaited<ReturnType<typeof getMetaAdsTrend>>,
+          [] as Awaited<ReturnType<typeof getMetaAdsHierarchy>>,
+          [] as Awaited<ReturnType<typeof listLeadsInRange>>,
+          new Map<string, string>()
+        ];
 
   const { campaigns: table, unmatchedLeadCount } = attachMetaFunnelOutcomes(
     hierarchy,
@@ -84,9 +106,7 @@ export default async function MetaAdsPage({
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="page-title">
-            Meta Ads Performance
-          </h1>
+          <h1 className="page-title">Meta Ads Performance</h1>
           <p className="mt-1 text-sm text-slate-600">
             {fromISO} to {toISO}
           </p>
@@ -98,7 +118,11 @@ export default async function MetaAdsPage({
         />
       </div>
 
-      {!hasAnyData ? (
+      {!rmaAccountId ? (
+        <div className="rounded border border-slate-200 p-10 text-center text-sm text-slate-600">
+          No RMA lead-source ad account configured in ad_accounts.
+        </div>
+      ) : !hasAnyData ? (
         <div className="rounded border border-slate-200 p-10 text-center text-sm text-slate-600">
           No data in this date range yet.
         </div>

@@ -33,6 +33,7 @@ export default function AppNavClient({ role }: { role: Role | null }) {
         <>
           <NavLink href="/">Home</NavLink>
           <NavLink href="/leads">Leads</NavLink>
+          <NavLink href="/clients-ads">Client Ads</NavLink>
         </>
       ) : null}
       <NavLink href="/insights">Insights</NavLink>

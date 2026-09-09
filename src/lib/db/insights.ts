@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
+import { getRmaAccountId } from "@/lib/ad-accounts/getRmaAccountId";
 import { listAllLeads, listDistinctLeadSources } from "@/lib/db/leads";
 import {
   computeInsights,
@@ -29,17 +30,21 @@ async function paginate<T>(
   return all;
 }
 
+/** Spend for Insights creative table — RMA lead-source account only. */
 export async function getMetaSpendByAdName(
   fromISO: string,
   toISO: string
 ): Promise<Map<string, { displayName: string; spend: number }>> {
   const map = new Map<string, { displayName: string; spend: number }>();
   if (!supabaseAdmin) return map;
+  const rmaAccountId = await getRmaAccountId();
+  if (!rmaAccountId) return map;
 
   const rows = await paginate<{ ad_name: string | null; spend: unknown }>((from, to) =>
     supabaseAdmin!
       .from("meta_ads_daily")
       .select("ad_name, spend")
+      .eq("ad_account_id", rmaAccountId)
       .gte("date", fromISO)
       .lte("date", toISO)
       .range(from, to)
@@ -62,9 +67,16 @@ export async function getMetaSpendByAdName(
 export async function listKnownAdNames(): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   if (!supabaseAdmin) return map;
+  const rmaAccountId = await getRmaAccountId();
+  if (!rmaAccountId) return map;
 
   const rows = await paginate<{ ad_name: string | null }>((from, to) =>
-    supabaseAdmin!.from("meta_ads_daily").select("ad_name").not("ad_name", "is", null).range(from, to)
+    supabaseAdmin!
+      .from("meta_ads_daily")
+      .select("ad_name")
+      .eq("ad_account_id", rmaAccountId)
+      .not("ad_name", "is", null)
+      .range(from, to)
   );
 
   for (const row of rows) {

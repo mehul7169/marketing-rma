@@ -1,9 +1,12 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
+import { getRmaAccountId } from "@/lib/ad-accounts/getRmaAccountId";
 
 export type MetaActionEntry = { action_type: string; value: string };
 
 export type MetaAdsDailyRow = {
   date: string; // YYYY-MM-DD
+  /** FK to ad_accounts.id (UUID as text). */
+  ad_account_id: string;
   campaign_id: string | null;
   campaign_name: string | null;
   ad_set_id: string;
@@ -164,6 +167,7 @@ export async function upsertMetaAdsDaily(
   rows: Array<
     Partial<MetaAdsDailyRow> & {
       date: string;
+      ad_account_id: string;
       ad_id: string;
       ad_set_id: string;
     }
@@ -174,6 +178,7 @@ export async function upsertMetaAdsDaily(
   }
   const payload = rows.map((r) => ({
     ...r,
+    ad_account_id: r.ad_account_id,
     spend: r.spend ?? null,
     impressions: r.impressions ?? null,
     reach: r.reach ?? null,
@@ -196,32 +201,121 @@ export async function upsertMetaAdsDaily(
   }));
 
   const { error } = await supabaseAdmin.from("meta_ads_daily").upsert(payload, {
-    onConflict: "date,ad_id",
+    onConflict: "date,ad_account_id,ad_id",
   });
 
   if (error) throw error;
 }
 
-export async function truncateMetaAdsDaily() {
+/** Delete meta_ads_daily rows for one account only — never wipe all clients. */
+export async function truncateMetaAdsDaily(adAccountId: string) {
   if (!supabaseAdmin) {
     throw new Error("Supabase is not configured.");
+  }
+  if (!adAccountId) {
+    throw new Error("truncateMetaAdsDaily requires adAccountId");
   }
   const { error } = await supabaseAdmin
     .from("meta_ads_daily")
     .delete()
-    .neq("id", "00000000-0000-0000-0000-000000000000");
+    .eq("ad_account_id", adAccountId);
 
   if (error) throw error;
+}
+
+/**
+ * Retag meta_ads_daily.ad_account_id without deleting rows.
+ * Used so hard-deleting an ad_accounts registry entry can park history under the
+ * stable Meta act_… id, and re-add can point those rows at the new UUID.
+ */
+export async function remappingMetaAdsDailyAccountId(
+  fromAdAccountId: string,
+  toAdAccountId: string
+): Promise<number> {
+  if (!supabaseAdmin) throw new Error("Supabase is not configured.");
+  if (!fromAdAccountId || !toAdAccountId) {
+    throw new Error("remappingMetaAdsDailyAccountId requires from and to ids");
+  }
+  if (fromAdAccountId === toAdAccountId) return 0;
+  const { count, error } = await supabaseAdmin
+    .from("meta_ads_daily")
+    .update({ ad_account_id: toAdAccountId }, { count: "exact" })
+    .eq("ad_account_id", fromAdAccountId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
+ * Resolve which ad_accounts.id to filter on.
+ * Callers should pass an explicit UUID whenever possible.
+ * Omitting it falls back to RMA via getRmaAccountId() — never unscoped.
+ */
+async function resolveAccountId(adAccountId?: string): Promise<string | null> {
+  if (adAccountId) return adAccountId;
+  return getRmaAccountId();
+}
+
+export async function countMetaAdsRowsForAccount(
+  adAccountId: string
+): Promise<number> {
+  if (!supabaseAdmin) return 0;
+  const { count, error } = await supabaseAdmin
+    .from("meta_ads_daily")
+    .select("id", { count: "exact", head: true })
+    .eq("ad_account_id", adAccountId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
+ * Sum leads_meta_reported per ad_account_id for the given calendar dates
+ * (YYYY-MM-DD, typically IST reporting days stored on meta_ads_daily.date).
+ */
+export async function sumLeadsMetaReportedByAccountForDates(
+  adAccountIds: string[],
+  dates: string[]
+): Promise<Map<string, Map<string, number>>> {
+  const result = new Map<string, Map<string, number>>();
+  for (const id of adAccountIds) {
+    const byDate = new Map<string, number>();
+    for (const d of dates) byDate.set(d, 0);
+    result.set(id, byDate);
+  }
+  if (!supabaseAdmin || adAccountIds.length === 0 || dates.length === 0) {
+    return result;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("meta_ads_daily")
+    .select("ad_account_id, date, leads_meta_reported")
+    .in("ad_account_id", adAccountIds)
+    .in("date", dates);
+
+  if (error) throw error;
+
+  for (const row of data ?? []) {
+    const accountId = String(row.ad_account_id);
+    const date = String(row.date);
+    const byDate = result.get(accountId);
+    if (!byDate || !byDate.has(date)) continue;
+    byDate.set(date, (byDate.get(date) ?? 0) + num(row.leads_meta_reported));
+  }
+  return result;
 }
 
 export async function getMetaAdsTrend(
   fromISO: string,
   toISO: string,
+  adAccountId?: string,
 ): Promise<MetaAdsTrendPoint[]> {
   if (!supabaseAdmin) return [];
+  const accountId = await resolveAccountId(adAccountId);
+  if (!accountId) return [];
+
   const { data, error } = await supabaseAdmin
     .from("meta_ads_daily")
     .select("date, spend, clicks, leads_meta_reported")
+    .eq("ad_account_id", accountId)
     .gte("date", fromISO)
     .lte("date", toISO)
     .order("date", { ascending: true });
@@ -318,8 +412,12 @@ function addMetrics(acc: MetricAcc, row: DailyGrain) {
 export async function getMetaAdsHierarchy(
   fromISO: string,
   toISO: string,
+  adAccountId?: string,
 ): Promise<MetaCampaignNode[]> {
   if (!supabaseAdmin) return [];
+  const accountId = await resolveAccountId(adAccountId);
+  if (!accountId) return [];
+
   const { data, error } = await supabaseAdmin
     .from("meta_ads_daily")
     .select(
@@ -342,6 +440,7 @@ export async function getMetaAdsHierarchy(
         "appointments_scheduled",
       ].join(","),
     )
+    .eq("ad_account_id", accountId)
     .gte("date", fromISO)
     .lte("date", toISO);
 
@@ -462,6 +561,7 @@ export async function getMetaAdsHierarchy(
 export async function getMetaAdsTotals(
   fromISO: string,
   toISO: string,
+  adAccountId?: string,
 ): Promise<{
   totalSpend: number;
   totalLeads: number;
@@ -476,9 +576,19 @@ export async function getMetaAdsTotals(
       averageCtrPercent: 0,
     };
   }
+  const accountId = await resolveAccountId(adAccountId);
+  if (!accountId) {
+    return {
+      totalSpend: 0,
+      totalLeads: 0,
+      blendedCostPerLead: null,
+      averageCtrPercent: 0,
+    };
+  }
   const { data, error } = await supabaseAdmin
     .from("meta_ads_daily")
     .select("spend, clicks, impressions, leads_meta_reported")
+    .eq("ad_account_id", accountId)
     .gte("date", fromISO)
     .lte("date", toISO);
 

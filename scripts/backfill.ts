@@ -17,10 +17,7 @@ import { config as loadEnv } from "dotenv";
 import { subYears } from "date-fns";
 import { formatChunkLabel, getMonthlyChunks, type DateChunk } from "../src/lib/ingest/chunks";
 import { ingestGa4Range, getGa4IngestConfigFromEnv } from "../src/lib/ingest/ga4";
-import {
-  getMetaIngestConfigFromEnv,
-  ingestMetaAdsRange
-} from "../src/lib/ingest/meta";
+import { backfillMetaAds } from "../src/lib/ingest/backfillMeta";
 import { withRetry } from "../src/lib/ingest/retry";
 import {
   getWistiaIngestConfigFromEnv,
@@ -38,6 +35,8 @@ type CliOptions = {
   fromISO: string;
   toISO: string;
   confirm: boolean;
+  /** Optional: backfill a single ad_accounts.id for Meta. */
+  adAccountId?: string;
 };
 
 type SourceSummary = {
@@ -61,6 +60,7 @@ function parseArgs(): CliOptions {
   let fromISO: string | undefined;
   let toISO: string | undefined;
   let confirm = false;
+  let adAccountId: string | undefined;
 
   for (const arg of args) {
     if (arg === "--confirm") {
@@ -75,6 +75,8 @@ function parseArgs(): CliOptions {
       fromISO = arg.split("=")[1];
     } else if (arg.startsWith("--to=")) {
       toISO = arg.split("=")[1];
+    } else if (arg.startsWith("--ad-account=")) {
+      adAccountId = arg.split("=")[1];
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -88,7 +90,7 @@ function parseArgs(): CliOptions {
   toISO = toISO ?? toISODate(today);
   fromISO = fromISO ?? toISODate(subYears(today, 1));
 
-  return { source, fromISO, toISO, confirm };
+  return { source, fromISO, toISO, confirm, adAccountId };
 }
 
 function printHelp() {
@@ -102,11 +104,13 @@ Options:
   --source=meta|ga4|wistia|all   Source to backfill (default: all)
   --from=YYYY-MM-DD              Start date inclusive (default: 1 year ago)
   --to=YYYY-MM-DD                End date inclusive (default: today)
+  --ad-account=<uuid>            Meta only: backfill a single ad_accounts.id
   --confirm                      Skip interactive confirmation prompt
   -h, --help                     Show this help
 
 Examples:
   npx tsx scripts/backfill.ts --source=meta --from=2024-01-01 --confirm
+  npx tsx scripts/backfill.ts --source=meta --ad-account=<uuid> --from=2024-01-01 --confirm
   npx tsx scripts/backfill.ts --source=all --from=2023-06-01
 `);
 }
@@ -141,35 +145,35 @@ function sourcesToRun(source: Source): Array<Exclude<Source, "all">> {
 
 async function backfillMeta(
   fromISO: string,
-  toISO: string
+  toISO: string,
+  adAccountId?: string
 ): Promise<SourceSummary> {
-  const config = getMetaIngestConfigFromEnv();
-  const chunks = getMonthlyChunks(fromISO, toISO);
+  const result = await backfillMetaAds(fromISO, toISO, {
+    adAccountId,
+    log: (msg) => console.log(msg)
+  });
+
   const summary: SourceSummary = {
     source: "meta",
-    rowsUpserted: 0,
+    rowsUpserted: result.rowsUpserted,
     fromISO,
     toISO,
-    failedChunks: [],
-    notes: []
+    failedChunks: result.failedChunks.map((f) => ({
+      source: "meta",
+      chunk: { start: f.start, end: f.end },
+      error: `[${f.clientName}] ${f.error}`
+    })),
+    notes: result.accounts
+      .filter((a) => a.error)
+      .map((a) => `Account ${a.clientName} aborted: ${a.error}`)
   };
 
-  console.log(`\nMeta Ads: ${chunks.length} monthly chunk(s) from ${fromISO} to ${toISO}`);
-
-  for (const chunk of chunks) {
-    const label = formatChunkLabel(chunk);
-    try {
-      const rows = await withRetry(
-        () => ingestMetaAdsRange(config, chunk.start, chunk.end),
-        { label: `Meta ${label}` }
-      );
-      summary.rowsUpserted += rows;
-      console.log(`Meta: pulled ${label} — ${rows} rows upserted`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      summary.failedChunks.push({ source: "meta", chunk, error: message });
-      console.error(`Meta: FAILED ${label} — ${message}`);
-    }
+  if (adAccountId) {
+    summary.notes.unshift(`Scoped to ad_accounts.id=${adAccountId}`);
+  } else {
+    summary.notes.unshift(
+      `Looped ${result.accounts.length} active ad account(s) sequentially`
+    );
   }
 
   return summary;
@@ -319,7 +323,9 @@ async function main() {
 
   for (const src of runList) {
     if (src === "meta") {
-      summaries.push(await backfillMeta(options.fromISO, options.toISO));
+      summaries.push(
+        await backfillMeta(options.fromISO, options.toISO, options.adAccountId)
+      );
     } else if (src === "ga4") {
       summaries.push(await backfillGa4(options.fromISO, options.toISO));
     } else if (src === "wistia") {

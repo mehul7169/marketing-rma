@@ -1,5 +1,6 @@
 import { upsertMetaAdsDaily } from "@/lib/db/meta_ads_daily";
 import type { MetaAdsDailyRow } from "@/lib/db/meta_ads_daily";
+import { listActiveAdAccounts } from "@/lib/db/ad_accounts";
 
 export type MetaAction = { action_type: string; value: string };
 export type MetaCostPerAction = { action_type: string; value: string };
@@ -143,8 +144,16 @@ function ratioOrNull(spend: number | null, count: number | null): number | null 
 }
 
 export function transformMetaInsightsRows(
-  rows: MetaInsightsRow[]
-): Array<Partial<MetaAdsDailyRow> & { date: string; ad_id: string; ad_set_id: string }> {
+  rows: MetaInsightsRow[],
+  adAccountId: string
+): Array<
+  Partial<MetaAdsDailyRow> & {
+    date: string;
+    ad_account_id: string;
+    ad_id: string;
+    ad_set_id: string;
+  }
+> {
   return rows
     .filter((r) => r.ad_id && r.adset_id && r.date_start)
     .map((r) => {
@@ -183,6 +192,7 @@ export function transformMetaInsightsRows(
 
       return {
         date: r.date_start,
+        ad_account_id: adAccountId,
         campaign_id: r.campaign_id,
         campaign_name: r.campaign_name,
         ad_set_id: r.adset_id,
@@ -260,23 +270,157 @@ export async function fetchMetaInsights(
 export async function ingestMetaAdsRange(
   config: MetaIngestConfig,
   sinceISO: string,
-  untilISO: string
+  untilISO: string,
+  /** Internal ad_accounts.id stamped onto every upserted row. */
+  adAccountId: string
 ): Promise<number> {
   const raw = await fetchMetaInsights(config, sinceISO, untilISO);
-  const payload = transformMetaInsightsRows(raw);
+  const payload = transformMetaInsightsRows(raw, adAccountId);
   if (payload.length > 0) {
     await upsertMetaAdsDaily(payload);
   }
   return payload.length;
 }
 
-export function getMetaIngestConfigFromEnv(): MetaIngestConfig {
+export function getMetaAccessTokenFromEnv(): string {
   const accessToken = process.env.META_ACCESS_TOKEN;
+  if (!accessToken) {
+    throw new Error("Missing META_ACCESS_TOKEN");
+  }
+  return accessToken;
+}
+
+/** @deprecated Prefer ad_accounts + getMetaAccessTokenFromEnv for multi-account ingest. */
+export function getMetaIngestConfigFromEnv(): MetaIngestConfig {
+  const accessToken = getMetaAccessTokenFromEnv();
   const adAccountId = process.env.META_AD_ACCOUNT_ID;
 
-  if (!accessToken || !adAccountId) {
-    throw new Error("Missing META_ACCESS_TOKEN or META_AD_ACCOUNT_ID");
+  if (!adAccountId) {
+    throw new Error("Missing META_AD_ACCOUNT_ID");
   }
 
   return { accessToken, adAccountId };
+}
+
+/**
+ * Pause between Meta accounts so ~20 sequential pulls stay under Graph rate
+ * limits. Not an arbitrary sleep — Meta throttles concurrent act_* insights.
+ */
+export const META_ACCOUNT_INGEST_DELAY_MS = 1500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export type MetaAccountIngestResult = {
+  adAccountId: string;
+  clientName: string;
+  metaAdAccountId: string;
+  rowsUpserted: number;
+  error: string | null;
+};
+
+export type MetaMultiAccountIngestSummary = {
+  rowsUpserted: number;
+  accountsAttempted: number;
+  accountsSucceeded: number;
+  accountsFailed: number;
+  results: MetaAccountIngestResult[];
+};
+
+/**
+ * Pull insights for one ad_accounts row over a date range and upsert tagged rows.
+ */
+export async function ingestMetaAdsForAccount(
+  account: { id: string; meta_ad_account_id: string; client_name: string },
+  sinceISO: string,
+  untilISO: string,
+  accessToken?: string
+): Promise<number> {
+  const token = accessToken ?? getMetaAccessTokenFromEnv();
+  return ingestMetaAdsRange(
+    { accessToken: token, adAccountId: account.meta_ad_account_id },
+    sinceISO,
+    untilISO,
+    account.id
+  );
+}
+
+/**
+ * Sequentially ingest every active ad_accounts row. One account's failure is
+ * logged and skipped so the rest still complete.
+ */
+export async function ingestMetaAdsForActiveAccounts(
+  sinceISO: string,
+  untilISO: string,
+  options?: {
+    accounts?: Array<{ id: string; meta_ad_account_id: string; client_name: string }>;
+    accessToken?: string;
+    delayMs?: number;
+    onAccountStart?: (account: { id: string; client_name: string }) => void;
+    onAccountDone?: (result: MetaAccountIngestResult) => void;
+  }
+): Promise<MetaMultiAccountIngestSummary> {
+  const accounts = options?.accounts ?? (await listActiveAdAccounts());
+  const token = options?.accessToken ?? getMetaAccessTokenFromEnv();
+  const delayMs = options?.delayMs ?? META_ACCOUNT_INGEST_DELAY_MS;
+
+  if (accounts.length === 0) {
+    throw new Error(
+      "No active rows in ad_accounts — seed at least the RMA lead-source account before ingesting."
+    );
+  }
+
+  const results: MetaAccountIngestResult[] = [];
+  let rowsUpserted = 0;
+  let accountsSucceeded = 0;
+  let accountsFailed = 0;
+
+  for (let i = 0; i < accounts.length; i++) {
+    const account = accounts[i]!;
+    options?.onAccountStart?.({ id: account.id, client_name: account.client_name });
+
+    let result: MetaAccountIngestResult;
+    try {
+      const rows = await ingestMetaAdsForAccount(account, sinceISO, untilISO, token);
+      result = {
+        adAccountId: account.id,
+        clientName: account.client_name,
+        metaAdAccountId: account.meta_ad_account_id,
+        rowsUpserted: rows,
+        error: null
+      };
+      rowsUpserted += rows;
+      accountsSucceeded += 1;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.error(
+        `Meta ingest failed for ${account.client_name} (${account.meta_ad_account_id}): ${message}`
+      );
+      result = {
+        adAccountId: account.id,
+        clientName: account.client_name,
+        metaAdAccountId: account.meta_ad_account_id,
+        rowsUpserted: 0,
+        error: message
+      };
+      accountsFailed += 1;
+    }
+
+    results.push(result);
+    options?.onAccountDone?.(result);
+
+    // Rate-limit buffer between accounts (see META_ACCOUNT_INGEST_DELAY_MS).
+    if (i < accounts.length - 1 && delayMs > 0) {
+      await sleep(delayMs);
+    }
+  }
+
+  return {
+    rowsUpserted,
+    accountsAttempted: accounts.length,
+    accountsSucceeded,
+    accountsFailed,
+    results
+  };
 }

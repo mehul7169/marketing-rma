@@ -59,8 +59,7 @@ const FUNNEL_COLUMNS: ColumnDef[] = [
   { key: "dealValue", label: "Deal Value", sortable: true }
 ];
 
-const STANDARD_COLUMNS: ColumnDef[] = [
-  ...FUNNEL_COLUMNS,
+const STANDARD_META_COLUMNS: ColumnDef[] = [
   { key: "spend", label: "Adspend", sortable: true },
   { key: "impressions", label: "Impr", sortable: true },
   { key: "reach", label: "Reach", sortable: true },
@@ -73,8 +72,7 @@ const STANDARD_COLUMNS: ColumnDef[] = [
   { key: "lp_cvr_percent", label: "LP CVR%", sortable: true }
 ];
 
-const RMA_COLUMNS: ColumnDef[] = [
-  ...FUNNEL_COLUMNS,
+const RMA_META_COLUMNS: ColumnDef[] = [
   { key: "results", label: "Results", sortable: true },
   { key: "cost_per_result", label: "Cost / Result", sortable: true },
   { key: "actions", label: "Actions", sortable: false },
@@ -99,7 +97,20 @@ const RMA_COLUMNS: ColumnDef[] = [
   }
 ];
 
-function columnsForPreset(preset: ColumnPreset): ColumnDef[] {
+const STANDARD_COLUMNS: ColumnDef[] = [
+  ...FUNNEL_COLUMNS,
+  ...STANDARD_META_COLUMNS
+];
+
+const RMA_COLUMNS: ColumnDef[] = [...FUNNEL_COLUMNS, ...RMA_META_COLUMNS];
+
+function columnsForPreset(
+  preset: ColumnPreset,
+  includeFunnelColumns: boolean
+): ColumnDef[] {
+  if (!includeFunnelColumns) {
+    return preset === "rma" ? RMA_META_COLUMNS : STANDARD_META_COLUMNS;
+  }
   return preset === "rma" ? RMA_COLUMNS : STANDARD_COLUMNS;
 }
 
@@ -327,10 +338,10 @@ function Chevron({ open }: { open: boolean }) {
   );
 }
 
-function readStoredPreset(): ColumnPreset {
+function readStoredPreset(storageKey: string): ColumnPreset {
   if (typeof window === "undefined") return "standard";
   try {
-    const v = window.localStorage.getItem(PRESET_STORAGE_KEY);
+    const v = window.localStorage.getItem(storageKey);
     if (v === "rma" || v === "standard") return v;
   } catch {
     // ignore
@@ -340,10 +351,15 @@ function readStoredPreset(): ColumnPreset {
 
 export default function MetaAdsTable({
   rows,
-  unmatchedLeadCount = 0
+  unmatchedLeadCount = 0,
+  includeFunnelColumns = true,
+  presetStorageKey = PRESET_STORAGE_KEY
 }: {
   rows: MetaCampaignNode[];
   unmatchedLeadCount?: number;
+  /** When false (clients-ads), omit funnel columns and unmatched-leads note. */
+  includeFunnelColumns?: boolean;
+  presetStorageKey?: string;
 }) {
   const [preset, setPreset] = useState<ColumnPreset>("standard");
   const [hydrated, setHydrated] = useState(false);
@@ -354,23 +370,23 @@ export default function MetaAdsTable({
   const [openAdSets, setOpenAdSets] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    setPreset(readStoredPreset());
+    setPreset(readStoredPreset(presetStorageKey));
     setHydrated(true);
-  }, []);
+  }, [presetStorageKey]);
 
   useEffect(() => {
     if (!hydrated) return;
     try {
-      window.localStorage.setItem(PRESET_STORAGE_KEY, preset);
+      window.localStorage.setItem(presetStorageKey, preset);
     } catch {
       // ignore
     }
-  }, [preset, hydrated]);
+  }, [preset, hydrated, presetStorageKey]);
 
-  const columns = columnsForPreset(preset);
+  const columns = columnsForPreset(preset, includeFunnelColumns);
 
   useEffect(() => {
-    const cols = columnsForPreset(preset);
+    const cols = columnsForPreset(preset, includeFunnelColumns);
     const allowed = new Set(
       cols.filter((c) => c.sortable).map((c) => c.key as SortKey)
     );
@@ -378,7 +394,7 @@ export default function MetaAdsTable({
       setSortKey(defaultSortKey(preset));
       setDir("desc");
     }
-  }, [preset, sortKey]);
+  }, [preset, sortKey, includeFunnelColumns]);
 
   const q = query.trim().toLowerCase();
   const searching = q.length > 0;
@@ -444,13 +460,15 @@ export default function MetaAdsTable({
         </label>
       </div>
 
-      <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-        <span>Unmatched leads: {formatInteger(unmatchedLeadCount)}</span>
-        <InfoTip text={INSIGHTS_TOOLTIPS.creativeUnmatched} />
-        <span className="text-slate-400">
-          (utm_content vs Meta ad name — not an ID match)
-        </span>
-      </p>
+      {includeFunnelColumns ? (
+        <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+          <span>Unmatched leads: {formatInteger(unmatchedLeadCount)}</span>
+          <InfoTip text={INSIGHTS_TOOLTIPS.creativeUnmatched} />
+          <span className="text-slate-400">
+            (utm_content vs Meta ad name — not an ID match)
+          </span>
+        </p>
+      ) : null}
 
       <div className="overflow-x-auto rounded border border-slate-200">
         <table className="min-w-[1200px] w-full border-collapse text-sm">
