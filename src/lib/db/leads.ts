@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 import { listLeadIdsWithDueFollowUps } from "@/lib/db/lead_reminders";
 import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
 import { computeStage } from "@/lib/leads/computeStage";
+import { omitLegacyLeadColumns } from "@/lib/leads/customFields";
 import {
   funnelEventField,
   leadMatchesFunnelStage,
@@ -46,7 +47,13 @@ function parseBookingSource(raw: unknown): BookingSource | null {
 }
 
 function asLead(row: unknown): LeadRow {
-  const r = row as LeadRow;
+  const raw = omitLegacyLeadColumns(
+    (row && typeof row === "object" ? { ...(row as object) } : {}) as Record<
+      string,
+      unknown
+    >
+  );
+  const r = raw as unknown as LeadRow;
   const rawValue = r.deal_value as unknown;
   const attemptsRaw = (r as LeadRow).verification_call_attempts as unknown;
   const attempts =
@@ -76,7 +83,13 @@ function asLead(row: unknown): LeadRow {
     booking_history: parseBookingHistory((r as LeadRow).booking_history),
     slack_form_notified: Boolean((r as LeadRow).slack_form_notified),
     slack_booking_notified: Boolean((r as LeadRow).slack_booking_notified),
-    slack_no_booking_notified: Boolean((r as LeadRow).slack_no_booking_notified)
+    slack_no_booking_notified: Boolean((r as LeadRow).slack_no_booking_notified),
+    custom_fields:
+      r.custom_fields &&
+      typeof r.custom_fields === "object" &&
+      !Array.isArray(r.custom_fields)
+        ? (r.custom_fields as Record<string, unknown>)
+        : {}
   };
 }
 
@@ -118,6 +131,46 @@ export async function getLeadByEmail(email: string, orgId: string): Promise<Lead
   return data ? asLead(data) : null;
 }
 
+/** Match by phone within an org (exact trim, then digits-only fallback). */
+export async function getLeadByPhone(
+  phone: string,
+  orgId: string
+): Promise<LeadRow | null> {
+  if (!supabaseAdmin) return null;
+  const db = requireDb();
+  const trimmed = phone.trim();
+  if (!trimmed) return null;
+
+  const { data: exact, error: exactError } = await db
+    .from("leads")
+    .select("*")
+    .eq("org_id", orgId)
+    .eq("phone", trimmed)
+    .limit(1)
+    .maybeSingle();
+  if (exactError) throw exactError;
+  if (exact) return asLead(exact);
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length < 7) return null;
+
+  const { data: rows, error } = await db
+    .from("leads")
+    .select("*")
+    .eq("org_id", orgId)
+    .not("phone", "is", null)
+    .limit(200);
+  if (error) throw error;
+  const match = (rows ?? []).find((row) => {
+    const p = String((row as { phone?: string | null }).phone ?? "").replace(
+      /\D/g,
+      ""
+    );
+    return p === digits || p.endsWith(digits) || digits.endsWith(p);
+  });
+  return match ? asLead(match) : null;
+}
+
 export async function getLeadById(id: string, orgId: string): Promise<LeadRow | null> {
   if (!supabaseAdmin) return null;
   const db = requireDb();
@@ -152,12 +205,8 @@ export async function insertLead(
     utm_term: row.utm_term ?? null,
     ad_set_id: row.ad_set_id ?? null,
     lead_source: row.lead_source ?? null,
-    describes_you: row.describes_you ?? null,
-    biggest_goal: row.biggest_goal ?? null,
-    monthly_revenue: row.monthly_revenue ?? null,
-    investment_capacity: row.investment_capacity ?? null,
     form_filled_at: row.form_filled_at ?? null,
-    form_answers: row.form_answers ?? null,
+    custom_fields: row.custom_fields ?? {},
     qualified: row.qualified ?? null,
     qualified_at: row.qualified_at ?? null,
     qualified_by: row.qualified_by ?? null,
@@ -201,7 +250,11 @@ export async function insertLead(
   const withStage = stamp(base, {});
   const { id: _omit, ...insertable } = withStage;
   void _omit;
-  const { data, error } = await db.from("leads").insert(insertable).select("*").single();
+  const { data, error } = await db
+    .from("leads")
+    .insert(omitLegacyLeadColumns(insertable as unknown as Record<string, unknown>))
+    .select("*")
+    .single();
   if (error) throw error;
   return asLead(data);
 }
@@ -235,13 +288,15 @@ export async function updateLead(existing: LeadRow, patch: Partial<LeadRow>): Pr
 
   const { data, error } = await db
     .from("leads")
-    .update({
-      ...next,
-      id: existing.id,
-      org_id: existing.org_id,
-      email: existing.email,
-      created_at: existing.created_at
-    })
+    .update(
+      omitLegacyLeadColumns({
+        ...next,
+        id: existing.id,
+        org_id: existing.org_id,
+        email: existing.email,
+        created_at: existing.created_at
+      } as unknown as Record<string, unknown>)
+    )
     .eq("id", existing.id)
     .eq("org_id", existing.org_id)
     .select("*")

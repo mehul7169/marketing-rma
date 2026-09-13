@@ -41,12 +41,9 @@ export type LeadRow = {
   utm_term: string | null;
   ad_set_id: string | null;
   lead_source: string | null;
-  describes_you: string | null;
-  biggest_goal: string | null;
-  monthly_revenue: string | null;
-  investment_capacity: string | null;
   form_filled_at: string | null;
-  form_answers: Record<string, unknown> | null;
+  /** Arbitrary per-source form answers (JSONB merge on ingest). */
+  custom_fields: Record<string, unknown>;
   qualified: boolean | null;
   qualified_at: string | null;
   qualified_by: string | null;

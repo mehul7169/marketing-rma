@@ -5,6 +5,15 @@ import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
  * no logged-in user).
  */
 export async function getOrgIdBySlug(slug: string): Promise<string> {
+  const id = await findOrgIdBySlug(slug);
+  if (!id) {
+    throw new Error(`Organization not found for slug="${slug}"`);
+  }
+  return id;
+}
+
+/** Soft lookup — returns null when slug is missing (ingest config typos). */
+export async function findOrgIdBySlug(slug: string): Promise<string | null> {
   if (!supabaseAdmin) throw new Error("Supabase is not configured.");
   const { data, error } = await supabaseAdmin
     .from("organizations")
@@ -12,8 +21,5 @@ export async function getOrgIdBySlug(slug: string): Promise<string> {
     .eq("slug", slug)
     .maybeSingle();
   if (error) throw error;
-  if (!data?.id) {
-    throw new Error(`Organization not found for slug="${slug}"`);
-  }
-  return String(data.id);
+  return data?.id ? String(data.id) : null;
 }

@@ -1,4 +1,8 @@
 import type { LeadRow } from "@/lib/leads/types";
+import {
+  getCustomFieldString,
+  WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS
+} from "@/lib/leads/customFields";
 import { formatISTDateTime } from "@/lib/timezone";
 import { sendSlackMessage } from "@/lib/slack/notify";
 
@@ -24,6 +28,7 @@ export async function notifySlackNewLead(lead: LeadRow) {
     lead.qualified === true ? "✅ Qualified" : lead.qualified === false ? "❌ Not Qualified" : "Not yet decided";
   const header = `New Lead — ${qualified}`;
   const url = leadLink(lead);
+  const [describesYouKey, biggestGoalKey] = WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS;
 
   await sendSlackMessage(header, [
     { type: "header", text: { type: "plain_text", text: header, emoji: true } },
@@ -34,8 +39,14 @@ export async function notifySlackNewLead(lead: LeadRow) {
         field("Email", lead.email),
         field("Phone", lead.phone),
         field("Source", lead.lead_source),
-        field("Describes you", lead.describes_you),
-        field("Biggest goal", lead.biggest_goal)
+        field(
+          "Describes you",
+          getCustomFieldString(lead.custom_fields, describesYouKey)
+        ),
+        field(
+          "Biggest goal",
+          getCustomFieldString(lead.custom_fields, biggestGoalKey)
+        )
       ]
     },
     linkBlock(url)

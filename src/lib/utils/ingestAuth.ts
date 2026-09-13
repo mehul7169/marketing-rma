@@ -15,3 +15,13 @@ export function assertWebsiteIngestSecret(req: NextRequest) {
     throw new Error("Unauthorized ingest");
   }
 }
+
+/** Google Apps Script QuickForm ingest — uses x-ingest-secret header. */
+export function assertQuickformIngestSecret(req: NextRequest) {
+  const secret = process.env.QUICKFORM_INGEST_SECRET;
+  if (!secret) throw new Error("Missing QUICKFORM_INGEST_SECRET");
+  const provided = req.headers.get("x-ingest-secret")?.trim() ?? "";
+  if (!provided || provided !== secret) {
+    throw new Error("Unauthorized ingest");
+  }
+}

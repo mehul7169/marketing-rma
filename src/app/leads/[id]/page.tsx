@@ -6,6 +6,7 @@ import LeadFollowUps from "@/components/leads/LeadFollowUps";
 import StageBadge, { stageLabel } from "@/components/leads/StageBadge";
 import { listRemindersForLead } from "@/lib/db/lead_reminders";
 import { getLeadById } from "@/lib/db/leads";
+import { humanizeFieldKey } from "@/lib/leads/customFields";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatCurrencyNullable } from "@/lib/format";
 import { formatISTDateTime } from "@/lib/timezone";
@@ -155,12 +156,37 @@ export default async function LeadDetailPage({
             />
           </div>
 
-          <h2 className="text-sm font-medium text-slate-900">Qualification form</h2>
+          <h2 className="text-sm font-medium text-slate-900">Form Details</h2>
           <div className="grid grid-cols-2 gap-4 rounded border border-slate-200 p-4">
-            <Field label="Describes you" value={lead.describes_you} />
-            <Field label="Biggest goal" value={lead.biggest_goal} />
-            <Field label="Monthly revenue" value={lead.monthly_revenue} />
-            <Field label="Investment capacity" value={lead.investment_capacity} />
+            {(() => {
+              const entries = Object.entries(lead.custom_fields ?? {}).filter(
+                ([, value]) => {
+                  if (value === null || value === undefined) return false;
+                  if (typeof value === "string" && !value.trim()) return false;
+                  return true;
+                }
+              );
+              if (entries.length === 0) {
+                return (
+                  <p className="col-span-2 text-sm text-slate-500">
+                    No form details yet.
+                  </p>
+                );
+              }
+              return entries.map(([key, value]) => (
+                <Field
+                  key={key}
+                  label={humanizeFieldKey(key)}
+                  value={
+                    typeof value === "string"
+                      ? value
+                      : typeof value === "number" || typeof value === "boolean"
+                        ? String(value)
+                        : JSON.stringify(value)
+                  }
+                />
+              ));
+            })()}
             <Field
               label="Qualified by"
               value={
@@ -170,11 +196,6 @@ export default async function LeadDetailPage({
               }
             />
           </div>
-          {lead.form_answers ? (
-            <pre className="overflow-x-auto rounded border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
-              {JSON.stringify(lead.form_answers, null, 2)}
-            </pre>
-          ) : null}
         </section>
 
         <section className="space-y-4">

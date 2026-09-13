@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLeadByEmail, insertLead, updateLead } from "@/lib/db/leads";
 import type { LeadRow } from "@/lib/leads/types";
+import {
+  mergeCustomFields,
+  WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS,
+  type WebsiteCanonicalCustomFieldKey
+} from "@/lib/leads/customFields";
 import { getOrgIdBySlug } from "@/lib/orgs/getOrgIdBySlug";
 import { notifySlackNewLead } from "@/lib/slack/messages";
 import { assertWebsiteIngestSecret } from "@/lib/utils/ingestAuth";
@@ -18,18 +23,20 @@ type LeadFormBody = {
   utm_term?: unknown;
   ad_set_id?: unknown;
   lead_source?: unknown;
-  describes_you?: unknown;
-  biggest_goal?: unknown;
-  monthly_revenue?: unknown;
-  investment_capacity?: unknown;
   form_answers?: unknown;
   qualified?: unknown;
-};
+} & Partial<Record<WebsiteCanonicalCustomFieldKey, unknown>>;
 
 function str(v: unknown): string | null {
-  if (typeof v !== "string") return null;
-  const t = v.trim();
-  return t.length ? t : null;
+  if (v === null || v === undefined) return null;
+  if (typeof v === "string") {
+    const t = v.trim();
+    return t.length ? t : null;
+  }
+  if (typeof v === "number" || typeof v === "boolean") {
+    return String(v);
+  }
+  return null;
 }
 
 function optionalBool(v: unknown): boolean | null | undefined {
@@ -37,6 +44,31 @@ function optionalBool(v: unknown): boolean | null | undefined {
   if (v === null) return null;
   if (typeof v === "boolean") return v;
   return undefined;
+}
+
+/**
+ * Website qual answers always land under these exact custom_fields keys
+ * (same as the historical backfill) — never under raw/alternate payload names.
+ */
+function customFieldsFromWebsiteBody(
+  body: LeadFormBody
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const formAnswers =
+    body.form_answers &&
+    typeof body.form_answers === "object" &&
+    !Array.isArray(body.form_answers)
+      ? (body.form_answers as Record<string, unknown>)
+      : null;
+
+  for (const key of WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS) {
+    const fromTop = str(body[key as WebsiteCanonicalCustomFieldKey]);
+    const fromAnswers = formAnswers ? str(formAnswers[key]) : null;
+    const value = fromTop ?? fromAnswers;
+    if (value) out[key] = value;
+  }
+
+  return out;
 }
 
 async function maybeNotifyNewLead(existing: LeadRow | null, lead: LeadRow): Promise<LeadRow> {
@@ -66,10 +98,7 @@ export async function POST(req: NextRequest) {
 
   const now = new Date().toISOString();
   const qualified = optionalBool(body.qualified);
-  const formAnswers =
-    body.form_answers && typeof body.form_answers === "object" && !Array.isArray(body.form_answers)
-      ? (body.form_answers as Record<string, unknown>)
-      : null;
+  const incomingCustom = customFieldsFromWebsiteBody(body);
 
   const patch: Partial<LeadRow> = {
     name: str(body.name),
@@ -80,12 +109,7 @@ export async function POST(req: NextRequest) {
     utm_content: str(body.utm_content),
     utm_term: str(body.utm_term),
     ad_set_id: str(body.ad_set_id),
-    lead_source: str(body.lead_source),
-    describes_you: str(body.describes_you),
-    biggest_goal: str(body.biggest_goal),
-    monthly_revenue: str(body.monthly_revenue),
-    investment_capacity: str(body.investment_capacity),
-    form_answers: formAnswers
+    lead_source: str(body.lead_source)
   };
 
   try {
@@ -99,6 +123,7 @@ export async function POST(req: NextRequest) {
         org_id: orgId,
         email,
         ...patch,
+        custom_fields: mergeCustomFields({}, incomingCustom),
         form_filled_at: now,
         qualified: qualified === undefined ? null : qualified,
         qualified_at: qualified === true || qualified === false ? now : null,
@@ -115,8 +140,8 @@ export async function POST(req: NextRequest) {
       ...Object.fromEntries(
         Object.entries(patch).filter(([, v]) => v !== null)
       ),
+      custom_fields: mergeCustomFields(existing.custom_fields, incomingCustom),
       form_filled_at: existing.form_filled_at ?? now,
-      form_answers: formAnswers ?? existing.form_answers,
       qualified: nextQualified,
       qualified_by:
         qualified === true || qualified === false
