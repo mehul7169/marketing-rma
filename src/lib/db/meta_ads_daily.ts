@@ -5,6 +5,7 @@ export type MetaActionEntry = { action_type: string; value: string };
 
 export type MetaAdsDailyRow = {
   date: string; // YYYY-MM-DD
+  org_id: string;
   /** FK to ad_accounts.id (UUID as text). */
   ad_account_id: string;
   campaign_id: string | null;
@@ -178,6 +179,7 @@ export async function upsertMetaAdsDaily(
   }
   const payload = rows.map((r) => ({
     ...r,
+    org_id: r.org_id,
     ad_account_id: r.ad_account_id,
     spend: r.spend ?? null,
     impressions: r.impressions ?? null,
@@ -208,16 +210,17 @@ export async function upsertMetaAdsDaily(
 }
 
 /** Delete meta_ads_daily rows for one account only — never wipe all clients. */
-export async function truncateMetaAdsDaily(adAccountId: string) {
+export async function truncateMetaAdsDaily(adAccountId: string, orgId: string) {
   if (!supabaseAdmin) {
     throw new Error("Supabase is not configured.");
   }
-  if (!adAccountId) {
-    throw new Error("truncateMetaAdsDaily requires adAccountId");
+  if (!adAccountId || !orgId) {
+    throw new Error("truncateMetaAdsDaily requires adAccountId and orgId");
   }
   const { error } = await supabaseAdmin
     .from("meta_ads_daily")
     .delete()
+    .eq("org_id", orgId)
     .eq("ad_account_id", adAccountId);
 
   if (error) throw error;
@@ -230,16 +233,18 @@ export async function truncateMetaAdsDaily(adAccountId: string) {
  */
 export async function remappingMetaAdsDailyAccountId(
   fromAdAccountId: string,
-  toAdAccountId: string
+  toAdAccountId: string,
+  orgId: string
 ): Promise<number> {
   if (!supabaseAdmin) throw new Error("Supabase is not configured.");
-  if (!fromAdAccountId || !toAdAccountId) {
-    throw new Error("remappingMetaAdsDailyAccountId requires from and to ids");
+  if (!fromAdAccountId || !toAdAccountId || !orgId) {
+    throw new Error("remappingMetaAdsDailyAccountId requires from, to, and orgId");
   }
   if (fromAdAccountId === toAdAccountId) return 0;
   const { count, error } = await supabaseAdmin
     .from("meta_ads_daily")
     .update({ ad_account_id: toAdAccountId }, { count: "exact" })
+    .eq("org_id", orgId)
     .eq("ad_account_id", fromAdAccountId);
   if (error) throw error;
   return count ?? 0;
@@ -250,18 +255,23 @@ export async function remappingMetaAdsDailyAccountId(
  * Callers should pass an explicit UUID whenever possible.
  * Omitting it falls back to RMA via getRmaAccountId() — never unscoped.
  */
-async function resolveAccountId(adAccountId?: string): Promise<string | null> {
+async function resolveAccountId(
+  orgId: string,
+  adAccountId?: string
+): Promise<string | null> {
   if (adAccountId) return adAccountId;
-  return getRmaAccountId();
+  return getRmaAccountId(orgId);
 }
 
 export async function countMetaAdsRowsForAccount(
-  adAccountId: string
+  adAccountId: string,
+  orgId: string
 ): Promise<number> {
   if (!supabaseAdmin) return 0;
   const { count, error } = await supabaseAdmin
     .from("meta_ads_daily")
     .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
     .eq("ad_account_id", adAccountId);
   if (error) throw error;
   return count ?? 0;
@@ -273,7 +283,8 @@ export async function countMetaAdsRowsForAccount(
  */
 export async function sumLeadsMetaReportedByAccountForDates(
   adAccountIds: string[],
-  dates: string[]
+  dates: string[],
+  orgId: string
 ): Promise<Map<string, Map<string, number>>> {
   const result = new Map<string, Map<string, number>>();
   for (const id of adAccountIds) {
@@ -288,6 +299,7 @@ export async function sumLeadsMetaReportedByAccountForDates(
   const { data, error } = await supabaseAdmin
     .from("meta_ads_daily")
     .select("ad_account_id, date, leads_meta_reported")
+    .eq("org_id", orgId)
     .in("ad_account_id", adAccountIds)
     .in("date", dates);
 
@@ -306,15 +318,17 @@ export async function sumLeadsMetaReportedByAccountForDates(
 export async function getMetaAdsTrend(
   fromISO: string,
   toISO: string,
+  orgId: string,
   adAccountId?: string,
 ): Promise<MetaAdsTrendPoint[]> {
   if (!supabaseAdmin) return [];
-  const accountId = await resolveAccountId(adAccountId);
+  const accountId = await resolveAccountId(orgId, adAccountId);
   if (!accountId) return [];
 
   const { data, error } = await supabaseAdmin
     .from("meta_ads_daily")
     .select("date, spend, clicks, leads_meta_reported")
+    .eq("org_id", orgId)
     .eq("ad_account_id", accountId)
     .gte("date", fromISO)
     .lte("date", toISO)
@@ -412,10 +426,11 @@ function addMetrics(acc: MetricAcc, row: DailyGrain) {
 export async function getMetaAdsHierarchy(
   fromISO: string,
   toISO: string,
+  orgId: string,
   adAccountId?: string,
 ): Promise<MetaCampaignNode[]> {
   if (!supabaseAdmin) return [];
-  const accountId = await resolveAccountId(adAccountId);
+  const accountId = await resolveAccountId(orgId, adAccountId);
   if (!accountId) return [];
 
   const { data, error } = await supabaseAdmin
@@ -440,6 +455,7 @@ export async function getMetaAdsHierarchy(
         "appointments_scheduled",
       ].join(","),
     )
+    .eq("org_id", orgId)
     .eq("ad_account_id", accountId)
     .gte("date", fromISO)
     .lte("date", toISO);
@@ -561,6 +577,7 @@ export async function getMetaAdsHierarchy(
 export async function getMetaAdsTotals(
   fromISO: string,
   toISO: string,
+  orgId: string,
   adAccountId?: string,
 ): Promise<{
   totalSpend: number;
@@ -576,7 +593,7 @@ export async function getMetaAdsTotals(
       averageCtrPercent: 0,
     };
   }
-  const accountId = await resolveAccountId(adAccountId);
+  const accountId = await resolveAccountId(orgId, adAccountId);
   if (!accountId) {
     return {
       totalSpend: 0,
@@ -588,6 +605,7 @@ export async function getMetaAdsTotals(
   const { data, error } = await supabaseAdmin
     .from("meta_ads_daily")
     .select("spend, clicks, impressions, leads_meta_reported")
+    .eq("org_id", orgId)
     .eq("ad_account_id", accountId)
     .gte("date", fromISO)
     .lte("date", toISO);

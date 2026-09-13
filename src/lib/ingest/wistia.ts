@@ -62,8 +62,9 @@ export async function fetchWistiaAnalyticsForDay(
 
 export function transformWistiaAnalyticsDay(
   dateISO: string,
-  analytics: WistiaAnalyticsResponse
-): Partial<WebsiteDailyRow> & { date: string } {
+  analytics: WistiaAnalyticsResponse,
+  orgId: string
+): Partial<WebsiteDailyRow> & { date: string; org_id: string } {
   const engagementRate = analytics.engagement_rate;
   const video_avg_watch_percent =
     engagementRate === null || engagementRate === undefined
@@ -72,6 +73,7 @@ export function transformWistiaAnalyticsDay(
 
   return {
     date: dateISO,
+    org_id: orgId,
     lead_source: null,
     utm_campaign: null,
     video_plays: numOrNull(analytics.plays),
@@ -117,12 +119,14 @@ export async function fetchWistiaStatsByDateRange(
 }
 
 export function transformWistiaStatsByDateRows(
-  rows: WistiaStatsByDateRow[]
-): Array<Partial<WebsiteDailyRow> & { date: string }> {
+  rows: WistiaStatsByDateRow[],
+  orgId: string
+): Array<Partial<WebsiteDailyRow> & { date: string; org_id: string }> {
   return rows
     .filter((row) => row.date)
     .map((row) => ({
       date: row.date,
+      org_id: orgId,
       lead_source: null,
       utm_campaign: null,
       video_plays: numOrNull(row.play_count)
@@ -132,17 +136,18 @@ export function transformWistiaStatsByDateRows(
 /** Incremental cron: last 2 days via per-day Analytics API. */
 export async function ingestWistiaRecentDays(
   config: WistiaIngestConfig,
-  dates: string[]
+  dates: string[],
+  orgId: string
 ): Promise<number> {
-  const payload: Array<Partial<WebsiteDailyRow> & { date: string }> = [];
+  const payload: Array<Partial<WebsiteDailyRow> & { date: string; org_id: string }> = [];
 
   for (const date of dates) {
     const analytics = await fetchWistiaAnalyticsForDay(config, date);
-    payload.push(transformWistiaAnalyticsDay(date, analytics));
+    payload.push(transformWistiaAnalyticsDay(date, analytics, orgId));
   }
 
   if (payload.length > 0) {
-    await mergeAndUpsertWebsiteDaily(payload);
+    await mergeAndUpsertWebsiteDaily(payload, orgId);
   }
 
   return payload.length;
@@ -163,7 +168,8 @@ export type WistiaBackfillResult = {
 export async function ingestWistiaHistoricalRange(
   config: WistiaIngestConfig,
   sinceISO: string,
-  untilISO: string
+  untilISO: string,
+  orgId: string
 ): Promise<WistiaBackfillResult> {
   let rows: WistiaStatsByDateRow[];
 
@@ -190,9 +196,9 @@ export async function ingestWistiaHistoricalRange(
     };
   }
 
-  const payload = transformWistiaStatsByDateRows(rows);
+  const payload = transformWistiaStatsByDateRows(rows, orgId);
   if (payload.length > 0) {
-    await mergeAndUpsertWebsiteDaily(payload);
+    await mergeAndUpsertWebsiteDaily(payload, orgId);
   }
 
   return {

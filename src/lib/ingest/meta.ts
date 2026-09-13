@@ -145,10 +145,12 @@ function ratioOrNull(spend: number | null, count: number | null): number | null 
 
 export function transformMetaInsightsRows(
   rows: MetaInsightsRow[],
-  adAccountId: string
+  adAccountId: string,
+  orgId: string
 ): Array<
   Partial<MetaAdsDailyRow> & {
     date: string;
+    org_id: string;
     ad_account_id: string;
     ad_id: string;
     ad_set_id: string;
@@ -192,6 +194,7 @@ export function transformMetaInsightsRows(
 
       return {
         date: r.date_start,
+        org_id: orgId,
         ad_account_id: adAccountId,
         campaign_id: r.campaign_id,
         campaign_name: r.campaign_name,
@@ -272,10 +275,11 @@ export async function ingestMetaAdsRange(
   sinceISO: string,
   untilISO: string,
   /** Internal ad_accounts.id stamped onto every upserted row. */
-  adAccountId: string
+  adAccountId: string,
+  orgId: string
 ): Promise<number> {
   const raw = await fetchMetaInsights(config, sinceISO, untilISO);
-  const payload = transformMetaInsightsRows(raw, adAccountId);
+  const payload = transformMetaInsightsRows(raw, adAccountId, orgId);
   if (payload.length > 0) {
     await upsertMetaAdsDaily(payload);
   }
@@ -332,7 +336,12 @@ export type MetaMultiAccountIngestSummary = {
  * Pull insights for one ad_accounts row over a date range and upsert tagged rows.
  */
 export async function ingestMetaAdsForAccount(
-  account: { id: string; meta_ad_account_id: string; client_name: string },
+  account: {
+    id: string;
+    org_id: string;
+    meta_ad_account_id: string;
+    client_name: string;
+  },
   sinceISO: string,
   untilISO: string,
   accessToken?: string
@@ -342,7 +351,8 @@ export async function ingestMetaAdsForAccount(
     { accessToken: token, adAccountId: account.meta_ad_account_id },
     sinceISO,
     untilISO,
-    account.id
+    account.id,
+    account.org_id
   );
 }
 
@@ -354,7 +364,12 @@ export async function ingestMetaAdsForActiveAccounts(
   sinceISO: string,
   untilISO: string,
   options?: {
-    accounts?: Array<{ id: string; meta_ad_account_id: string; client_name: string }>;
+    accounts?: Array<{
+      id: string;
+      org_id: string;
+      meta_ad_account_id: string;
+      client_name: string;
+    }>;
     accessToken?: string;
     delayMs?: number;
     onAccountStart?: (account: { id: string; client_name: string }) => void;

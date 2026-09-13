@@ -1,3 +1,4 @@
+import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import CohortMaturityNote from "@/components/CohortMaturityNote";
 import DateRangePicker from "@/components/DateRangePicker";
 import InfoTip from "@/components/InfoTip";
@@ -44,9 +45,11 @@ export default async function InsightsPage({
   const rangeDays = inclusiveDayCount(fromISO, toISO);
   const immature = isCohortImmature(toISO, todayISO);
 
+  const orgId = await getCurrentOrgId();
   const { metrics, sources: allSources } = await getInsightsData(
     fromISO,
     toISO,
+    orgId,
     sources.length ? sources : undefined
   );
 

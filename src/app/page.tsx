@@ -1,3 +1,4 @@
+import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import CohortMaturityNote from "@/components/CohortMaturityNote";
 import DateRangePicker from "@/components/DateRangePicker";
 import { listDistinctLeadSources, listLeadsInRange } from "@/lib/db/leads";
@@ -90,10 +91,11 @@ export default async function HomePage({
   const sources = source ? source.split(",").filter(Boolean) : undefined;
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
   const immature = isCohortImmature(toISO, todayISO);
+  const orgId = await getCurrentOrgId();
 
   const [cohort, allSources] = await Promise.all([
-    listLeadsInRange(fromISO, toISO, sources),
-    listDistinctLeadSources()
+    listLeadsInRange(fromISO, toISO, orgId, sources),
+    listDistinctLeadSources(orgId)
   ]);
 
   const f = funnelCounts(cohort);

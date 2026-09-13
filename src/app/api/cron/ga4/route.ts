@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logCronRun } from "@/lib/db/cron_runs";
 import { getGa4IngestConfigFromEnv, ingestGa4Range } from "@/lib/ingest/ga4";
+import { getOrgIdBySlug } from "@/lib/orgs/getOrgIdBySlug";
 import { assertCronSecret } from "@/lib/utils/cronAuth";
 import { addDaysISO } from "@/lib/utils/date";
 import { todayISTDateString } from "@/lib/timezone";
@@ -19,8 +20,15 @@ export async function GET(req: NextRequest) {
   const yesterdayISO = addDaysISO(todayISO, -1);
 
   try {
+    // Deliberate simplification: GA4 property is RMA's only for now.
+    const orgId = await getOrgIdBySlug("rma");
     const config = getGa4IngestConfigFromEnv();
-    const rowsUpserted = await ingestGa4Range(config, yesterdayISO, todayISO);
+    const rowsUpserted = await ingestGa4Range(
+      config,
+      yesterdayISO,
+      todayISO,
+      orgId
+    );
 
     await logCronRun({
       job: "ga4",

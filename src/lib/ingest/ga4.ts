@@ -25,8 +25,9 @@ export function ga4DateToISO(ga4Date: string): string {
 }
 
 export function transformGa4ReportRows(
-  rows: GA4ReportRow[]
-): Array<Partial<WebsiteDailyRow> & { date: string }> {
+  rows: GA4ReportRow[],
+  orgId: string
+): Array<Partial<WebsiteDailyRow> & { date: string; org_id: string }> {
   const dateToValues = new Map<string, { sessions: number; totalUsers: number }>();
 
   for (const row of rows) {
@@ -40,6 +41,7 @@ export function transformGa4ReportRows(
 
   return Array.from(dateToValues.entries()).map(([date, values]) => ({
     date,
+    org_id: orgId,
     lead_source: null,
     utm_campaign: null,
     landing_page_visits: values.sessions,
@@ -83,12 +85,13 @@ export async function fetchGa4Report(
 export async function ingestGa4Range(
   config: GA4IngestConfig,
   sinceISO: string,
-  untilISO: string
+  untilISO: string,
+  orgId: string
 ): Promise<number> {
   const rows = await fetchGa4Report(config, sinceISO, untilISO);
-  const payload = transformGa4ReportRows(rows);
+  const payload = transformGa4ReportRows(rows, orgId);
   if (payload.length > 0) {
-    await mergeAndUpsertWebsiteDaily(payload);
+    await mergeAndUpsertWebsiteDaily(payload, orgId);
   }
   return payload.length;
 }

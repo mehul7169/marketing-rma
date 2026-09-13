@@ -23,6 +23,7 @@ import {
   getWistiaIngestConfigFromEnv,
   ingestWistiaHistoricalRange
 } from "../src/lib/ingest/wistia";
+import { getOrgIdBySlug } from "../src/lib/orgs/getOrgIdBySlug";
 import { toISODate } from "../src/lib/utils/date";
 
 loadEnv({ path: resolve(process.cwd(), ".env.local") });
@@ -180,6 +181,8 @@ async function backfillMeta(
 }
 
 async function backfillGa4(fromISO: string, toISO: string): Promise<SourceSummary> {
+  // Deliberate simplification: GA4 property is RMA's only for now.
+  const orgId = await getOrgIdBySlug("rma");
   const config = getGa4IngestConfigFromEnv();
   const chunks = getMonthlyChunks(fromISO, toISO);
   const summary: SourceSummary = {
@@ -197,7 +200,7 @@ async function backfillGa4(fromISO: string, toISO: string): Promise<SourceSummar
     const label = formatChunkLabel(chunk);
     try {
       const rows = await withRetry(
-        () => ingestGa4Range(config, chunk.start, chunk.end),
+        () => ingestGa4Range(config, chunk.start, chunk.end, orgId),
         { label: `GA4 ${label}` }
       );
       summary.rowsUpserted += rows;
@@ -216,6 +219,8 @@ async function backfillWistia(
   fromISO: string,
   toISO: string
 ): Promise<SourceSummary> {
+  // Deliberate simplification: Wistia media is RMA's only for now.
+  const orgId = await getOrgIdBySlug("rma");
   const config = getWistiaIngestConfigFromEnv();
   const chunks = getMonthlyChunks(fromISO, toISO);
   const summary: SourceSummary = {
@@ -233,7 +238,7 @@ async function backfillWistia(
     const label = formatChunkLabel(chunk);
     try {
       const result = await withRetry(
-        () => ingestWistiaHistoricalRange(config, chunk.start, chunk.end),
+        () => ingestWistiaHistoricalRange(config, chunk.start, chunk.end, orgId),
         { label: `Wistia ${label}` }
       );
 

@@ -1,9 +1,6 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import {
-  SESSION_COOKIE,
-  parseSessionRole
-} from "@/lib/auth/session";
+import { requireOrgId } from "@/lib/auth/getCurrentOrgId";
+import { isPlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import { getAdAccountById } from "@/lib/db/ad_accounts";
 import {
   backfillCronJobName,
@@ -16,11 +13,7 @@ export const runtime = "nodejs";
 const PENDING_WINDOW_MS = 3 * 60 * 60 * 1000; // 3 hours
 
 export async function GET(req: NextRequest) {
-  const role = await parseSessionRole(
-    cookies().get(SESSION_COOKIE)?.value,
-    process.env.ROLE_SECRET
-  );
-  if (role !== "admin") {
+  if (!(await isPlatformAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -29,14 +22,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  const account = await getAdAccountById(id);
+  const orgId = await requireOrgId();
+  const account = await getAdAccountById(id, orgId);
   if (!account || account.is_lead_source) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 
   const [cron, rowCount] = await Promise.all([
     getLatestCronRunForJob(backfillCronJobName(id)),
-    countMetaAdsRowsForAccount(id)
+    countMetaAdsRowsForAccount(id, orgId)
   ]);
 
   if (cron?.status === "error") {

@@ -4,6 +4,7 @@ import {
   getWistiaIngestConfigFromEnv,
   ingestWistiaRecentDays
 } from "@/lib/ingest/wistia";
+import { getOrgIdBySlug } from "@/lib/orgs/getOrgIdBySlug";
 import { assertCronSecret } from "@/lib/utils/cronAuth";
 import { addDaysISO } from "@/lib/utils/date";
 import { todayISTDateString } from "@/lib/timezone";
@@ -22,11 +23,14 @@ export async function GET(req: NextRequest) {
   const yesterdayISO = addDaysISO(todayISO, -1);
 
   try {
+    // Deliberate simplification: Wistia media is RMA's only for now.
+    const orgId = await getOrgIdBySlug("rma");
     const config = getWistiaIngestConfigFromEnv();
-    const rowsUpserted = await ingestWistiaRecentDays(config, [
-      yesterdayISO,
-      todayISO
-    ]);
+    const rowsUpserted = await ingestWistiaRecentDays(
+      config,
+      [yesterdayISO, todayISO],
+      orgId
+    );
 
     await logCronRun({
       job: "wistia",

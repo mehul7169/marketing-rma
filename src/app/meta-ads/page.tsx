@@ -7,6 +7,7 @@ import {
   isCohortImmature
 } from "@/lib/utils/date";
 import { todayISTDateString } from "@/lib/timezone";
+import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import { getRmaAccountId } from "@/lib/ad-accounts/getRmaAccountId";
 import {
   getMetaAdsHierarchy,
@@ -49,17 +50,18 @@ export default async function MetaAdsPage({
   const rangeDays = inclusiveDayCount(fromISO, toISO);
   const immature = isCohortImmature(toISO, todayISO);
 
-  const rmaAccountId = await getRmaAccountId();
+  const orgId = await getCurrentOrgId();
+  const rmaAccountId = await getRmaAccountId(orgId);
 
   const [totals, priorTotals, trendRaw, hierarchy, cohortLeads, knownAdNames] =
     rmaAccountId
       ? await Promise.all([
-          getMetaAdsTotals(fromISO, toISO, rmaAccountId),
-          getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO, rmaAccountId),
-          getMetaAdsTrend(fromISO, toISO, rmaAccountId),
-          getMetaAdsHierarchy(fromISO, toISO, rmaAccountId),
-          listLeadsInRange(fromISO, toISO),
-          listKnownAdNames()
+          getMetaAdsTotals(fromISO, toISO, orgId, rmaAccountId),
+          getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO, orgId, rmaAccountId),
+          getMetaAdsTrend(fromISO, toISO, orgId, rmaAccountId),
+          getMetaAdsHierarchy(fromISO, toISO, orgId, rmaAccountId),
+          listLeadsInRange(fromISO, toISO, orgId),
+          listKnownAdNames(orgId)
         ])
       : [
           {

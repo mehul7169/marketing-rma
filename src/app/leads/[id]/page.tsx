@@ -1,3 +1,4 @@
+import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import { notFound } from "next/navigation";
 import CopyValue from "@/components/CopyValue";
 import LeadActions from "@/components/leads/LeadActions";
@@ -52,10 +53,11 @@ export default async function LeadDetailPage({
 }: {
   params: { id: string };
 }) {
-  const lead = await getLeadById(params.id);
+  const orgId = await getCurrentOrgId();
+  const lead = await getLeadById(params.id, orgId);
   if (!lead) notFound();
 
-  const reminders = await listRemindersForLead(lead.id);
+  const reminders = await listRemindersForLead(lead.id, orgId);
   const touch = lastTouch(lead);
 
   return (

@@ -10,6 +10,7 @@ export type BookingHistoryEntry = {
 
 export type LeadReminder = {
   id: string;
+  org_id: string;
   lead_id: string;
   text: string;
   due_at: string | null;
@@ -27,6 +28,7 @@ export type VerificationCallStatus =
 
 export type LeadRow = {
   id: string;
+  org_id: string;
   email: string;
   ghl_contact_id: string | null;
   name: string | null;
@@ -87,6 +89,8 @@ export type LeadRow = {
 };
 
 export type LeadListFilters = {
+  /** Required for all UI list queries — never omit. */
+  orgId: string;
   fromISO?: string;
   toISO?: string;
   stages?: string[];

@@ -1,3 +1,4 @@
+import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import CopyValue from "@/components/CopyValue";
 import DateRangePicker from "@/components/DateRangePicker";
 import DueFollowUpBadge from "@/components/leads/DueFollowUpBadge";
@@ -65,9 +66,11 @@ export default async function LeadsPage({
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
   const needsVerificationCall = lifecycle === "needs_verification";
   const followUpsDue = lifecycle === "follow_ups_due";
+  const orgId = await getCurrentOrgId();
 
   const [rows, allSources] = await Promise.all([
     listLeads({
+      orgId,
       fromISO,
       toISO,
       stages: deepLinkStage ? undefined : stages,
@@ -80,10 +83,10 @@ export default async function LeadsPage({
       followUpsDue,
       needsVerificationCall
     }),
-    listDistinctLeadSources()
+    listDistinctLeadSources(orgId)
   ]);
 
-  const dueReminders = await listDueFollowUps(rows.map((r) => r.id));
+  const dueReminders = await listDueFollowUps(orgId, rows.map((r) => r.id));
   const dueByLead = new Map<string, typeof dueReminders>();
   for (const r of dueReminders) {
     const list = dueByLead.get(r.lead_id) ?? [];

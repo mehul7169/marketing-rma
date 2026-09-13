@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLeadByEmail, updateLead } from "@/lib/db/leads";
+import { getOrgIdBySlug } from "@/lib/orgs/getOrgIdBySlug";
 import { assertWebsiteIngestSecret } from "@/lib/utils/ingestAuth";
 
 export const runtime = "nodejs";
@@ -35,7 +36,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const existing = await getLeadByEmail(email);
+    // Deliberate simplification: only RMA's website hits this endpoint today.
+    // Per-org ingest routing comes later when a second org has its own site.
+    const orgId = await getOrgIdBySlug("rma");
+
+    const existing = await getLeadByEmail(email, orgId);
     if (!existing) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     }

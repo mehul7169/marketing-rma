@@ -105,31 +105,41 @@ function firstSetAt(existing: string | null, nextValue: unknown, now: string): s
   return now;
 }
 
-export async function getLeadByEmail(email: string): Promise<LeadRow | null> {
+export async function getLeadByEmail(email: string, orgId: string): Promise<LeadRow | null> {
   if (!supabaseAdmin) return null;
   const db = requireDb();
   const { data, error } = await db
     .from("leads")
     .select("*")
+    .eq("org_id", orgId)
     .eq("email", email.toLowerCase().trim())
     .maybeSingle();
   if (error) throw error;
   return data ? asLead(data) : null;
 }
 
-export async function getLeadById(id: string): Promise<LeadRow | null> {
+export async function getLeadById(id: string, orgId: string): Promise<LeadRow | null> {
   if (!supabaseAdmin) return null;
   const db = requireDb();
-  const { data, error } = await db.from("leads").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await db
+    .from("leads")
+    .select("*")
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .maybeSingle();
   if (error) throw error;
   return data ? asLead(data) : null;
 }
 
-export async function insertLead(row: Partial<LeadRow> & { email: string }): Promise<LeadRow> {
+export async function insertLead(
+  row: Partial<LeadRow> & { email: string; org_id: string }
+): Promise<LeadRow> {
   const db = requireDb();
   const now = new Date().toISOString();
+  if (!row.org_id) throw new Error("insertLead requires org_id");
   const base: LeadRow = {
     id: "",
+    org_id: row.org_id,
     email: row.email.toLowerCase().trim(),
     ghl_contact_id: row.ghl_contact_id ?? null,
     name: row.name ?? null,
@@ -228,10 +238,12 @@ export async function updateLead(existing: LeadRow, patch: Partial<LeadRow>): Pr
     .update({
       ...next,
       id: existing.id,
+      org_id: existing.org_id,
       email: existing.email,
       created_at: existing.created_at
     })
     .eq("id", existing.id)
+    .eq("org_id", existing.org_id)
     .select("*")
     .single();
   if (error) throw error;
@@ -270,7 +282,9 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   const eventStage = cohortStage ? null : parseUrlEvent(filters.event);
   const dateField = eventStage ? funnelEventField(eventStage) : "created_at";
 
-  let query = db.from("leads").select("*");
+  if (!filters.orgId) throw new Error("listLeads requires orgId");
+
+  let query = db.from("leads").select("*").eq("org_id", filters.orgId);
 
   if (filters.needsVerificationCall) {
     // Operational queue — not clipped by the page date range.
@@ -287,7 +301,7 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   }
 
   if (filters.followUpsDue) {
-    const dueIds = await listLeadIdsWithDueFollowUps();
+    const dueIds = await listLeadIdsWithDueFollowUps(filters.orgId);
     if (dueIds.length === 0) return [];
     query = query.in("id", dueIds);
   } else if (!filters.needsVerificationCall) {
@@ -361,10 +375,13 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   return rows;
 }
 
-export async function listDistinctLeadSources(): Promise<string[]> {
+export async function listDistinctLeadSources(orgId: string): Promise<string[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
-  const { data, error } = await db.from("leads").select("lead_source");
+  const { data, error } = await db
+    .from("leads")
+    .select("lead_source")
+    .eq("org_id", orgId);
   if (error) throw error;
   const set = new Set<string>();
   for (const row of (data ?? []) as Array<{ lead_source: string | null }>) {
@@ -373,19 +390,28 @@ export async function listDistinctLeadSources(): Promise<string[]> {
   return Array.from(set).sort();
 }
 
-export async function listLeadsInRange(fromISO: string, toISO: string, sources?: string[]): Promise<LeadRow[]> {
-  return listLeads({ fromISO, toISO, sources });
+export async function listLeadsInRange(
+  fromISO: string,
+  toISO: string,
+  orgId: string,
+  sources?: string[]
+): Promise<LeadRow[]> {
+  return listLeads({ orgId, fromISO, toISO, sources });
 }
 
 /** All leads, optionally by source. Cohort/event windows applied in computeInsights. */
-export async function listAllLeads(sources?: string[]): Promise<LeadRow[]> {
+export async function listAllLeads(orgId: string, sources?: string[]): Promise<LeadRow[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
   const pageSize = 1000;
   const all: LeadRow[] = [];
   let offset = 0;
   for (;;) {
-    let query = db.from("leads").select("*").range(offset, offset + pageSize - 1);
+    let query = db
+      .from("leads")
+      .select("*")
+      .eq("org_id", orgId)
+      .range(offset, offset + pageSize - 1);
     if (sources && sources.length > 0) query = query.in("lead_source", sources);
     const { data, error } = await query;
     if (error) throw error;

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
+import { requirePlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import { listClientAdAccounts } from "@/lib/db/ad_accounts";
 import {
   backfillCronJobName,
@@ -36,11 +38,12 @@ function isSignificantLeadSwing(yesterday: number, dayBefore: number): boolean {
 
 async function resolveBackfillStatus(
   accountId: string,
-  createdAt: string
+  createdAt: string,
+  orgId: string
 ): Promise<"pending" | "complete" | "error" | null> {
   const [cron, rowCount] = await Promise.all([
     getLatestCronRunForJob(backfillCronJobName(accountId)),
-    countMetaAdsRowsForAccount(accountId)
+    countMetaAdsRowsForAccount(accountId, orgId)
   ]);
   if (cron?.status === "error") return "error";
   if (cron?.status === "success" || rowCount > 0) return "complete";
@@ -77,16 +80,19 @@ function LeadDayCell({
 }
 
 export default async function ClientsAdsPage() {
-  const accounts = await listClientAdAccounts();
+  await requirePlatformAdmin();
+  const orgId = await getCurrentOrgId();
+  const accounts = await listClientAdAccounts(orgId);
   const todayISO = todayISTDateString();
   const yesterdayISO = addDaysISO(todayISO, -1);
   const dayBeforeISO = addDaysISO(todayISO, -2);
 
   const [statuses, leadsByAccount] = await Promise.all([
-    Promise.all(accounts.map((a) => resolveBackfillStatus(a.id, a.created_at))),
+    Promise.all(accounts.map((a) => resolveBackfillStatus(a.id, a.created_at, orgId))),
     sumLeadsMetaReportedByAccountForDates(
       accounts.map((a) => a.id),
-      [yesterdayISO, dayBeforeISO]
+      [yesterdayISO, dayBeforeISO],
+      orgId
     )
   ]);
 

@@ -11,6 +11,7 @@ function asReminder(row: unknown): LeadReminder {
   const r = row as LeadReminder;
   return {
     id: r.id,
+    org_id: String(r.org_id ?? ""),
     lead_id: r.lead_id,
     text: r.text,
     due_at: r.due_at ?? null,
@@ -21,12 +22,16 @@ function asReminder(row: unknown): LeadReminder {
   };
 }
 
-export async function listRemindersForLead(leadId: string): Promise<LeadReminder[]> {
+export async function listRemindersForLead(
+  leadId: string,
+  orgId: string
+): Promise<LeadReminder[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
   const { data, error } = await db
     .from("lead_reminders")
     .select("*")
+    .eq("org_id", orgId)
     .eq("lead_id", leadId)
     .order("created_at", { ascending: true });
   if (error) throw error;
@@ -34,13 +39,17 @@ export async function listRemindersForLead(leadId: string): Promise<LeadReminder
 }
 
 /** Unresolved reminders due today (IST) or earlier, for badge + daily filter. */
-export async function listDueFollowUps(leadIds?: string[]): Promise<LeadReminder[]> {
+export async function listDueFollowUps(
+  orgId: string,
+  leadIds?: string[]
+): Promise<LeadReminder[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
   const until = istDayEndUtcIso(todayISTDateString());
   let query = db
     .from("lead_reminders")
     .select("*")
+    .eq("org_id", orgId)
     .eq("resolved", false)
     .not("due_at", "is", null)
     .lte("due_at", until)
@@ -54,21 +63,24 @@ export async function listDueFollowUps(leadIds?: string[]): Promise<LeadReminder
   return (data ?? []).map(asReminder);
 }
 
-export async function listLeadIdsWithDueFollowUps(): Promise<string[]> {
-  const rows = await listDueFollowUps();
+export async function listLeadIdsWithDueFollowUps(orgId: string): Promise<string[]> {
+  const rows = await listDueFollowUps(orgId);
   return Array.from(new Set(rows.map((r) => r.lead_id)));
 }
 
 export async function insertLeadReminder(input: {
+  org_id: string;
   lead_id: string;
   text: string;
   due_at: string | null;
   created_by: string;
 }): Promise<LeadReminder> {
   const db = requireDb();
+  if (!input.org_id) throw new Error("insertLeadReminder requires org_id");
   const { data, error } = await db
     .from("lead_reminders")
     .insert({
+      org_id: input.org_id,
       lead_id: input.lead_id,
       text: input.text,
       due_at: input.due_at,
@@ -81,7 +93,10 @@ export async function insertLeadReminder(input: {
   return asReminder(data);
 }
 
-export async function resolveLeadReminder(id: string): Promise<LeadReminder> {
+export async function resolveLeadReminder(
+  id: string,
+  orgId: string
+): Promise<LeadReminder> {
   const db = requireDb();
   const { data, error } = await db
     .from("lead_reminders")
@@ -90,6 +105,7 @@ export async function resolveLeadReminder(id: string): Promise<LeadReminder> {
       resolved_at: new Date().toISOString()
     })
     .eq("id", id)
+    .eq("org_id", orgId)
     .select("*")
     .single();
   if (error) throw error;

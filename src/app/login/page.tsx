@@ -1,10 +1,10 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -16,20 +16,22 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+      const supabase = createClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password
       });
 
-      if (!res.ok) {
+      if (signInError) {
         setError("Invalid email or password");
         return;
       }
 
-      const data = (await res.json()) as { role?: string };
-      router.push(data.role === "viewer" ? "/meta-ads" : "/");
-      router.refresh();
+      // Hard navigation so the next request includes the fresh session cookie.
+      // router.push + refresh can race middleware and leave you on a stale
+      // logged-out RSC payload until a full reload.
+      window.location.assign("/");
+      return;
     } catch {
       setError("Invalid email or password");
     } finally {
@@ -87,6 +89,13 @@ export default function LoginPage() {
         >
           {submitting ? "Signing in…" : "Sign in"}
         </button>
+
+        <p className="text-center text-sm text-slate-600">
+          Don&apos;t have an account yet?{" "}
+          <Link href="/signup" className="font-medium text-slate-900 underline">
+            Sign up
+          </Link>
+        </p>
       </form>
     </div>
   );

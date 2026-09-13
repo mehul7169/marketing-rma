@@ -17,11 +17,13 @@ async function main() {
     "../src/lib/db/ad_accounts"
   );
   const { getMetaAdsTotals } = await import("../src/lib/db/meta_ads_daily");
+  const { getOrgIdBySlug } = await import("../src/lib/orgs/getOrgIdBySlug");
 
   if (!supabaseAdmin) throw new Error("Supabase not configured");
   const db = supabaseAdmin;
 
-  const canonical = await getLeadSourceAdAccount();
+  const orgId = await getOrgIdBySlug("rma");
+  const canonical = await getLeadSourceAdAccount(orgId);
   if (!canonical) throw new Error("No lead-source ad account");
   if (!canonical.meta_ad_account_id.startsWith("act_")) {
     throw new Error(
@@ -30,7 +32,7 @@ async function main() {
   }
 
   const all = await listActiveAdAccounts();
-  const leadSources = all.filter((a) => a.is_lead_source);
+  const leadSources = all.filter((a) => a.is_lead_source && a.org_id === orgId);
   const duplicates = leadSources.filter((a) => a.id !== canonical.id);
   const bareMeta = canonical.meta_ad_account_id.slice("act_".length);
   const legacyIds = Array.from(
@@ -82,7 +84,7 @@ async function main() {
 
   const fromISO = "2025-01-01";
   const toISO = "2026-09-09";
-  const totals = await getMetaAdsTotals(fromISO, toISO, canonical.id);
+  const totals = await getMetaAdsTotals(fromISO, toISO, orgId, canonical.id);
   console.log(`Post-remap RMA totals ${fromISO}→${toISO}:`, totals);
 }
 

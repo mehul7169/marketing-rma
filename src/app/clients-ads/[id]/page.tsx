@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
+import { requirePlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import { redirect } from "next/navigation";
 import {
   clampDateRange,
@@ -33,11 +35,12 @@ const PENDING_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 async function resolveBackfillStatus(
   accountId: string,
-  createdAt: string
+  createdAt: string,
+  orgId: string
 ): Promise<"pending" | "complete" | "error" | null> {
   const [cron, rowCount] = await Promise.all([
     getLatestCronRunForJob(backfillCronJobName(accountId)),
-    countMetaAdsRowsForAccount(accountId)
+    countMetaAdsRowsForAccount(accountId, orgId)
   ]);
   if (cron?.status === "error") return "error";
   if (cron?.status === "success" || rowCount > 0) return "complete";
@@ -55,7 +58,9 @@ export default async function ClientAdsDetailPage({
   params: { id: string };
   searchParams: { from?: string; to?: string };
 }) {
-  const account = await getAdAccountById(params.id);
+  await requirePlatformAdmin();
+  const orgId = await getCurrentOrgId();
+  const account = await getAdAccountById(params.id, orgId);
   if (!account || account.is_lead_source || !account.active) {
     redirect("/clients-ads");
   }
@@ -81,14 +86,15 @@ export default async function ClientAdsDetailPage({
 
   const initialBackfillStatus = await resolveBackfillStatus(
     accountId,
-    account.created_at
+    account.created_at,
+    orgId
   );
 
   const [totals, priorTotals, trendRaw, hierarchy] = await Promise.all([
-    getMetaAdsTotals(fromISO, toISO, accountId),
-    getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO, accountId),
-    getMetaAdsTrend(fromISO, toISO, accountId),
-    getMetaAdsHierarchy(fromISO, toISO, accountId)
+    getMetaAdsTotals(fromISO, toISO, orgId, accountId),
+    getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO, orgId, accountId),
+    getMetaAdsTrend(fromISO, toISO, orgId, accountId),
+    getMetaAdsHierarchy(fromISO, toISO, orgId, accountId)
   ]);
 
   const hasAnyData = trendRaw.length > 0 || hierarchy.length > 0;

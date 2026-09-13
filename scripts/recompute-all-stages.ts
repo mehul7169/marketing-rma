@@ -16,6 +16,7 @@ import { listAllLeads, updateLead } from "../src/lib/db/leads";
 import { computeLifecycleStatus } from "../src/lib/leads/computeLifecycleStatus";
 import { computeStage } from "../src/lib/leads/computeStage";
 import type { LeadRow } from "../src/lib/leads/types";
+import { getOrgIdBySlug } from "../src/lib/orgs/getOrgIdBySlug";
 
 loadEnv({ path: resolve(process.cwd(), ".env.local") });
 loadEnv({ path: resolve(process.cwd(), ".env") });
@@ -55,7 +56,9 @@ async function main() {
   const confirm = process.argv.includes("--confirm");
   await requireConfirm(confirm);
 
-  const leads = await listAllLeads();
+  // Deliberate simplification: recompute RMA org leads only for now.
+  const orgId = await getOrgIdBySlug("rma");
+  const leads = await listAllLeads(orgId);
   console.log(`Loaded ${leads.length} leads.`);
 
   let changed = 0;

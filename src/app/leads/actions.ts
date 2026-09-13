@@ -1,8 +1,8 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { SESSION_COOKIE, actorEmailFromSession } from "@/lib/auth/session";
+import { requireOrgId } from "@/lib/auth/getCurrentOrgId";
+import { getActorEmail } from "@/lib/auth/session";
 import { insertLeadReminder, resolveLeadReminder } from "@/lib/db/lead_reminders";
 import { getLeadById, scheduleLeadCall, updateLead } from "@/lib/db/leads";
 import type { PostCallStatus, RequalificationResult } from "@/lib/leads/computeStage";
@@ -29,15 +29,16 @@ const VERIFICATION_ATTEMPT_STATUSES: VerificationCallStatus[] = [
   "reached"
 ];
 
-function actor(): string {
-  return actorEmailFromSession(cookies().get(SESSION_COOKIE)?.value);
+async function actor(): Promise<string> {
+  return getActorEmail();
 }
 
 export async function saveLeadActions(id: string, input: LeadActionInput) {
-  const existing = await getLeadById(id);
+  const orgId = await requireOrgId();
+  const existing = await getLeadById(id, orgId);
   if (!existing) throw new Error("Lead not found");
 
-  const by = actor();
+  const by = await actor();
   const now = new Date().toISOString();
   const patch: Parameters<typeof updateLead>[1] = {};
 
@@ -104,7 +105,8 @@ export async function logVerificationCallAttempt(
   if (!VERIFICATION_ATTEMPT_STATUSES.includes(status)) {
     throw new Error("Invalid verification call status");
   }
-  const existing = await getLeadById(id);
+  const orgId = await requireOrgId();
+  const existing = await getLeadById(id, orgId);
   if (!existing) throw new Error("Lead not found");
   if (!existing.call_booked_at) {
     throw new Error("Book a call before logging verification attempts");
@@ -126,10 +128,11 @@ export async function logVerificationCallAttempt(
 }
 
 export async function saveLeadSchedule(id: string, scheduledForLocal: string) {
-  const existing = await getLeadById(id);
+  const orgId = await requireOrgId();
+  const existing = await getLeadById(id, orgId);
   if (!existing) throw new Error("Lead not found");
   const iso = fromDatetimeLocalIST(scheduledForLocal);
-  const updated = await scheduleLeadCall(existing, iso, actor());
+  const updated = await scheduleLeadCall(existing, iso, await actor());
   revalidateLead(id);
   return { id: updated.id, stage: updated.stage, lifecycle_status: updated.lifecycle_status };
 }
@@ -139,21 +142,24 @@ export async function addLeadFollowUp(
   text: string,
   dueAtLocal: string | null
 ) {
-  const existing = await getLeadById(leadId);
+  const orgId = await requireOrgId();
+  const existing = await getLeadById(leadId, orgId);
   if (!existing) throw new Error("Lead not found");
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Follow-up text is required");
   const due_at = dueAtLocal && dueAtLocal.trim() ? fromDatetimeLocalIST(dueAtLocal) : null;
   await insertLeadReminder({
+    org_id: orgId,
     lead_id: leadId,
     text: trimmed,
     due_at,
-    created_by: actor()
+    created_by: await actor()
   });
   revalidateLead(leadId);
 }
 
 export async function markLeadFollowUpResolved(reminderId: string, leadId: string) {
-  await resolveLeadReminder(reminderId);
+  const orgId = await requireOrgId();
+  await resolveLeadReminder(reminderId, orgId);
   revalidateLead(leadId);
 }

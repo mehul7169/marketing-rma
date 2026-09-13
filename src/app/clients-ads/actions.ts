@@ -1,32 +1,26 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { requireOrgId } from "@/lib/auth/getCurrentOrgId";
+import { requirePlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import {
   deleteClientAdAccount,
   updateAdAccountClientName
 } from "@/lib/db/ad_accounts";
-import { SESSION_COOKIE, parseSessionRole } from "@/lib/auth/session";
-
-async function requireAdmin() {
-  const role = await parseSessionRole(
-    cookies().get(SESSION_COOKIE)?.value,
-    process.env.ROLE_SECRET
-  );
-  if (role !== "admin") throw new Error("Unauthorized");
-}
 
 export async function renameClientAdAccount(id: string, clientName: string) {
-  await requireAdmin();
-  const updated = await updateAdAccountClientName(id, clientName);
+  await requirePlatformAdmin();
+  const orgId = await requireOrgId();
+  const updated = await updateAdAccountClientName(id, clientName, orgId);
   revalidatePath("/clients-ads");
   revalidatePath(`/clients-ads/${id}`);
   return { client_name: updated.client_name };
 }
 
 export async function removeClientAdAccount(id: string) {
-  await requireAdmin();
-  const removed = await deleteClientAdAccount(id);
+  await requirePlatformAdmin();
+  const orgId = await requireOrgId();
+  const removed = await deleteClientAdAccount(id, orgId);
   revalidatePath("/clients-ads");
   revalidatePath(`/clients-ads/${id}`);
   return removed;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLeadByEmail, insertLead, updateLead } from "@/lib/db/leads";
 import type { LeadRow } from "@/lib/leads/types";
+import { getOrgIdBySlug } from "@/lib/orgs/getOrgIdBySlug";
 import { notifySlackCallBooked } from "@/lib/slack/messages";
 import { assertWebsiteIngestSecret } from "@/lib/utils/ingestAuth";
 
@@ -56,9 +57,14 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString();
 
   try {
-    const existing = await getLeadByEmail(email);
+    // Deliberate simplification: only RMA's website hits this endpoint today.
+    // Per-org ingest routing comes later when a second org has its own site.
+    const orgId = await getOrgIdBySlug("rma");
+
+    const existing = await getLeadByEmail(email, orgId);
     if (!existing) {
       let created = await insertLead({
+        org_id: orgId,
         email,
         call_booked_at: now,
         call_scheduled_for: callScheduledFor,

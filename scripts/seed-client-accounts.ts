@@ -43,6 +43,10 @@ async function main() {
   const { addClientAccount } = await import("../src/lib/clients/addClientAccount");
   const { META_ACCOUNT_INGEST_DELAY_MS } = await import("../src/lib/ingest/meta");
   const { listActiveAdAccounts } = await import("../src/lib/db/ad_accounts");
+  const { getOrgIdBySlug } = await import("../src/lib/orgs/getOrgIdBySlug");
+
+  // Deliberate simplification: seed into RMA org only for now.
+  const orgId = await getOrgIdBySlug("rma");
 
   console.log(`Seeding ${ACCOUNT_IDS.length} client ad accounts via addClientAccount…\n`);
 
@@ -54,6 +58,7 @@ async function main() {
 
     try {
       const result = await addClientAccount(id, {
+        orgId,
         log: (msg) => console.log(`   ${msg}`)
       });
 

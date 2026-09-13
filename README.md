@@ -26,7 +26,8 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 
 | Variable | Used for | Where to get it |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (client-visible, but only used for server client init here) | Supabase Project Settings → API |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Supabase Project Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key (browser + SSR auth) | Supabase Project Settings → API → anon public |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only) | Supabase Project Settings → API |
 | `META_APP_ID` | Meta Marketing API app id | Meta Developers → Your app |
 | `META_APP_SECRET` | Meta Marketing API app secret | Meta Developers → Your app |
@@ -37,12 +38,14 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 | `WISTIA_API_TOKEN` | Wistia API token | Wistia → Settings → API Access |
 | `WISTIA_MEDIA_ID` | Wistia media id (hashed id) | Wistia → video/media settings |
 | `CRON_SECRET` | Shared secret to protect cron routes | Choose any strong value |
-| `ADMIN_EMAIL` | Login email for the dashboard gate | Set in `.env.local` |
-| `ADMIN_PASSWORD` | Login password for the dashboard gate | Set in `.env.local` |
-| `VIEWER_EMAIL` | Restricted login (Meta Ads / Website / Insights only) | Set in `.env.local` |
-| `VIEWER_PASSWORD` | Restricted login password | Set in `.env.local` |
-| `ROLE_SECRET` | HMAC key for the signed session cookie | Random hex; required now that there are two roles |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `VIEWER_*` / `ROLE_SECRET` | Legacy shared-password auth (unused once Supabase Auth is live; keep briefly for rollback) | — |
 | `WEBSITE_INGEST_SECRET` | Shared secret for runmoreads.in ingest APIs | Random hex; same pattern as `CRON_SECRET` |
+
+### Auth (Supabase Auth)
+- Sign-in uses Supabase email/password (`profiles.role` = `admin` | `viewer`).
+- Create users in Supabase Dashboard → Authentication → Users (no public sign-up).
+- After create, set admins with: `update profiles set role = 'admin' where email = '…';`
+- Viewers remain limited to `/meta-ads`, `/website`, `/insights`.
 
 ## Data ingestion (cron)
 - Scheduled pulls are implemented as Next.js Route Handlers under `app/api/cron/*`.

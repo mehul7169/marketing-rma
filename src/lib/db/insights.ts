@@ -30,20 +30,22 @@ async function paginate<T>(
   return all;
 }
 
-/** Spend for Insights creative table — RMA lead-source account only. */
+/** Spend for Insights creative table — org lead-source account only. */
 export async function getMetaSpendByAdName(
   fromISO: string,
-  toISO: string
+  toISO: string,
+  orgId: string
 ): Promise<Map<string, { displayName: string; spend: number }>> {
   const map = new Map<string, { displayName: string; spend: number }>();
   if (!supabaseAdmin) return map;
-  const rmaAccountId = await getRmaAccountId();
+  const rmaAccountId = await getRmaAccountId(orgId);
   if (!rmaAccountId) return map;
 
   const rows = await paginate<{ ad_name: string | null; spend: unknown }>((from, to) =>
     supabaseAdmin!
       .from("meta_ads_daily")
       .select("ad_name, spend")
+      .eq("org_id", orgId)
       .eq("ad_account_id", rmaAccountId)
       .gte("date", fromISO)
       .lte("date", toISO)
@@ -64,16 +66,17 @@ export async function getMetaSpendByAdName(
   return map;
 }
 
-export async function listKnownAdNames(): Promise<Map<string, string>> {
+export async function listKnownAdNames(orgId: string): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   if (!supabaseAdmin) return map;
-  const rmaAccountId = await getRmaAccountId();
+  const rmaAccountId = await getRmaAccountId(orgId);
   if (!rmaAccountId) return map;
 
   const rows = await paginate<{ ad_name: string | null }>((from, to) =>
     supabaseAdmin!
       .from("meta_ads_daily")
       .select("ad_name")
+      .eq("org_id", orgId)
       .eq("ad_account_id", rmaAccountId)
       .not("ad_name", "is", null)
       .range(from, to)
@@ -90,13 +93,14 @@ export async function listKnownAdNames(): Promise<Map<string, string>> {
 export async function getInsightsData(
   fromISO: string,
   toISO: string,
+  orgId: string,
   sources?: string[]
 ): Promise<{ metrics: InsightsMetrics; sources: string[] }> {
   const [leads, spendByAdName, knownAdNames, allSources] = await Promise.all([
-    listAllLeads(sources),
-    getMetaSpendByAdName(fromISO, toISO),
-    listKnownAdNames(),
-    listDistinctLeadSources()
+    listAllLeads(orgId, sources),
+    getMetaSpendByAdName(fromISO, toISO, orgId),
+    listKnownAdNames(orgId),
+    listDistinctLeadSources(orgId)
   ]);
 
   return {

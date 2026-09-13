@@ -33,6 +33,7 @@ export type AddClientAccountResult =
     };
 
 export type AddClientAccountOptions = {
+  orgId: string;
   log?: (msg: string) => void;
   /**
    * When true (default), await the 2-month backfill before returning.
@@ -54,15 +55,17 @@ export { toActPrefixedAdAccountId } from "@/lib/clients/metaAdAccountId";
  */
 export async function addClientAccount(
   metaAdAccountIdRaw: string,
-  options?: AddClientAccountOptions
+  options: AddClientAccountOptions
 ): Promise<AddClientAccountResult> {
-  const log = options?.log ?? (() => {});
-  const waitForBackfill = options?.waitForBackfill ?? true;
-  const scheduleBackground = options?.scheduleBackground ?? ((task) => void task);
+  const log = options.log ?? (() => {});
+  const waitForBackfill = options.waitForBackfill ?? true;
+  const scheduleBackground = options.scheduleBackground ?? ((task) => void task);
+  const orgId = options.orgId;
+  if (!orgId) throw new Error("addClientAccount requires orgId");
 
   const metaAdAccountId = normalizeMetaAdAccountId(metaAdAccountIdRaw);
 
-  const existing = await getAdAccountByMetaId(metaAdAccountId);
+  const existing = await getAdAccountByMetaId(metaAdAccountId, orgId);
   if (existing) {
     return {
       status: "skipped",
@@ -76,6 +79,7 @@ export async function addClientAccount(
   log(`Resolved ${metaAdAccountId} → "${clientName}"`);
 
   const account = await insertAdAccount({
+    org_id: orgId,
     meta_ad_account_id: metaAdAccountId,
     client_name: clientName,
     is_lead_source: false,
@@ -84,7 +88,7 @@ export async function addClientAccount(
 
   // Reclaim historical rows parked under act_… / bare id after a prior delete.
   for (const variant of metaAdAccountIdVariants(metaAdAccountId)) {
-    const moved = await remappingMetaAdsDailyAccountId(variant, account.id);
+    const moved = await remappingMetaAdsDailyAccountId(variant, account.id, orgId);
     if (moved > 0) {
       log(`Reclaimed ${moved} historical meta_ads_daily row(s) from ${variant}`);
     }

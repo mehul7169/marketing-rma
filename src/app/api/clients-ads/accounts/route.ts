@@ -1,14 +1,11 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { requireOrgId } from "@/lib/auth/getCurrentOrgId";
+import { isPlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import { addClientAccount } from "@/lib/clients/addClientAccount";
 import {
   isValidNumericAdAccountIdInput,
   toActPrefixedAdAccountId
 } from "@/lib/clients/metaAdAccountId";
-import {
-  SESSION_COOKIE,
-  parseSessionRole
-} from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 /** Allow long-running background backfill when the platform keeps the isolate alive. */
@@ -31,11 +28,7 @@ function scheduleBackground(task: Promise<unknown>) {
 }
 
 export async function POST(req: NextRequest) {
-  const role = await parseSessionRole(
-    cookies().get(SESSION_COOKIE)?.value,
-    process.env.ROLE_SECRET
-  );
-  if (role !== "admin") {
+  if (!(await isPlatformAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -64,7 +57,9 @@ export async function POST(req: NextRequest) {
   const metaAdAccountId = toActPrefixedAdAccountId(rawId);
 
   try {
+    const orgId = await requireOrgId();
     const result = await addClientAccount(metaAdAccountId, {
+      orgId,
       waitForBackfill: false,
       scheduleBackground,
       log: (msg) => console.log(`[clients-ads add] ${msg}`)

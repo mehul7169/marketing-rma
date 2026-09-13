@@ -1,3 +1,4 @@
+import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import {
   clampDateRange,
   defaultFromISO,
@@ -39,11 +40,12 @@ export default async function WebsitePage({
   }
 
   const rangeDays = inclusiveDayCount(fromISO, toISO);
+  const orgId = await getCurrentOrgId();
 
   const [totals, trendRaw, daily] = await Promise.all([
-    getWebsiteTotals(fromISO, toISO),
-    getWebsiteTrend(fromISO, toISO),
-    getWebsiteDailyTable(fromISO, toISO)
+    getWebsiteTotals(fromISO, toISO, orgId),
+    getWebsiteTrend(fromISO, toISO, orgId),
+    getWebsiteDailyTable(fromISO, toISO, orgId)
   ]);
 
   const hasAnyData = daily.length > 0 || trendRaw.length > 0;

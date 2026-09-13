@@ -1,27 +1,24 @@
 import { getLeadSourceAdAccount } from "@/lib/db/ad_accounts";
 
 /**
- * Single source of truth for "which account is RMA's own."
+ * Lead-source ad_accounts.id for an org — what meta_ads_daily.ad_account_id
+ * stores for that org's RMA/internal account.
  *
- * Resolves the `ad_accounts` row where `is_lead_source = true` and returns its
- * primary key (`id`). That UUID is what `meta_ads_daily.ad_account_id` stores
- * (not the Meta Graph `act_…` id / meta_ad_account_id).
- *
- * Concurrent callers share one in-flight lookup (per-request dedupe on a page
- * load that hits this helper from several places at once).
+ * Concurrent callers for the same orgId share one in-flight lookup.
  */
-let inflight: Promise<string | null> | null = null;
+const inflightByOrg = new Map<string, Promise<string | null>>();
 
-export function getRmaAccountId(): Promise<string | null> {
+export function getRmaAccountId(orgId: string): Promise<string | null> {
+  let inflight = inflightByOrg.get(orgId);
   if (!inflight) {
-    inflight = getLeadSourceAdAccount()
+    inflight = getLeadSourceAdAccount(orgId)
       .then((account) => account?.id ?? null)
       .finally(() => {
-        // Allow a later request in a long-lived worker to refresh.
         queueMicrotask(() => {
-          inflight = null;
+          inflightByOrg.delete(orgId);
         });
       });
+    inflightByOrg.set(orgId, inflight);
   }
   return inflight;
 }

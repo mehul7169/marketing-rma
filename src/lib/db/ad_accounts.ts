@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 
 export type AdAccountRow = {
   id: string;
+  org_id: string;
   meta_ad_account_id: string;
   client_name: string;
   is_lead_source: boolean;
@@ -18,6 +19,7 @@ function asAdAccount(row: unknown): AdAccountRow {
   const r = row as Record<string, unknown>;
   return {
     id: String(r.id),
+    org_id: String(r.org_id ?? ""),
     meta_ad_account_id: String(r.meta_ad_account_id ?? ""),
     client_name: String(r.client_name ?? ""),
     is_lead_source: Boolean(r.is_lead_source),
@@ -39,7 +41,10 @@ export function metaAdAccountIdVariants(raw: string): string[] {
   return bare ? [withAct, bare] : [withAct];
 }
 
-/** All active ad accounts (RMA + clients), ordered lead-source first then name. */
+/**
+ * All active ad accounts across orgs (cron/backfill). Each row carries org_id
+ * for stamping meta_ads_daily — do not use for user-facing pages.
+ */
 export async function listActiveAdAccounts(): Promise<AdAccountRow[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
@@ -53,21 +58,23 @@ export async function listActiveAdAccounts(): Promise<AdAccountRow[]> {
   return (data ?? []).map(asAdAccount);
 }
 
-export async function getAdAccountById(id: string): Promise<AdAccountRow | null> {
+export async function getAdAccountById(
+  id: string,
+  orgId?: string
+): Promise<AdAccountRow | null> {
   if (!supabaseAdmin) return null;
   const db = requireDb();
-  const { data, error } = await db
-    .from("ad_accounts")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  let query = db.from("ad_accounts").select("*").eq("id", id);
+  if (orgId) query = query.eq("org_id", orgId);
+  const { data, error } = await query.maybeSingle();
   if (error) throw error;
   return data ? asAdAccount(data) : null;
 }
 
-/** Match either `act_123` or `123` storage forms. */
+/** Match either `act_123` or `123` storage forms within an org. */
 export async function getAdAccountByMetaId(
-  metaAdAccountId: string
+  metaAdAccountId: string,
+  orgId: string
 ): Promise<AdAccountRow | null> {
   if (!supabaseAdmin) return null;
   const db = requireDb();
@@ -75,6 +82,7 @@ export async function getAdAccountByMetaId(
   const { data, error } = await db
     .from("ad_accounts")
     .select("*")
+    .eq("org_id", orgId)
     .in("meta_ad_account_id", variants)
     .limit(1)
     .maybeSingle();
@@ -83,15 +91,18 @@ export async function getAdAccountByMetaId(
 }
 
 export async function insertAdAccount(input: {
+  org_id: string;
   meta_ad_account_id: string;
   client_name: string;
   is_lead_source?: boolean;
   active?: boolean;
 }): Promise<AdAccountRow> {
   const db = requireDb();
+  if (!input.org_id) throw new Error("insertAdAccount requires org_id");
   const { data, error } = await db
     .from("ad_accounts")
     .insert({
+      org_id: input.org_id,
       meta_ad_account_id: normalizeMetaAdAccountId(input.meta_ad_account_id),
       client_name:
         input.client_name.trim() || normalizeMetaAdAccountId(input.meta_ad_account_id),
@@ -106,7 +117,8 @@ export async function insertAdAccount(input: {
 
 export async function updateAdAccountClientName(
   id: string,
-  clientName: string
+  clientName: string,
+  orgId: string
 ): Promise<AdAccountRow> {
   const db = requireDb();
   const name = clientName.trim();
@@ -115,6 +127,7 @@ export async function updateAdAccountClientName(
     .from("ad_accounts")
     .update({ client_name: name })
     .eq("id", id)
+    .eq("org_id", orgId)
     .eq("is_lead_source", false)
     .select("*")
     .maybeSingle();
@@ -127,12 +140,15 @@ export async function updateAdAccountClientName(
  * Hard-delete a client ad_accounts row. Parks meta_ads_daily history under the
  * stable Meta act_… id (rows are not deleted) so a later re-add can reclaim them.
  */
-export async function deleteClientAdAccount(id: string): Promise<{
+export async function deleteClientAdAccount(
+  id: string,
+  orgId: string
+): Promise<{
   meta_ad_account_id: string;
   client_name: string;
 }> {
   const db = requireDb();
-  const account = await getAdAccountById(id);
+  const account = await getAdAccountById(id, orgId);
   if (!account || account.is_lead_source) {
     throw new Error("Client ad account not found");
   }
@@ -142,9 +158,13 @@ export async function deleteClientAdAccount(id: string): Promise<{
     "@/lib/db/meta_ads_daily"
   );
   const metaId = normalizeMetaAdAccountId(account.meta_ad_account_id);
-  await remappingMetaAdsDailyAccountId(account.id, metaId);
+  await remappingMetaAdsDailyAccountId(account.id, metaId, orgId);
 
-  const { error } = await db.from("ad_accounts").delete().eq("id", id);
+  const { error } = await db
+    .from("ad_accounts")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", orgId);
   if (error) throw error;
 
   return {
@@ -153,13 +173,14 @@ export async function deleteClientAdAccount(id: string): Promise<{
   };
 }
 
-/** Client accounts only — excludes RMA lead-source rows (those stay on /meta-ads). */
-export async function listClientAdAccounts(): Promise<AdAccountRow[]> {
+/** Client accounts only — excludes lead-source rows (those stay on /meta-ads). */
+export async function listClientAdAccounts(orgId: string): Promise<AdAccountRow[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
   const { data, error } = await db
     .from("ad_accounts")
     .select("*")
+    .eq("org_id", orgId)
     .eq("active", true)
     .eq("is_lead_source", false)
     .order("client_name", { ascending: true });
@@ -167,20 +188,22 @@ export async function listClientAdAccounts(): Promise<AdAccountRow[]> {
   return (data ?? []).map(asAdAccount);
 }
 
-/** RMA's own account — used to keep /meta-ads and lead-attribution reads scoped. */
-export async function getLeadSourceAdAccount(): Promise<AdAccountRow | null> {
+/** Org's own lead-source account — used for /meta-ads and lead-attribution reads. */
+export async function getLeadSourceAdAccount(
+  orgId: string
+): Promise<AdAccountRow | null> {
   if (!supabaseAdmin) return null;
   const db = requireDb();
   const { data, error } = await db
     .from("ad_accounts")
     .select("*")
+    .eq("org_id", orgId)
     .eq("is_lead_source", true)
     .eq("active", true)
     .order("created_at", { ascending: true });
   if (error) throw error;
   const rows = (data ?? []).map(asAdAccount);
   if (rows.length === 0) return null;
-  // Prefer the normalized act_… form when duplicates exist (legacy bare ids).
   const withAct = rows.find((r) => r.meta_ad_account_id.startsWith("act_"));
   return withAct ?? rows[0]!;
 }

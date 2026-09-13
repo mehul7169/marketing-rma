@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 
 export type WebsiteDailyRow = {
   date: string; // YYYY-MM-DD
+  org_id: string;
   lead_source: string | null;
   utm_campaign: string | null;
   landing_page_visits: number | null;
@@ -43,13 +44,14 @@ function nullNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export async function deleteWebsiteDailySiteWideByDates(dates: string[]) {
+export async function deleteWebsiteDailySiteWideByDates(dates: string[], orgId: string) {
   if (!supabaseAdmin) throw new Error("Supabase is not configured.");
   if (dates.length === 0) return;
 
   const { error } = await supabaseAdmin
     .from("website_daily")
     .delete()
+    .eq("org_id", orgId)
     .in("date", dates)
     .is("lead_source", null)
     .is("utm_campaign", null);
@@ -63,6 +65,7 @@ function mergeWebsiteDailyRow(
 ): Partial<WebsiteDailyRow> & { date: string } {
   return {
     date: partial.date,
+    org_id: partial.org_id ?? existing?.org_id ?? "",
     lead_source: partial.lead_source ?? existing?.lead_source ?? null,
     utm_campaign: partial.utm_campaign ?? existing?.utm_campaign ?? null,
     landing_page_visits:
@@ -96,10 +99,11 @@ function mergeWebsiteDailyRow(
   };
 }
 
-export async function upsertWebsiteDaily(rows: Array<Partial<WebsiteDailyRow> & { date: string }>) {
+export async function upsertWebsiteDaily(rows: Array<Partial<WebsiteDailyRow> & { date: string; org_id: string }>) {
   if (!supabaseAdmin) throw new Error("Supabase is not configured.");
   const payload = rows.map((r) => ({
     date: r.date,
+    org_id: r.org_id,
     lead_source: r.lead_source ?? null,
     utm_campaign: r.utm_campaign ?? null,
     landing_page_visits: r.landing_page_visits ?? null,
@@ -122,7 +126,8 @@ export async function upsertWebsiteDaily(rows: Array<Partial<WebsiteDailyRow> & 
 
 /** Merge partial site-wide rows with existing DB values before upserting. */
 export async function mergeAndUpsertWebsiteDaily(
-  partialRows: Array<Partial<WebsiteDailyRow> & { date: string }>
+  partialRows: Array<Partial<WebsiteDailyRow> & { date: string; org_id: string }>,
+  orgId: string
 ) {
   if (!supabaseAdmin) throw new Error("Supabase is not configured.");
   if (partialRows.length === 0) return;
@@ -131,6 +136,7 @@ export async function mergeAndUpsertWebsiteDaily(
   const { data, error } = await supabaseAdmin
     .from("website_daily")
     .select("*")
+    .eq("org_id", orgId)
     .in("date", dates)
     .is("lead_source", null)
     .is("utm_campaign", null);
@@ -143,17 +149,23 @@ export async function mergeAndUpsertWebsiteDaily(
   }
 
   const merged = partialRows.map((partial) =>
-    mergeWebsiteDailyRow(existingByDate.get(partial.date), partial)
+    mergeWebsiteDailyRow(existingByDate.get(partial.date), {
+      ...partial,
+      org_id: orgId
+    })
   );
 
-  await upsertWebsiteDaily(merged);
+  await upsertWebsiteDaily(
+    merged.map((r) => ({ ...r, org_id: r.org_id || orgId }))
+  );
 }
 
-export async function getWebsiteTrend(fromISO: string, toISO: string): Promise<WebsiteTrendPoint[]> {
+export async function getWebsiteTrend(fromISO: string, toISO: string, orgId: string): Promise<WebsiteTrendPoint[]> {
   if (!supabaseAdmin) return [];
   const { data, error } = await supabaseAdmin
     .from("website_daily")
     .select("date, landing_page_visits, video_plays")
+    .eq("org_id", orgId)
     .is("lead_source", null)
     .is("utm_campaign", null)
     .gte("date", fromISO)
@@ -172,7 +184,8 @@ export async function getWebsiteTrend(fromISO: string, toISO: string): Promise<W
 
 export async function getWebsiteDailyTable(
   fromISO: string,
-  toISO: string
+  toISO: string,
+  orgId: string
 ): Promise<WebsiteDailyTableRow[]> {
   if (!supabaseAdmin) return [];
   const { data, error } = await supabaseAdmin
@@ -189,6 +202,7 @@ export async function getWebsiteDailyTable(
         "form_completions"
       ].join(",")
     )
+    .eq("org_id", orgId)
     .is("lead_source", null)
     .is("utm_campaign", null)
     .gte("date", fromISO)
@@ -221,7 +235,7 @@ export async function getWebsiteDailyTable(
   }));
 }
 
-export async function getWebsiteTotals(fromISO: string, toISO: string): Promise<{
+export async function getWebsiteTotals(fromISO: string, toISO: string, orgId: string): Promise<{
   totalLandingPageVisits: number;
   totalVideoPlays: number;
   averageWatchPercent: number | null;
@@ -230,7 +244,7 @@ export async function getWebsiteTotals(fromISO: string, toISO: string): Promise<
   if (!supabaseAdmin) {
     return { totalLandingPageVisits: 0, totalVideoPlays: 0, averageWatchPercent: null, formCompletionRatePercent: null };
   }
-  const rows = await getWebsiteDailyTable(fromISO, toISO);
+  const rows = await getWebsiteDailyTable(fromISO, toISO, orgId);
   if (rows.length === 0) {
     return {
       totalLandingPageVisits: 0,
