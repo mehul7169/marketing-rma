@@ -6,25 +6,26 @@ import { toISTDateString } from "@/lib/timezone";
  * Cohort counting: created_at in range, then "ever reached" via raw fields.
  */
 export const FUNNEL_STAGE_EVENT_FIELD = {
-  lead: "created_at",
-  form_filled: "form_filled_at",
-  form_qualified: "qualified_at",
-  booked: "call_booked_at",
-  verified: "setter_verified_at",
-  showed: "call_showed_at",
+  created: "created_at",
+  call_booked: "call_booked_at",
+  qualified_call_booked: "call_booked_at",
+  show_up: "call_showed_at",
   closed: "closed_at"
 } as const;
 
 export type FunnelEventStage = keyof typeof FUNNEL_STAGE_EVENT_FIELD;
 
-/** URL `?cohort=` / legacy `?event=` values (qualified ≠ form_qualified). */
+/** URL `?cohort=` / legacy `?event=` values. */
 export const URL_EVENT_KEYS = {
-  form_filled: "form_filled",
-  qualified: "form_qualified",
-  booked: "booked",
-  verified: "verified",
-  showed: "showed",
-  closed: "closed"
+  created: "created",
+  call_booked: "call_booked",
+  qualified_call_booked: "qualified_call_booked",
+  show_up: "show_up",
+  closed: "closed",
+  // Legacy aliases → new keys
+  booked: "call_booked",
+  showed: "show_up",
+  lead: "created"
 } as const;
 
 export type UrlEventKey = keyof typeof URL_EVENT_KEYS;
@@ -36,40 +37,37 @@ export function isFunnelEventStage(stage: string): stage is FunnelEventStage {
 export function parseUrlEvent(value: string | undefined): FunnelEventStage | null {
   if (!value) return null;
   const mapped = URL_EVENT_KEYS[value as UrlEventKey];
-  return mapped ?? null;
+  if (mapped && isFunnelEventStage(mapped)) return mapped;
+  if (isFunnelEventStage(value)) return value;
+  return null;
 }
 
 export function urlCohortForFunnelStage(stage: FunnelEventStage): string | null {
-  if (stage === "lead") return null;
-  if (stage === "form_qualified") return "qualified";
+  if (stage === "created") return null;
   return stage;
 }
 
 export function cohortBannerCopy(stage: FunnelEventStage): string {
-  const phrases: Record<Exclude<FunnelEventStage, "lead">, string> = {
-    form_filled: "filled the form",
-    form_qualified: "were marked qualified",
-    booked: "booked a call",
-    verified: "were setter-verified",
-    showed: "showed up",
+  const phrases: Record<Exclude<FunnelEventStage, "created">, string> = {
+    call_booked: "booked a call",
+    qualified_call_booked: "reached Qualified Call Booked",
+    show_up: "showed up",
     closed: "closed a deal"
   };
-  if (stage === "lead") {
+  if (stage === "created") {
     return "Showing the cohort of leads created in this range.";
   }
   return `Showing cohort leads (created in this range) who ${phrases[stage]}, including those who have since moved further.`;
 }
 
 export function eventBannerCopy(stage: FunnelEventStage): string {
-  const phrases: Record<Exclude<FunnelEventStage, "lead">, string> = {
-    form_filled: "filled the form",
-    form_qualified: "were marked qualified",
-    booked: "booked a call",
-    verified: "were setter-verified",
-    showed: "showed up",
+  const phrases: Record<Exclude<FunnelEventStage, "created">, string> = {
+    call_booked: "booked a call",
+    qualified_call_booked: "reached Qualified Call Booked",
+    show_up: "showed up",
     closed: "closed a deal"
   };
-  if (stage === "lead") {
+  if (stage === "created") {
     return "Showing leads created in this range.";
   }
   return `Showing leads who ${phrases[stage]} in this range, including those who have since moved further.`;
@@ -97,17 +95,13 @@ export function eventInRange(
  */
 export function leadReachedCohortStage(lead: LeadRow, stage: FunnelEventStage): boolean {
   switch (stage) {
-    case "lead":
+    case "created":
       return true;
-    case "form_filled":
-      return Boolean(lead.form_filled_at);
-    case "form_qualified":
-      return lead.qualified === true;
-    case "booked":
+    case "call_booked":
       return Boolean(lead.call_booked_at);
-    case "verified":
-      return lead.setter_verified === true;
-    case "showed":
+    case "qualified_call_booked":
+      return lead.call_confirmed === true && Boolean(lead.call_booked_at);
+    case "show_up":
       return lead.call_showed === true;
     case "closed":
       return lead.deal_closed === true;
@@ -116,7 +110,7 @@ export function leadReachedCohortStage(lead: LeadRow, stage: FunnelEventStage): 
   }
 }
 
-/** Legacy event-in-range matching (call_showed_at etc. in the selected window). */
+/** Legacy event-in-range matching (timestamps in the selected window). */
 export function leadMatchesFunnelStage(
   lead: LeadRow,
   stage: FunnelEventStage,
@@ -124,23 +118,20 @@ export function leadMatchesFunnelStage(
   toISO: string
 ): boolean {
   switch (stage) {
-    case "lead":
+    case "created":
       return eventInRange(lead.created_at, fromISO, toISO);
-    case "form_filled":
-      return eventInRange(lead.form_filled_at, fromISO, toISO);
-    case "form_qualified":
-      return lead.qualified === true && eventInRange(lead.qualified_at, fromISO, toISO);
-    case "booked": {
+    case "call_booked": {
       if (!eventInRange(lead.call_booked_at, fromISO, toISO)) return false;
       if (!lead.call_cancelled_at) return true;
       return Boolean(lead.call_booked_at && lead.call_booked_at > lead.call_cancelled_at);
     }
-    case "verified":
+    case "qualified_call_booked":
       return (
-        lead.setter_verified === true &&
-        eventInRange(lead.setter_verified_at, fromISO, toISO)
+        lead.call_confirmed === true &&
+        Boolean(lead.call_booked_at) &&
+        eventInRange(lead.call_booked_at, fromISO, toISO)
       );
-    case "showed":
+    case "show_up":
       return lead.call_showed === true && eventInRange(lead.call_showed_at, fromISO, toISO);
     case "closed":
       return lead.deal_closed === true && eventInRange(lead.closed_at, fromISO, toISO);

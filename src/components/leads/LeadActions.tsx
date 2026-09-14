@@ -515,7 +515,7 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
               <option value="">Select status</option>
               {POST_CALL_STATUSES.map((status) => (
                 <option key={status} value={status}>
-                  {status === "dead" ? "Dead" : stageLabel(status)}
+                  {stageLabel(status)}
                 </option>
               ))}
             </select>

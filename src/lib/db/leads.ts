@@ -122,19 +122,20 @@ function asLead(row: unknown): LeadRow {
 
 function stamp(existing: LeadRow, patch: Partial<LeadRow>): LeadRow {
   const merged: LeadRow = { ...existing, ...patch };
-  const derived = {
+  merged.stage = computeStage({
     deal_closed: merged.deal_closed,
+    is_dead: Boolean(merged.is_dead),
     post_call_status: merged.post_call_status,
-    setter_verified: merged.setter_verified,
-    call_booked_at: merged.call_booked_at,
-    requalification_result: merged.requalification_result,
-    requalification_attempted: merged.requalification_attempted,
     call_showed: merged.call_showed,
-    qualified: merged.qualified,
-    form_filled_at: merged.form_filled_at
-  };
-  merged.stage = computeStage(derived);
-  merged.lifecycle_status = computeLifecycleStatus(derived);
+    call_confirmed: merged.call_confirmed,
+    call_booked_at: merged.call_booked_at
+  });
+  merged.lifecycle_status = computeLifecycleStatus({
+    deal_closed: merged.deal_closed,
+    is_dead: Boolean(merged.is_dead),
+    call_booked_at: merged.call_booked_at,
+    qualified: merged.qualified
+  });
   // Explicit action_status in patch wins (e.g. revive → Untouched).
   if (patch.action_status === undefined) {
     merged.action_status = computeActionStatus(
@@ -422,16 +423,17 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   }
 
   if (cohortStage) {
-    if (cohortStage === "form_filled") query = query.not("form_filled_at", "is", null);
-    if (cohortStage === "form_qualified") query = query.eq("qualified", true);
-    if (cohortStage === "booked") query = query.not("call_booked_at", "is", null);
-    if (cohortStage === "verified") query = query.eq("setter_verified", true);
-    if (cohortStage === "showed") query = query.eq("call_showed", true);
+    if (cohortStage === "call_booked") query = query.not("call_booked_at", "is", null);
+    if (cohortStage === "qualified_call_booked") {
+      query = query.eq("call_confirmed", true).not("call_booked_at", "is", null);
+    }
+    if (cohortStage === "show_up") query = query.eq("call_showed", true);
     if (cohortStage === "closed") query = query.eq("deal_closed", true);
   } else if (eventStage) {
-    if (eventStage === "form_qualified") query = query.eq("qualified", true);
-    if (eventStage === "verified") query = query.eq("setter_verified", true);
-    if (eventStage === "showed") query = query.eq("call_showed", true);
+    if (eventStage === "qualified_call_booked") {
+      query = query.eq("call_confirmed", true).not("call_booked_at", "is", null);
+    }
+    if (eventStage === "show_up") query = query.eq("call_showed", true);
     if (eventStage === "closed") query = query.eq("deal_closed", true);
   } else if (filters.stages && filters.stages.length > 0) {
     query = query.in("stage", filters.stages);
@@ -496,9 +498,9 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   if (error) throw error;
   let rows = (data ?? []).map(asLead);
 
-  if (eventStage === "booked" && filters.fromISO && filters.toISO) {
+  if (eventStage === "call_booked" && filters.fromISO && filters.toISO) {
     rows = rows.filter((lead) =>
-      leadMatchesFunnelStage(lead, "booked", filters.fromISO!, filters.toISO!)
+      leadMatchesFunnelStage(lead, "call_booked", filters.fromISO!, filters.toISO!)
     );
   }
 

@@ -29,27 +29,33 @@ function funnelCounts(cohort: LeadRow[]) {
     cohort.filter((l) => leadReachedCohortStage(l, stage)).length;
 
   const total = cohort.length;
-  const formFilled = count("form_filled");
-  const qualified = count("form_qualified");
-  const booked = count("booked");
-  const verified = count("verified");
-  const showed = count("showed");
+  const created = count("created");
+  const callBooked = count("call_booked");
+  const qualifiedCallBooked = count("qualified_call_booked");
+  const showUp = count("show_up");
   const closed = count("closed");
   const revenue = cohort
     .filter((l) => leadReachedCohortStage(l, "closed"))
     .reduce((s, l) => s + (l.deal_value ?? 0), 0);
 
   const counts: Record<string, number> = {
-    lead: total,
-    form_filled: formFilled,
-    form_qualified: qualified,
-    booked,
-    verified,
-    showed,
+    created,
+    call_booked: callBooked,
+    qualified_call_booked: qualifiedCallBooked,
+    show_up: showUp,
     closed
   };
 
-  return { total, formFilled, qualified, booked, verified, showed, closed, revenue, counts };
+  return {
+    total,
+    created,
+    callBooked,
+    qualifiedCallBooked,
+    showUp,
+    closed,
+    revenue,
+    counts
+  };
 }
 
 function lifecyclePulse(leads: LeadRow[]) {
@@ -57,12 +63,9 @@ function lifecyclePulse(leads: LeadRow[]) {
   for (const l of leads) {
     const status = computeLifecycleStatus({
       deal_closed: l.deal_closed,
-      setter_verified: l.setter_verified,
+      is_dead: Boolean(l.is_dead),
       call_booked_at: l.call_booked_at,
-      post_call_status: l.post_call_status,
-      qualified: l.qualified,
-      requalification_attempted: l.requalification_attempted,
-      requalification_result: l.requalification_result
+      qualified: l.qualified
     });
     counts[status] += 1;
   }
@@ -102,11 +105,9 @@ export default async function HomePage({
   const life = lifecyclePulse(cohort);
   const prevCounts = [
     f.total,
-    f.formFilled,
-    f.qualified,
-    f.booked,
-    f.verified,
-    f.showed,
+    f.callBooked,
+    f.qualifiedCallBooked,
+    f.showUp,
     f.closed
   ];
 
@@ -183,21 +184,21 @@ export default async function HomePage({
           <div className="mt-2 text-xl font-semibold">{formatInteger(f.total)}</div>
         </div>
         <div className="stat-card">
-          <div className="text-xs text-slate-600">Qualified Rate</div>
+          <div className="text-xs text-slate-600">Booked Rate</div>
           <div className="mt-2 text-xl font-semibold">
-            {formatPercent(rate(f.qualified, f.formFilled || f.total))}
+            {formatPercent(rate(f.callBooked, f.total))}
           </div>
         </div>
         <div className="stat-card">
           <div className="text-xs text-slate-600">Show-up Rate</div>
           <div className="mt-2 text-xl font-semibold">
-            {formatPercent(rate(f.showed, f.booked))}
+            {formatPercent(rate(f.showUp, f.qualifiedCallBooked || f.callBooked))}
           </div>
         </div>
         <div className="stat-card">
           <div className="text-xs text-slate-600">Closing Rate</div>
           <div className="mt-2 text-xl font-semibold">
-            {formatPercent(rate(f.closed, f.showed))}
+            {formatPercent(rate(f.closed, f.showUp))}
           </div>
         </div>
         <div className="stat-card">
@@ -209,7 +210,7 @@ export default async function HomePage({
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-slate-900">Funnel</h2>
         {immature ? <CohortMaturityNote /> : null}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {FUNNEL_STEPS.map((step, i) => {
             const count = f.counts[step.stage] ?? 0;
             const prev = i === 0 ? f.total : prevCounts[i - 1];

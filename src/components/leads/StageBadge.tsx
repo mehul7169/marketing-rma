@@ -6,66 +6,45 @@ const ACTIVE = "bg-blue-50 text-blue-800";
 const CLOSED = "bg-emerald-50 text-emerald-800";
 const NEUTRAL = "bg-slate-100 text-slate-700";
 
-const STYLES: Record<string, string> = {
-  lead: NEUTRAL,
-  form_filled: NEUTRAL,
-  form_qualified: ACTIVE,
-  form_unqualified: MUTED,
-  requalification_in_progress: ACTIVE,
-  requalified: ACTIVE,
-  booked: ACTIVE,
-  verified: ACTIVE,
-  showed: ACTIVE,
-  no_show: MUTED,
+const STYLES: Record<LeadStage, string> = {
+  created: NEUTRAL,
+  call_booked: ACTIVE,
+  qualified_call_booked: ACTIVE,
+  show_up: ACTIVE,
   follow_up_call_booked: FOLLOW_UP,
   awaiting_lead_response: FOLLOW_UP,
   proposal_needed: FOLLOW_UP,
   contract_shared: FOLLOW_UP,
   awaiting_payment: FOLLOW_UP,
-  dead_unqualified: MUTED,
-  dead_unqualified_at_booking: MUTED,
-  dead_post_call: MUTED,
-  closed: CLOSED,
-  qualified: ACTIVE,
-  disqualified: MUTED,
-  lost: MUTED
+  dead: MUTED,
+  closed: CLOSED
 };
 
-const LABELS: Record<string, string> = {
-  lead: "Lead",
-  form_filled: "Form filled",
-  form_qualified: "Form qualified",
-  form_unqualified: "Form unqualified",
-  requalification_in_progress: "Requalification in progress",
-  requalified: "Requalified",
-  booked: "Booked",
-  verified: "Verified",
-  showed: "Showed",
-  no_show: "No-show",
-  follow_up_call_booked: "Follow-up call booked",
-  awaiting_lead_response: "Awaiting lead response",
-  proposal_needed: "Proposal needed",
-  contract_shared: "Contract shared",
-  awaiting_payment: "Awaiting payment",
-  dead_unqualified: "Unqualified",
-  dead_unqualified_at_booking: "Unqualified (at booking)",
-  dead_post_call: "Dead (post-call)",
-  closed: "Closed",
-  qualified: "Form qualified",
-  disqualified: "Form unqualified",
-  lost: "Lost"
+const LABELS: Record<LeadStage, string> = {
+  created: "Created",
+  call_booked: "Call Booked",
+  qualified_call_booked: "Qualified Call Booked",
+  show_up: "Show Up",
+  follow_up_call_booked: "Follow-up Call Booked",
+  awaiting_lead_response: "Awaiting Lead Response",
+  proposal_needed: "Proposal Needed",
+  contract_shared: "Contract Shared",
+  awaiting_payment: "Awaiting Payment",
+  dead: "Dead",
+  closed: "Closed"
 };
 
 export function stageLabel(stage: string | null): string {
-  if (!stage) return "Lead";
-  return LABELS[stage] ?? stage;
+  if (!stage) return LABELS.created;
+  if (stage in LABELS) return LABELS[stage as LeadStage];
+  return stage;
 }
 
 export default function StageBadge({ stage }: { stage: string | null }) {
-  const key = (stage ?? "lead") as LeadStage;
+  const key = (stage && stage in STYLES ? stage : "created") as LeadStage;
   return (
     <span
-      className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STYLES[key] ?? STYLES.lead}`}
+      className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STYLES[key]}`}
     >
       {stageLabel(stage)}
     </span>

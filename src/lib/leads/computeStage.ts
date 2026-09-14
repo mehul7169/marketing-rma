@@ -1,23 +1,15 @@
 export type LeadStage =
-  | "closed"
-  | "dead_post_call"
-  | "dead_unqualified_at_booking"
-  | "dead_unqualified"
+  | "created"
+  | "call_booked"
+  | "qualified_call_booked"
+  | "show_up"
   | "follow_up_call_booked"
   | "awaiting_lead_response"
   | "proposal_needed"
   | "contract_shared"
   | "awaiting_payment"
-  | "showed"
-  | "no_show"
-  | "verified"
-  | "booked"
-  | "requalified"
-  | "requalification_in_progress"
-  | "form_qualified"
-  | "form_unqualified"
-  | "form_filled"
-  | "lead";
+  | "dead"
+  | "closed";
 
 export const POST_CALL_FOLLOW_UP_STAGES = [
   "follow_up_call_booked",
@@ -29,42 +21,32 @@ export const POST_CALL_FOLLOW_UP_STAGES = [
 
 export type PostCallFollowUpStage = (typeof POST_CALL_FOLLOW_UP_STAGES)[number];
 
-export type PostCallStatus = PostCallFollowUpStage | "dead";
+/** Post-call follow-up statuses only — terminal dead uses is_dead, not this field. */
+export type PostCallStatus = PostCallFollowUpStage;
 
-export const POST_CALL_STATUSES: PostCallStatus[] = [
-  ...POST_CALL_FOLLOW_UP_STAGES,
-  "dead"
-];
+export const POST_CALL_STATUSES: PostCallStatus[] = [...POST_CALL_FOLLOW_UP_STAGES];
 
+/** Filter / badge order for /leads Stage dropdown. */
 export const LEAD_STAGES: LeadStage[] = [
-  "lead",
-  "form_filled",
-  "form_qualified",
-  "form_unqualified",
-  "requalification_in_progress",
-  "requalified",
-  "booked",
-  "verified",
-  "showed",
-  "no_show",
+  "created",
+  "call_booked",
+  "qualified_call_booked",
+  "show_up",
   "follow_up_call_booked",
   "awaiting_lead_response",
   "proposal_needed",
   "contract_shared",
   "awaiting_payment",
-  "dead_unqualified",
-  "dead_unqualified_at_booking",
-  "dead_post_call",
+  "dead",
   "closed"
 ];
 
+/** Overview funnel steps (subset of LeadStage). */
 export const FUNNEL_STEPS: Array<{ stage: LeadStage; label: string }> = [
-  { stage: "lead", label: "Lead" },
-  { stage: "form_filled", label: "Form Filled" },
-  { stage: "form_qualified", label: "Qualified" },
-  { stage: "booked", label: "Booked" },
-  { stage: "verified", label: "Verified" },
-  { stage: "showed", label: "Showed" },
+  { stage: "created", label: "Created" },
+  { stage: "call_booked", label: "Call Booked" },
+  { stage: "qualified_call_booked", label: "Qualified Call Booked" },
+  { stage: "show_up", label: "Show Up" },
   { stage: "closed", label: "Closed" }
 ];
 
@@ -72,14 +54,11 @@ export type RequalificationResult = "requalified" | "still_unqualified";
 
 export type StageInput = {
   deal_closed: boolean | null;
+  is_dead: boolean;
   post_call_status: string | null;
-  setter_verified: boolean | null;
-  call_booked_at: string | null;
-  requalification_result: string | null;
-  requalification_attempted: boolean | null;
   call_showed: boolean | null;
-  qualified: boolean | null;
-  form_filled_at: string | null;
+  call_confirmed: boolean | null;
+  call_booked_at: string | null;
 };
 
 function isFollowUpStatus(value: string | null): value is PostCallFollowUpStage {
@@ -90,23 +69,19 @@ function isFollowUpStatus(value: string | null): value is PostCallFollowUpStage 
 }
 
 /**
- * Single source of truth for lead.stage. Called on every write
- * (ingest routes and CRM actions). Never set stage from the client.
- * Most-advanced / terminal wins; first match returns.
+ * Single source of truth for lead.stage. Called on every write.
+ * Precedence (highest wins):
+ * closed → dead → post-call follow-up → show_up →
+ * qualified_call_booked → call_booked → created
  */
 export function computeStage(input: StageInput): LeadStage {
   if (input.deal_closed === true) return "closed";
-  if (input.post_call_status === "dead") return "dead_post_call";
-  if (input.setter_verified === false && input.call_booked_at) {
-    return "dead_unqualified_at_booking";
-  }
+  if (input.is_dead) return "dead";
   if (isFollowUpStatus(input.post_call_status)) return input.post_call_status;
-  if (input.call_showed === true) return "showed";
-  if (input.call_showed === false) return "no_show";
-  if (input.setter_verified === true) return "verified";
-  if (input.call_booked_at) return "booked";
-  if (input.qualified === true) return "form_qualified";
-  if (input.qualified === false) return "form_unqualified";
-  if (input.form_filled_at) return "form_filled";
-  return "lead";
+  if (input.call_showed === true) return "show_up";
+  if (input.call_confirmed === true && input.call_booked_at) {
+    return "qualified_call_booked";
+  }
+  if (input.call_booked_at) return "call_booked";
+  return "created";
 }

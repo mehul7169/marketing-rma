@@ -45,7 +45,7 @@ export function makeLead(overrides: Partial<LeadRow> = {}): LeadRow {
     closed_by: null,
     notes: null,
     recording_url: null,
-    stage: "form_filled",
+    stage: "created",
     requalification_attempted: false,
     requalification_called_at: null,
     requalification_result: null,

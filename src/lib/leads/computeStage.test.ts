@@ -4,72 +4,108 @@ import {
   displayActionStatus
 } from "@/lib/leads/actionStatus";
 import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
-import { computeStage } from "@/lib/leads/computeStage";
+import { computeStage, LEAD_STAGES } from "@/lib/leads/computeStage";
 
 const baseStage = {
   deal_closed: null as boolean | null,
+  is_dead: false,
   post_call_status: null as string | null,
-  setter_verified: null as boolean | null,
-  call_booked_at: null as string | null,
-  requalification_result: null as string | null,
-  requalification_attempted: null as boolean | null,
   call_showed: null as boolean | null,
-  qualified: null as boolean | null,
-  form_filled_at: null as string | null
+  call_confirmed: null as boolean | null,
+  call_booked_at: null as string | null
 };
 
 describe("computeStage", () => {
+  it("exposes exactly the redesigned stage set", () => {
+    expect(LEAD_STAGES).toEqual([
+      "created",
+      "call_booked",
+      "qualified_call_booked",
+      "show_up",
+      "follow_up_call_booked",
+      "awaiting_lead_response",
+      "proposal_needed",
+      "contract_shared",
+      "awaiting_payment",
+      "dead",
+      "closed"
+    ]);
+  });
+
   it.each([
     [{ deal_closed: true }, "closed"],
-    [{ post_call_status: "dead" }, "dead_post_call"],
-    [
-      { setter_verified: false, call_booked_at: "2026-01-01T00:00:00.000Z" },
-      "dead_unqualified_at_booking"
-    ],
+    [{ is_dead: true }, "dead"],
     [{ post_call_status: "proposal_needed" }, "proposal_needed"],
-    [{ call_showed: true }, "showed"],
-    [{ call_showed: false }, "no_show"],
-    [{ setter_verified: true }, "verified"],
-    [{ call_booked_at: "2026-01-01T00:00:00.000Z" }, "booked"],
-    [{ qualified: true }, "form_qualified"],
-    [{ qualified: false }, "form_unqualified"],
-    [{ form_filled_at: "2026-01-01T00:00:00.000Z" }, "form_filled"],
-    [{}, "lead"]
+    [{ call_showed: true }, "show_up"],
+    [
+      {
+        call_confirmed: true,
+        call_booked_at: "2026-01-01T00:00:00.000Z"
+      },
+      "qualified_call_booked"
+    ],
+    [{ call_booked_at: "2026-01-01T00:00:00.000Z" }, "call_booked"],
+    [{}, "created"]
   ] as const)("%j → %s", (patch, expected) => {
     expect(computeStage({ ...baseStage, ...patch })).toBe(expected);
   });
 
-  it("closed beats every other flag", () => {
+  it("closed beats dead and every other flag", () => {
     expect(
       computeStage({
         ...baseStage,
         deal_closed: true,
-        post_call_status: "dead",
+        is_dead: true,
         call_showed: true,
-        qualified: true
+        call_confirmed: true,
+        call_booked_at: "2026-01-01T00:00:00.000Z"
       })
     ).toBe("closed");
+  });
+
+  it("is_dead beats post-call and booking flags", () => {
+    expect(
+      computeStage({
+        ...baseStage,
+        is_dead: true,
+        post_call_status: "proposal_needed",
+        call_booked_at: "2026-01-01T00:00:00.000Z"
+      })
+    ).toBe("dead");
+  });
+
+  it("ignores legacy post_call_status dead sentinel (use is_dead)", () => {
+    expect(
+      computeStage({
+        ...baseStage,
+        post_call_status: "dead",
+        call_booked_at: "2026-01-01T00:00:00.000Z"
+      })
+    ).toBe("call_booked");
+  });
+
+  it("call_confirmed without call_booked_at does not qualify as booked", () => {
+    expect(
+      computeStage({
+        ...baseStage,
+        call_confirmed: true,
+        call_booked_at: null
+      })
+    ).toBe("created");
   });
 });
 
 describe("computeLifecycleStatus", () => {
   const base = {
     deal_closed: null as boolean | null,
-    setter_verified: null as boolean | null,
+    is_dead: false,
     call_booked_at: null as string | null,
-    post_call_status: null as string | null,
-    qualified: null as boolean | null,
-    requalification_attempted: null as boolean | null,
-    requalification_result: null as string | null
+    qualified: null as boolean | null
   };
 
   it.each([
     [{ deal_closed: true }, "closed"],
-    [
-      { setter_verified: false, call_booked_at: "2026-01-01T00:00:00.000Z" },
-      "dead"
-    ],
-    [{ post_call_status: "dead" }, "dead"],
+    [{ is_dead: true }, "dead"],
     [{ qualified: false }, "unqualified"],
     [{ qualified: true }, "active"],
     [{}, "active"]
@@ -82,6 +118,15 @@ describe("computeLifecycleStatus", () => {
       computeLifecycleStatus({
         ...base,
         qualified: false,
+        call_booked_at: "2026-01-01T00:00:00.000Z"
+      })
+    ).toBe("active");
+  });
+
+  it("legacy dead signals without is_dead are not enough", () => {
+    expect(
+      computeLifecycleStatus({
+        ...base,
         call_booked_at: "2026-01-01T00:00:00.000Z"
       })
     ).toBe("active");
@@ -121,7 +166,6 @@ describe("computeActionStatus precedence", () => {
   });
 
   it("call_confirmed without call_booked_at → Qualified Call Booked", () => {
-    // Odd combo, but precedence says confirmed wins before booked check.
     expect(
       computeActionStatus({
         ...base,
@@ -141,8 +185,6 @@ describe("computeActionStatus precedence", () => {
   });
 
   it("contact_attempts + no_answer (no next_action_at) → Personally Contacted", () => {
-    // Normal no_answer sets next_action_at → Follow-up Due/Overdue; this covers
-    // the fall-through when attempts > 0 without a scheduled follow-up.
     expect(
       computeActionStatus(
         { ...base, contact_attempts: 1, last_action: "Called — No Answer" },
