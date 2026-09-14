@@ -7,12 +7,24 @@ import {
   normalizeNumericAdAccountIdInput
 } from "@/lib/clients/metaAdAccountId";
 
-export default function AddClientAdAccountForm() {
+const CREATE_NEW_VALUE = "__create_new__";
+
+export type OrgOption = { id: string; name: string; slug: string };
+
+export default function AddClientAdAccountForm({
+  organizations
+}: {
+  organizations: OrgOption[];
+}) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [metaId, setMetaId] = useState("");
+  const [orgChoice, setOrgChoice] = useState("");
+  const [newOrgName, setNewOrgName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const creatingNew = orgChoice === CREATE_NEW_VALUE;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -23,12 +35,29 @@ export default function AddClientAdAccountForm() {
       return;
     }
 
+    if (!orgChoice) {
+      setFormError("Select an organization or create a new one");
+      return;
+    }
+
+    if (creatingNew && !newOrgName.trim()) {
+      setFormError("Enter a name for the new organization");
+      return;
+    }
+
+    const body: Record<string, string> = { metaAdAccountId: cleaned };
+    if (creatingNew) {
+      body.newOrganizationName = newOrgName.trim();
+    } else {
+      body.orgId = orgChoice;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch("/api/clients-ads/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ metaAdAccountId: cleaned })
+        body: JSON.stringify(body)
       });
       const json = (await res.json()) as {
         ok?: boolean;
@@ -42,6 +71,8 @@ export default function AddClientAdAccountForm() {
       }
 
       setMetaId("");
+      setOrgChoice("");
+      setNewOrgName("");
       setShowForm(false);
       router.push(`/clients-ads/${json.account.id}`);
       router.refresh();
@@ -70,6 +101,43 @@ export default function AddClientAdAccountForm() {
           onSubmit={onSubmit}
           className="max-w-md space-y-3 rounded border border-slate-200 bg-slate-50 p-4"
         >
+          <label className="flex flex-col gap-1 text-xs text-slate-600">
+            Organization
+            <select
+              value={orgChoice}
+              onChange={(e) => {
+                setOrgChoice(e.target.value);
+                setFormError(null);
+              }}
+              className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            >
+              <option value="">Select organization…</option>
+              {organizations.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name} ({org.slug})
+                </option>
+              ))}
+              <option value={CREATE_NEW_VALUE}>+ Create new organization</option>
+            </select>
+          </label>
+
+          {creatingNew ? (
+            <label className="flex flex-col gap-1 text-xs text-slate-600">
+              New organization name
+              <input
+                type="text"
+                value={newOrgName}
+                onChange={(e) => setNewOrgName(e.target.value)}
+                placeholder="Acme Co"
+                autoComplete="off"
+                className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+              />
+              <span className="text-[11px] text-slate-500">
+                Slug is generated from the name (same as /admin/organizations).
+              </span>
+            </label>
+          ) : null}
+
           <label className="flex flex-col gap-1 text-xs text-slate-600">
             Ad Account ID
             <input

@@ -13,6 +13,7 @@ import { todayISTDateString } from "@/lib/timezone";
 import { addDaysISO } from "@/lib/utils/date";
 import { formatInteger } from "@/lib/format";
 import AddClientAdAccountForm from "@/components/clients/AddClientAdAccountForm";
+import { listOrganizations } from "@/lib/db/organizations";
 import ScrollableDataTable, {
   DataTablePageShell
 } from "@/components/table-views/ScrollableDataTable";
@@ -83,7 +84,10 @@ function LeadDayCell({
 export default async function ClientsAdsPage() {
   await requirePlatformAdmin();
   // Cross-org: every client ad account, not scoped to the viewer's membership.
-  const accounts = await listClientAdAccounts();
+  const [accounts, organizations] = await Promise.all([
+    listClientAdAccounts(),
+    listOrganizations()
+  ]);
   const todayISO = todayISTDateString();
   const yesterdayISO = addDaysISO(todayISO, -1);
   const dayBeforeISO = addDaysISO(todayISO, -2);
@@ -106,7 +110,13 @@ export default async function ClientsAdsPage() {
             Meta Ads). Lead counts are Meta-reported for IST calendar days.
           </p>
         </div>
-        <AddClientAdAccountForm />
+        <AddClientAdAccountForm
+          organizations={organizations.map((o) => ({
+            id: o.id,
+            name: o.name,
+            slug: o.slug
+          }))}
+        />
       </div>
 
       {accounts.length === 0 ? (

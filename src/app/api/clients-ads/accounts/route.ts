@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireOrgId } from "@/lib/auth/getCurrentOrgId";
 import { isPlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import { addClientAccount } from "@/lib/clients/addClientAccount";
 import {
   isValidNumericAdAccountIdInput,
   toActPrefixedAdAccountId
 } from "@/lib/clients/metaAdAccountId";
+import {
+  createOrganization,
+  getOrganizationById
+} from "@/lib/db/organizations";
+import { formatOrgSlug } from "@/lib/orgs/formatOrgSlug";
 
 export const runtime = "nodejs";
 /** Allow long-running background backfill when the platform keeps the isolate alive. */
@@ -27,25 +31,56 @@ function scheduleBackground(task: Promise<unknown>) {
   void task;
 }
 
+type Body = {
+  metaAdAccountId?: unknown;
+  /** Existing organizations.id */
+  orgId?: unknown;
+  /** Create org first, then attach the account (name → slug via formatOrgSlug). */
+  newOrganizationName?: unknown;
+};
+
+async function resolveOrgId(body: Body): Promise<string> {
+  const orgId =
+    typeof body.orgId === "string" ? body.orgId.trim() : "";
+  const newName =
+    typeof body.newOrganizationName === "string"
+      ? body.newOrganizationName.trim()
+      : "";
+
+  if (orgId && newName) {
+    throw new Error("Provide either an existing org or a new organization name, not both");
+  }
+
+  if (orgId) {
+    const org = await getOrganizationById(orgId);
+    if (!org) throw new Error("Organization not found");
+    return org.id;
+  }
+
+  if (newName) {
+    const slug = formatOrgSlug(newName);
+    if (!slug) throw new Error("Organization name must produce a valid slug");
+    const org = await createOrganization({ name: newName, slug });
+    return org.id;
+  }
+
+  throw new Error("Select an organization or create a new one");
+}
+
 export async function POST(req: NextRequest) {
   if (!(await isPlatformAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: unknown;
+  let body: Body;
   try {
-    body = await req.json();
+    body = (await req.json()) as Body;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   const rawId =
-    typeof body === "object" &&
-    body !== null &&
-    "metaAdAccountId" in body &&
-    typeof (body as { metaAdAccountId: unknown }).metaAdAccountId === "string"
-      ? (body as { metaAdAccountId: string }).metaAdAccountId
-      : "";
+    typeof body.metaAdAccountId === "string" ? body.metaAdAccountId : "";
 
   if (!isValidNumericAdAccountIdInput(rawId)) {
     return NextResponse.json(
@@ -57,7 +92,7 @@ export async function POST(req: NextRequest) {
   const metaAdAccountId = toActPrefixedAdAccountId(rawId);
 
   try {
-    const orgId = await requireOrgId();
+    const orgId = await resolveOrgId(body);
     const result = await addClientAccount(metaAdAccountId, {
       orgId,
       waitForBackfill: false,
@@ -73,7 +108,8 @@ export async function POST(req: NextRequest) {
         account: {
           id: result.account.id,
           client_name: result.clientName,
-          meta_ad_account_id: result.account.meta_ad_account_id
+          meta_ad_account_id: result.account.meta_ad_account_id,
+          org_id: result.account.org_id
         },
         backfillPending: false
       });
@@ -85,7 +121,8 @@ export async function POST(req: NextRequest) {
       account: {
         id: result.account.id,
         client_name: result.clientName,
-        meta_ad_account_id: result.account.meta_ad_account_id
+        meta_ad_account_id: result.account.meta_ad_account_id,
+        org_id: result.account.org_id
       },
       backfillPending: result.backfillPending
     });

@@ -79,13 +79,19 @@ describe("Signup form validation", () => {
 });
 
 describe("AddClientAdAccountForm validation", () => {
+  const orgs = [
+    { id: "org-1", name: "RMA", slug: "rma" },
+    { id: "org-2", name: "Acme", slug: "acme" }
+  ];
+
   it("rejects non-numeric Meta ID before calling the API", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
-    render(<AddClientAdAccountForm />);
+    render(<AddClientAdAccountForm organizations={orgs} />);
 
     await user.click(screen.getByRole("button", { name: "Add Ad Account" }));
+    await user.selectOptions(screen.getByLabelText("Organization"), "org-1");
     await user.type(screen.getByPlaceholderText("539253822308075"), "not-a-number");
     await user.click(screen.getByRole("button", { name: "Add account" }));
 
@@ -93,5 +99,66 @@ describe("AddClientAdAccountForm validation", () => {
       await screen.findByText("Enter just the numeric ID, without act_")
     ).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("requires an organization before submit", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<AddClientAdAccountForm organizations={orgs} />);
+
+    await user.click(screen.getByRole("button", { name: "Add Ad Account" }));
+    await user.type(screen.getByPlaceholderText("539253822308075"), "539253822308075");
+    await user.click(screen.getByRole("button", { name: "Add account" }));
+
+    expect(
+      await screen.findByText("Select an organization or create a new one")
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("requires a name when creating a new organization", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<AddClientAdAccountForm organizations={orgs} />);
+
+    await user.click(screen.getByRole("button", { name: "Add Ad Account" }));
+    await user.selectOptions(
+      screen.getByLabelText("Organization"),
+      "__create_new__"
+    );
+    await user.type(screen.getByPlaceholderText("539253822308075"), "539253822308075");
+    await user.click(screen.getByRole("button", { name: "Add account" }));
+
+    expect(
+      await screen.findByText("Enter a name for the new organization")
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("posts orgId when an existing organization is selected", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        account: { id: "acc-1" }
+      })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<AddClientAdAccountForm organizations={orgs} />);
+
+    await user.click(screen.getByRole("button", { name: "Add Ad Account" }));
+    await user.selectOptions(screen.getByLabelText("Organization"), "org-2");
+    await user.type(screen.getByPlaceholderText("539253822308075"), "539253822308075");
+    await user.click(screen.getByRole("button", { name: "Add account" }));
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      metaAdAccountId: "539253822308075",
+      orgId: "org-2"
+    });
   });
 });
