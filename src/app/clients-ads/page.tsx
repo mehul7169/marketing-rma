@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import { requirePlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import { listClientAdAccounts } from "@/lib/db/ad_accounts";
 import {
@@ -14,6 +13,9 @@ import { todayISTDateString } from "@/lib/timezone";
 import { addDaysISO } from "@/lib/utils/date";
 import { formatInteger } from "@/lib/format";
 import AddClientAdAccountForm from "@/components/clients/AddClientAdAccountForm";
+import ScrollableDataTable, {
+  DataTablePageShell
+} from "@/components/table-views/ScrollableDataTable";
 
 const PENDING_WINDOW_MS = 3 * 60 * 60 * 1000;
 
@@ -38,12 +40,11 @@ function isSignificantLeadSwing(yesterday: number, dayBefore: number): boolean {
 
 async function resolveBackfillStatus(
   accountId: string,
-  createdAt: string,
-  orgId: string
+  createdAt: string
 ): Promise<"pending" | "complete" | "error" | null> {
   const [cron, rowCount] = await Promise.all([
     getLatestCronRunForJob(backfillCronJobName(accountId)),
-    countMetaAdsRowsForAccount(accountId, orgId)
+    countMetaAdsRowsForAccount(accountId)
   ]);
   if (cron?.status === "error") return "error";
   if (cron?.status === "success" || rowCount > 0) return "complete";
@@ -81,29 +82,28 @@ function LeadDayCell({
 
 export default async function ClientsAdsPage() {
   await requirePlatformAdmin();
-  const orgId = await getCurrentOrgId();
-  const accounts = await listClientAdAccounts(orgId);
+  // Cross-org: every client ad account, not scoped to the viewer's membership.
+  const accounts = await listClientAdAccounts();
   const todayISO = todayISTDateString();
   const yesterdayISO = addDaysISO(todayISO, -1);
   const dayBeforeISO = addDaysISO(todayISO, -2);
 
   const [statuses, leadsByAccount] = await Promise.all([
-    Promise.all(accounts.map((a) => resolveBackfillStatus(a.id, a.created_at, orgId))),
-    sumLeadsMetaReportedByAccountForDates(
-      accounts.map((a) => a.id),
-      [yesterdayISO, dayBeforeISO],
-      orgId
-    )
+    Promise.all(accounts.map((a) => resolveBackfillStatus(a.id, a.created_at))),
+    sumLeadsMetaReportedByAccountForDates(accounts.map((a) => a.id), [
+      yesterdayISO,
+      dayBeforeISO
+    ])
   ]);
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <DataTablePageShell className="gap-8">
+      <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Client Ads</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Client Meta ad accounts (RMA&apos;s own account stays on Meta Ads).
-            Lead counts are Meta-reported for IST calendar days.
+            All client Meta ad accounts across orgs (RMA lead-source stays on
+            Meta Ads). Lead counts are Meta-reported for IST calendar days.
           </p>
         </div>
         <AddClientAdAccountForm />
@@ -115,7 +115,7 @@ export default async function ClientsAdsPage() {
           account ID your Business Manager can access.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded border border-slate-200">
+        <ScrollableDataTable>
           <table className="min-w-full border-collapse text-sm">
             <thead>
               <tr className="bg-slate-50 text-left text-slate-700">
@@ -175,8 +175,8 @@ export default async function ClientsAdsPage() {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollableDataTable>
       )}
-    </div>
+    </DataTablePageShell>
   );
 }

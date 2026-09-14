@@ -253,26 +253,28 @@ export async function remappingMetaAdsDailyAccountId(
 /**
  * Resolve which ad_accounts.id to filter on.
  * Callers should pass an explicit UUID whenever possible.
- * Omitting it falls back to RMA via getRmaAccountId() — never unscoped.
+ * Omitting it falls back via getRmaAccountId(orgId) — never unscoped.
  */
 async function resolveAccountId(
-  orgId: string,
+  orgId: string | null | undefined,
   adAccountId?: string
 ): Promise<string | null> {
   if (adAccountId) return adAccountId;
+  if (!orgId) return null;
   return getRmaAccountId(orgId);
 }
 
 export async function countMetaAdsRowsForAccount(
   adAccountId: string,
-  orgId: string
+  orgId?: string | null
 ): Promise<number> {
   if (!supabaseAdmin) return 0;
-  const { count, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("meta_ads_daily")
     .select("id", { count: "exact", head: true })
-    .eq("org_id", orgId)
     .eq("ad_account_id", adAccountId);
+  if (orgId) query = query.eq("org_id", orgId);
+  const { count, error } = await query;
   if (error) throw error;
   return count ?? 0;
 }
@@ -280,11 +282,12 @@ export async function countMetaAdsRowsForAccount(
 /**
  * Sum leads_meta_reported per ad_account_id for the given calendar dates
  * (YYYY-MM-DD, typically IST reporting days stored on meta_ads_daily.date).
+ * Omit orgId for platform-admin cross-org /clients-ads.
  */
 export async function sumLeadsMetaReportedByAccountForDates(
   adAccountIds: string[],
   dates: string[],
-  orgId: string
+  orgId?: string | null
 ): Promise<Map<string, Map<string, number>>> {
   const result = new Map<string, Map<string, number>>();
   for (const id of adAccountIds) {
@@ -296,12 +299,14 @@ export async function sumLeadsMetaReportedByAccountForDates(
     return result;
   }
 
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("meta_ads_daily")
     .select("ad_account_id, date, leads_meta_reported")
-    .eq("org_id", orgId)
     .in("ad_account_id", adAccountIds)
     .in("date", dates);
+  if (orgId) query = query.eq("org_id", orgId);
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
@@ -318,21 +323,23 @@ export async function sumLeadsMetaReportedByAccountForDates(
 export async function getMetaAdsTrend(
   fromISO: string,
   toISO: string,
-  orgId: string,
+  orgId: string | null | undefined,
   adAccountId?: string,
 ): Promise<MetaAdsTrendPoint[]> {
   if (!supabaseAdmin) return [];
   const accountId = await resolveAccountId(orgId, adAccountId);
   if (!accountId) return [];
 
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("meta_ads_daily")
     .select("date, spend, clicks, leads_meta_reported")
-    .eq("org_id", orgId)
     .eq("ad_account_id", accountId)
     .gte("date", fromISO)
     .lte("date", toISO)
     .order("date", { ascending: true });
+  if (orgId) query = query.eq("org_id", orgId);
+
+  const { data, error } = await query;
 
   if (error) throw error;
   if (!data) return [];
@@ -426,14 +433,14 @@ function addMetrics(acc: MetricAcc, row: DailyGrain) {
 export async function getMetaAdsHierarchy(
   fromISO: string,
   toISO: string,
-  orgId: string,
+  orgId: string | null | undefined,
   adAccountId?: string,
 ): Promise<MetaCampaignNode[]> {
   if (!supabaseAdmin) return [];
   const accountId = await resolveAccountId(orgId, adAccountId);
   if (!accountId) return [];
 
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("meta_ads_daily")
     .select(
       [
@@ -455,10 +462,12 @@ export async function getMetaAdsHierarchy(
         "appointments_scheduled",
       ].join(","),
     )
-    .eq("org_id", orgId)
     .eq("ad_account_id", accountId)
     .gte("date", fromISO)
     .lte("date", toISO);
+  if (orgId) query = query.eq("org_id", orgId);
+
+  const { data, error } = await query;
 
   if (error) throw error;
   if (!data) return [];
@@ -577,7 +586,7 @@ export async function getMetaAdsHierarchy(
 export async function getMetaAdsTotals(
   fromISO: string,
   toISO: string,
-  orgId: string,
+  orgId: string | null | undefined,
   adAccountId?: string,
 ): Promise<{
   totalSpend: number;
@@ -602,13 +611,15 @@ export async function getMetaAdsTotals(
       averageCtrPercent: 0,
     };
   }
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("meta_ads_daily")
     .select("spend, clicks, impressions, leads_meta_reported")
-    .eq("org_id", orgId)
     .eq("ad_account_id", accountId)
     .gte("date", fromISO)
     .lte("date", toISO);
+  if (orgId) query = query.eq("org_id", orgId);
+
+  const { data, error } = await query;
 
   if (error) throw error;
   if (!data)

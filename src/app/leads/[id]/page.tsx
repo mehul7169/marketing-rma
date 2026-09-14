@@ -1,15 +1,19 @@
 import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import { notFound } from "next/navigation";
 import CopyValue from "@/components/CopyValue";
+import ActionStatusBadge from "@/components/leads/ActionStatusBadge";
 import LeadActions from "@/components/leads/LeadActions";
 import LeadFollowUps from "@/components/leads/LeadFollowUps";
+import ReviveLeadButton from "@/components/leads/ReviveLeadButton";
+import WhatsAppNudgeButton from "@/components/leads/WhatsAppNudgeButton";
 import StageBadge, { stageLabel } from "@/components/leads/StageBadge";
+import { listLeadActivities } from "@/lib/db/lead_activities";
 import { listRemindersForLead } from "@/lib/db/lead_reminders";
 import { getLeadById } from "@/lib/db/leads";
 import { humanizeFieldKey } from "@/lib/leads/customFields";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatCurrencyNullable } from "@/lib/format";
-import { formatISTDateTime } from "@/lib/timezone";
+import { formatDueFriendly, formatISTDateTime } from "@/lib/timezone";
 
 function fmtWhen(iso: string | null): string {
   return formatISTDateTime(iso);
@@ -58,146 +62,116 @@ export default async function LeadDetailPage({
   const lead = await getLeadById(params.id, orgId);
   if (!lead) notFound();
 
-  const reminders = await listRemindersForLead(lead.id, orgId);
+  const [reminders, activities] = await Promise.all([
+    listRemindersForLead(lead.id, orgId),
+    listLeadActivities(lead.id, orgId, { limit: 50 })
+  ]);
   const touch = lastTouch(lead);
 
   return (
     <div className="space-y-6">
       <div>
-        <a href="/leads" className="text-sm text-slate-600 hover:text-slate-900">
-          ← Leads
-        </a>
+        <div className="flex flex-wrap gap-3 text-sm text-slate-600">
+          <a href="/leads" className="hover:text-slate-900">
+            ← Leads
+          </a>
+          <a href="/leads/queue" className="hover:text-slate-900">
+            Work Queue
+          </a>
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <h1 className="page-title">
-            {lead.name || lead.email}
-          </h1>
+          <h1 className="page-title">{lead.name || lead.email}</h1>
+          <ActionStatusBadge actionStatus={lead.action_status} />
           <StageBadge stage={lead.stage} />
-          <span className="text-xs text-slate-500">
-            {lead.lifecycle_status
-              ? lead.lifecycle_status.charAt(0).toUpperCase() + lead.lifecycle_status.slice(1)
-              : "Active"}
-          </span>
+          {lead.is_dead ? <ReviveLeadButton leadId={lead.id} /> : null}
+          {lead.contact_attempts === 1 || lead.contact_attempts === 3 ? (
+            <WhatsAppNudgeButton leadId={lead.id} />
+          ) : null}
         </div>
         <p className="mt-1 text-sm text-slate-500">
           Last updated {fmtWhen(lead.updated_at)}
-          {touch.by !== "—" ? ` · last action by ${touch.by} at ${fmtWhen(touch.at)}` : ""}
+          {touch.by !== "—"
+            ? ` · last action by ${touch.by} at ${fmtWhen(touch.at)}`
+            : ""}
+          {lead.dead_reason ? ` · Dead: ${lead.dead_reason}` : ""}
         </p>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <section className="space-y-4">
-          <h2 className="text-sm font-medium text-slate-900">Record</h2>
-          <div className="grid grid-cols-2 gap-4 rounded border border-slate-200 p-4">
-            <Field label="Email" value={lead.email} copyable />
-            <Field label="Phone" value={lead.phone} copyable />
-            <Field label="Source" value={lead.lead_source} />
-            <Field label="Ad set ID" value={lead.ad_set_id} />
-            <Field label="UTM source" value={lead.utm_source} />
-            <Field label="UTM medium" value={lead.utm_medium} />
-            <Field label="UTM campaign" value={lead.utm_campaign} />
-            <Field label="UTM content" value={lead.utm_content} />
-            <Field label="UTM term" value={lead.utm_term} />
-            <Field label="Created" value={fmtWhen(lead.created_at)} />
-            <Field label="Form filled" value={fmtWhen(lead.form_filled_at)} />
-            <Field label="Call booked" value={fmtWhen(lead.call_booked_at)} />
-            <Field label="Call scheduled" value={fmtWhen(lead.call_scheduled_for)} />
-            <Field
-              label="Booking source"
-              value={
-                lead.booking_source === "manual"
-                  ? "Manual"
-                  : lead.booking_source === "cal_com"
-                    ? "Cal.com"
-                    : null
-              }
-            />
-            <Field label="Cal.com booking" value={lead.cal_com_booking_id} />
-            <Field label="Cancelled" value={fmtWhen(lead.call_cancelled_at)} />
-            <Field label="Deal value" value={formatCurrencyNullable(lead.deal_value)} />
-            <div>
-              <div className="text-xs text-slate-500">Recording link</div>
-              <div className="mt-0.5 text-sm text-slate-900">
-                {lead.recording_url ? (
-                  <a
-                    href={
-                      /^https?:\/\//i.test(lead.recording_url)
-                        ? lead.recording_url
-                        : `https://${lead.recording_url}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
-                  >
-                    {lead.recording_url}
-                  </a>
-                ) : (
-                  "—"
-                )}
-              </div>
-            </div>
-            <Field label="GHL contact" value={lead.ghl_contact_id} />
-            <Field label="Lifecycle" value={lead.lifecycle_status} />
-            <Field label="Post-call status" value={lead.post_call_status ? stageLabel(lead.post_call_status) : null} />
-            <Field
-              label="Post-call updated"
-              value={
-                lead.post_call_status_updated_by
-                  ? `${lead.post_call_status_updated_by}${lead.post_call_status_updated_at ? ` · ${fmtWhen(lead.post_call_status_updated_at)}` : ""}`
-                  : fmtWhen(lead.post_call_status_updated_at)
-              }
-            />
-            <Field
-              label="Requalification"
-              value={
-                lead.requalification_attempted
-                  ? `${lead.requalification_result || "in progress"}${lead.requalification_called_at ? ` · ${fmtWhen(lead.requalification_called_at)}` : ""}`
-                  : "Not attempted"
-              }
-            />
-          </div>
-
-          <h2 className="text-sm font-medium text-slate-900">Form Details</h2>
-          <div className="grid grid-cols-2 gap-4 rounded border border-slate-200 p-4">
-            {(() => {
-              const entries = Object.entries(lead.custom_fields ?? {}).filter(
-                ([, value]) => {
-                  if (value === null || value === undefined) return false;
-                  if (typeof value === "string" && !value.trim()) return false;
-                  return true;
-                }
-              );
-              if (entries.length === 0) {
-                return (
-                  <p className="col-span-2 text-sm text-slate-500">
-                    No form details yet.
-                  </p>
-                );
-              }
-              return entries.map(([key, value]) => (
-                <Field
-                  key={key}
-                  label={humanizeFieldKey(key)}
-                  value={
-                    typeof value === "string"
-                      ? value
-                      : typeof value === "number" || typeof value === "boolean"
-                        ? String(value)
-                        : JSON.stringify(value)
-                  }
-                />
-              ));
-            })()}
-            <Field
-              label="Qualified by"
-              value={
-                lead.qualified_by
-                  ? `${lead.qualified_by}${lead.qualified_at ? ` · ${fmtWhen(lead.qualified_at)}` : ""}`
+      <section className="space-y-3 rounded border border-slate-200 p-4">
+        <h2 className="text-sm font-medium text-slate-900">Lifecycle</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Field
+            label="Status"
+            value={lead.action_status ?? "Untouched"}
+          />
+          <Field
+            label="Next Action"
+            value={
+              lead.next_action_at
+                ? formatDueFriendly(lead.next_action_at)
+                : null
+            }
+          />
+          <Field label="Last Action" value={lead.last_action} />
+          <Field
+            label="Last Action At"
+            value={fmtWhen(lead.last_action_at)}
+          />
+          <Field
+            label="Follow-up Date"
+            value={
+              lead.next_action_at ? fmtWhen(lead.next_action_at) : null
+            }
+          />
+          <Field label="Attempts" value={String(lead.contact_attempts ?? 0)} />
+          <Field
+            label="Call confirmed"
+            value={
+              lead.call_confirmed === true
+                ? "Yes"
+                : lead.call_confirmed === false
+                  ? "No"
                   : null
-              }
-            />
-          </div>
-        </section>
+            }
+          />
+          <Field
+            label="Last note / conversation"
+            value={
+              activities.find((a) => a.note)?.note ??
+              lead.notes ??
+              null
+            }
+          />
+        </div>
 
+        <details className="mt-2">
+          <summary className="cursor-pointer text-sm font-medium text-slate-800">
+            Recent Activity ({activities.length})
+          </summary>
+          <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto text-sm text-slate-700">
+            {activities.length === 0 ? (
+              <li className="text-slate-500">No activities yet.</li>
+            ) : (
+              activities.map((a) => (
+                <li
+                  key={a.id}
+                  className="rounded border border-slate-100 px-3 py-2"
+                >
+                  <div className="flex flex-wrap gap-x-2 text-xs text-slate-500">
+                    <span className="font-medium text-slate-800">{a.type}</span>
+                    {a.outcome ? <span>{a.outcome}</span> : null}
+                    <span>{fmtWhen(a.created_at)}</span>
+                    {a.created_by ? <span>by {a.created_by}</span> : null}
+                  </div>
+                  {a.note ? <p className="mt-1 text-sm">{a.note}</p> : null}
+                </li>
+              ))
+            )}
+          </ul>
+        </details>
+      </section>
+
+      <div className="grid gap-8 lg:grid-cols-2">
         <section className="space-y-4">
           <h2 className="text-sm font-medium text-slate-900">Actions</h2>
           <div className="rounded border border-slate-200 p-4">
@@ -205,8 +179,158 @@ export default async function LeadDetailPage({
           </div>
           <h2 className="text-sm font-medium text-slate-900">Follow-ups</h2>
           <div className="rounded border border-slate-200 p-4">
-            <LeadFollowUps key={`${lead.id}-followups-${reminders.length}`} leadId={lead.id} reminders={reminders} />
+            <LeadFollowUps
+              key={`${lead.id}-followups-${reminders.length}`}
+              leadId={lead.id}
+              reminders={reminders}
+            />
           </div>
+        </section>
+
+        <section className="space-y-4">
+          <details className="rounded border border-slate-200 p-4">
+            <summary className="cursor-pointer text-sm font-medium text-slate-900">
+              Campaign & technical details
+            </summary>
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <Field label="Email" value={lead.email} copyable />
+              <Field label="Phone" value={lead.phone} copyable />
+              <Field label="Source" value={lead.lead_source} />
+              <Field label="Ad set ID" value={lead.ad_set_id} />
+              <Field label="UTM source" value={lead.utm_source} />
+              <Field label="UTM medium" value={lead.utm_medium} />
+              <Field label="UTM campaign" value={lead.utm_campaign} />
+              <Field label="UTM content" value={lead.utm_content} />
+              <Field label="UTM term" value={lead.utm_term} />
+              <Field label="Created" value={fmtWhen(lead.created_at)} />
+              <Field label="Form filled" value={fmtWhen(lead.form_filled_at)} />
+              <Field label="Call booked" value={fmtWhen(lead.call_booked_at)} />
+              <Field
+                label="Call scheduled"
+                value={fmtWhen(lead.call_scheduled_for)}
+              />
+              <Field
+                label="Booking source"
+                value={
+                  lead.booking_source === "manual"
+                    ? "Manual"
+                    : lead.booking_source === "cal_com"
+                      ? "Cal.com"
+                      : null
+                }
+              />
+              <Field label="Cal.com booking" value={lead.cal_com_booking_id} />
+              <Field label="Cancelled" value={fmtWhen(lead.call_cancelled_at)} />
+              <Field
+                label="Deal value"
+                value={formatCurrencyNullable(lead.deal_value)}
+              />
+              <div>
+                <div className="text-xs text-slate-500">Recording link</div>
+                <div className="mt-0.5 text-sm text-slate-900">
+                  {lead.recording_url ? (
+                    <a
+                      href={
+                        /^https?:\/\//i.test(lead.recording_url)
+                          ? lead.recording_url
+                          : `https://${lead.recording_url}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
+                    >
+                      {lead.recording_url}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </div>
+              </div>
+              <Field label="GHL contact" value={lead.ghl_contact_id} />
+              <Field label="Lifecycle" value={lead.lifecycle_status} />
+              <Field
+                label="Post-call status"
+                value={
+                  lead.post_call_status
+                    ? stageLabel(lead.post_call_status)
+                    : null
+                }
+              />
+              <Field
+                label="Post-call updated"
+                value={
+                  lead.post_call_status_updated_by
+                    ? `${lead.post_call_status_updated_by}${
+                        lead.post_call_status_updated_at
+                          ? ` · ${fmtWhen(lead.post_call_status_updated_at)}`
+                          : ""
+                      }`
+                    : fmtWhen(lead.post_call_status_updated_at)
+                }
+              />
+              <Field
+                label="Requalification"
+                value={
+                  lead.requalification_attempted
+                    ? `${lead.requalification_result || "in progress"}${
+                        lead.requalification_called_at
+                          ? ` · ${fmtWhen(lead.requalification_called_at)}`
+                          : ""
+                      }`
+                    : "Not attempted"
+                }
+              />
+            </div>
+          </details>
+
+          <details className="rounded border border-slate-200 p-4">
+            <summary className="cursor-pointer text-sm font-medium text-slate-900">
+              Form Details
+            </summary>
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              {(() => {
+                const entries = Object.entries(lead.custom_fields ?? {}).filter(
+                  ([, value]) => {
+                    if (value === null || value === undefined) return false;
+                    if (typeof value === "string" && !value.trim()) return false;
+                    return true;
+                  }
+                );
+                if (entries.length === 0) {
+                  return (
+                    <p className="col-span-2 text-sm text-slate-500">
+                      No form details yet.
+                    </p>
+                  );
+                }
+                return entries.map(([key, value]) => (
+                  <Field
+                    key={key}
+                    label={humanizeFieldKey(key)}
+                    value={
+                      typeof value === "string"
+                        ? value
+                        : typeof value === "number" || typeof value === "boolean"
+                          ? String(value)
+                          : JSON.stringify(value)
+                    }
+                  />
+                ));
+              })()}
+              <Field
+                label="Qualified by"
+                value={
+                  lead.qualified_by
+                    ? `${lead.qualified_by}${
+                        lead.qualified_at
+                          ? ` · ${fmtWhen(lead.qualified_at)}`
+                          : ""
+                      }`
+                    : null
+                }
+              />
+            </div>
+          </details>
         </section>
       </div>
     </div>

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import { requirePlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import { redirect } from "next/navigation";
 import {
@@ -35,12 +34,11 @@ const PENDING_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 async function resolveBackfillStatus(
   accountId: string,
-  createdAt: string,
-  orgId: string
+  createdAt: string
 ): Promise<"pending" | "complete" | "error" | null> {
   const [cron, rowCount] = await Promise.all([
     getLatestCronRunForJob(backfillCronJobName(accountId)),
-    countMetaAdsRowsForAccount(accountId, orgId)
+    countMetaAdsRowsForAccount(accountId)
   ]);
   if (cron?.status === "error") return "error";
   if (cron?.status === "success" || rowCount > 0) return "complete";
@@ -59,8 +57,8 @@ export default async function ClientAdsDetailPage({
   searchParams: { from?: string; to?: string };
 }) {
   await requirePlatformAdmin();
-  const orgId = await getCurrentOrgId();
-  const account = await getAdAccountById(params.id, orgId);
+  // Cross-org: load by id only — not the viewer's membership org.
+  const account = await getAdAccountById(params.id);
   if (!account || account.is_lead_source || !account.active) {
     redirect("/clients-ads");
   }
@@ -86,15 +84,15 @@ export default async function ClientAdsDetailPage({
 
   const initialBackfillStatus = await resolveBackfillStatus(
     accountId,
-    account.created_at,
-    orgId
+    account.created_at
   );
 
+  // Null orgId → filter by ad_account_id only (account may belong to any org).
   const [totals, priorTotals, trendRaw, hierarchy] = await Promise.all([
-    getMetaAdsTotals(fromISO, toISO, orgId, accountId),
-    getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO, orgId, accountId),
-    getMetaAdsTrend(fromISO, toISO, orgId, accountId),
-    getMetaAdsHierarchy(fromISO, toISO, orgId, accountId)
+    getMetaAdsTotals(fromISO, toISO, null, accountId),
+    getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO, null, accountId),
+    getMetaAdsTrend(fromISO, toISO, null, accountId),
+    getMetaAdsHierarchy(fromISO, toISO, null, accountId)
   ]);
 
   const hasAnyData = trendRaw.length > 0 || hierarchy.length > 0;

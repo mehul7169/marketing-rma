@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { ACTION_STATUSES } from "@/lib/leads/actionStatus";
 import { LEAD_STAGES } from "@/lib/leads/computeStage";
 import { stageLabel } from "@/components/leads/StageBadge";
 
@@ -19,7 +20,9 @@ export default function LeadsFilters({
   search,
   fromISO,
   toISO,
-  lifecycle
+  lifecycle,
+  actionStatus,
+  isDead
 }: {
   sources: string[];
   selectedStages: string[];
@@ -28,6 +31,8 @@ export default function LeadsFilters({
   fromISO: string;
   toISO: string;
   lifecycle: string;
+  actionStatus: string;
+  isDead: string;
 }) {
   const router = useRouter();
 
@@ -38,6 +43,8 @@ export default function LeadsFilters({
     from?: string;
     to?: string;
     lifecycle?: string;
+    actionStatus?: string;
+    isDead?: string;
   }) {
     const params = new URLSearchParams();
     params.set("from", next.from ?? fromISO);
@@ -46,11 +53,15 @@ export default function LeadsFilters({
     const srcs = next.sources ?? selectedSources;
     const q = next.q ?? search;
     const life = next.lifecycle ?? lifecycle;
+    const as = next.actionStatus ?? actionStatus;
+    const dead = next.isDead ?? isDead;
     if (life && life !== "active") params.set("lifecycle", life);
     if (life === "active") params.set("lifecycle", "active");
     if (stages.length) params.set("stage", stages.join(","));
     if (srcs.length) params.set("source", srcs.join(","));
     if (q) params.set("q", q);
+    if (as) params.set("action_status", as);
+    if (dead === "true" || dead === "false") params.set("is_dead", dead);
     router.push(`/leads?${params.toString()}`);
   }
 
@@ -135,6 +146,35 @@ export default function LeadsFilters({
             }}
             onBlur={(e) => push({ q: e.target.value })}
           />
+        </label>
+
+        <label className="flex flex-col text-xs text-slate-600">
+          Action status
+          <select
+            className="mt-1 min-w-[180px] rounded border border-slate-200 px-2 py-2 text-sm"
+            value={actionStatus}
+            onChange={(e) => push({ actionStatus: e.target.value })}
+          >
+            <option value="">All</option>
+            {ACTION_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col text-xs text-slate-600">
+          Dead?
+          <select
+            className="mt-1 min-w-[120px] rounded border border-slate-200 px-2 py-2 text-sm"
+            value={isDead}
+            onChange={(e) => push({ isDead: e.target.value })}
+          >
+            <option value="">All</option>
+            <option value="true">Dead only</option>
+            <option value="false">Not dead</option>
+          </select>
         </label>
 
         <label className="flex flex-col text-xs text-slate-600">

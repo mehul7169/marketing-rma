@@ -1,5 +1,9 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 import { listLeadIdsWithDueFollowUps } from "@/lib/db/lead_reminders";
+import {
+  computeActionStatus,
+  inferLastCallOutcome
+} from "@/lib/leads/actionStatus";
 import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
 import { computeStage } from "@/lib/leads/computeStage";
 import { omitLegacyLeadColumns } from "@/lib/leads/customFields";
@@ -14,7 +18,7 @@ import type {
   LeadListFilters,
   LeadRow
 } from "@/lib/leads/types";
-import { istDayEndUtcIso, istDayStartUtcIso } from "@/lib/timezone";
+import { istDayEndUtcIso, istDayStartUtcIso, todayISTDateString } from "@/lib/timezone";
 
 function requireDb() {
   if (!supabaseAdmin) throw new Error("Supabase is not configured.");
@@ -70,6 +74,16 @@ function asLead(row: unknown): LeadRow {
     statusRaw === "not_contacted"
       ? statusRaw
       : "not_contacted";
+  const contactAttemptsRaw = (r as LeadRow).contact_attempts as unknown;
+  const contactAttempts =
+    typeof contactAttemptsRaw === "number"
+      ? contactAttemptsRaw
+      : contactAttemptsRaw === null ||
+          contactAttemptsRaw === undefined ||
+          contactAttemptsRaw === ""
+        ? 0
+        : Number(contactAttemptsRaw);
+
   return {
     ...r,
     deal_value:
@@ -84,6 +98,19 @@ function asLead(row: unknown): LeadRow {
     slack_form_notified: Boolean((r as LeadRow).slack_form_notified),
     slack_booking_notified: Boolean((r as LeadRow).slack_booking_notified),
     slack_no_booking_notified: Boolean((r as LeadRow).slack_no_booking_notified),
+    action_status: (r as LeadRow).action_status ?? null,
+    is_dead: Boolean((r as LeadRow).is_dead),
+    dead_reason: (r as LeadRow).dead_reason ?? null,
+    contact_attempts: Number.isFinite(contactAttempts) ? contactAttempts : 0,
+    call_confirmed:
+      (r as LeadRow).call_confirmed === true
+        ? true
+        : (r as LeadRow).call_confirmed === false
+          ? false
+          : null,
+    next_action_at: (r as LeadRow).next_action_at ?? null,
+    last_action: (r as LeadRow).last_action ?? null,
+    last_action_at: (r as LeadRow).last_action_at ?? null,
     custom_fields:
       r.custom_fields &&
       typeof r.custom_fields === "object" &&
@@ -108,6 +135,21 @@ function stamp(existing: LeadRow, patch: Partial<LeadRow>): LeadRow {
   };
   merged.stage = computeStage(derived);
   merged.lifecycle_status = computeLifecycleStatus(derived);
+  // Explicit action_status in patch wins (e.g. revive → Untouched).
+  if (patch.action_status === undefined) {
+    merged.action_status = computeActionStatus(
+      {
+        deal_closed: merged.deal_closed,
+        is_dead: Boolean(merged.is_dead),
+        next_action_at: merged.next_action_at,
+        contact_attempts: merged.contact_attempts ?? 0,
+        call_confirmed: merged.call_confirmed,
+        call_booked_at: merged.call_booked_at,
+        last_action: merged.last_action
+      },
+      inferLastCallOutcome(merged.last_action)
+    );
+  }
   merged.updated_at = new Date().toISOString();
   return merged;
 }
@@ -242,6 +284,14 @@ export async function insertLead(
     post_call_status_updated_at: row.post_call_status_updated_at ?? null,
     post_call_status_updated_by: row.post_call_status_updated_by ?? null,
     lifecycle_status: null,
+    action_status: row.action_status ?? null,
+    is_dead: row.is_dead ?? false,
+    dead_reason: row.dead_reason ?? null,
+    contact_attempts: row.contact_attempts ?? 0,
+    call_confirmed: row.call_confirmed ?? null,
+    next_action_at: row.next_action_at ?? null,
+    last_action: row.last_action ?? null,
+    last_action_at: row.last_action_at ?? null,
     slack_form_notified: row.slack_form_notified ?? false,
     slack_booking_notified: row.slack_booking_notified ?? false,
     slack_no_booking_notified: row.slack_no_booking_notified ?? false,
@@ -277,9 +327,13 @@ export async function updateLead(existing: LeadRow, patch: Partial<LeadRow>): Pr
         ? firstSetAt(existing.reminder_sent_at, patch.reminder_sent, now)
         : existing.reminder_sent_at,
     call_showed_at:
-      patch.call_showed !== undefined
-        ? firstSetAt(existing.call_showed_at, patch.call_showed, now)
-        : existing.call_showed_at,
+      patch.call_showed === null
+        ? null
+        : patch.call_showed !== undefined
+          ? firstSetAt(existing.call_showed_at, patch.call_showed, now)
+          : patch.call_showed_at !== undefined
+            ? patch.call_showed_at
+            : existing.call_showed_at,
     closed_at:
       patch.deal_closed !== undefined
         ? firstSetAt(existing.closed_at, patch.deal_closed, now)
@@ -406,6 +460,38 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
     query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%`);
   }
 
+  if (filters.excludeDeadAndClosed) {
+    query = query
+      .eq("is_dead", false)
+      .or("deal_closed.is.null,deal_closed.eq.false");
+  }
+  if (filters.isDead === true) {
+    query = query.eq("is_dead", true);
+  } else if (filters.isDead === false) {
+    query = query.eq("is_dead", false);
+  }
+  if (filters.actionStatuses && filters.actionStatuses.length > 0) {
+    const wantsUntouched = filters.actionStatuses.includes("Untouched");
+    const others = filters.actionStatuses.filter((s) => s !== "Untouched");
+    if (wantsUntouched && others.length === 0) {
+      query = query.or("action_status.is.null,action_status.eq.Untouched");
+    } else if (wantsUntouched && others.length > 0) {
+      const parts = [
+        "action_status.is.null",
+        ...filters.actionStatuses.map((s) => `action_status.eq.${s}`)
+      ];
+      query = query.or(parts.join(","));
+    } else {
+      query = query.in("action_status", others);
+    }
+  }
+  if (filters.upcomingOnly) {
+    const afterToday = istDayEndUtcIso(todayISTDateString());
+    query = query
+      .not("next_action_at", "is", null)
+      .gt("next_action_at", afterToday);
+  }
+
   const { data, error } = await query;
   if (error) throw error;
   let rows = (data ?? []).map(asLead);
@@ -443,6 +529,36 @@ export async function listDistinctLeadSources(orgId: string): Promise<string[]> 
     if (row.lead_source) set.add(row.lead_source);
   }
   return Array.from(set).sort();
+}
+
+/** Distinct keys present in leads.custom_fields for an org (for column picker). */
+export async function listDistinctCustomFieldKeys(
+  orgId: string
+): Promise<string[]> {
+  if (!supabaseAdmin) return [];
+  const db = requireDb();
+  const keys = new Set<string>();
+  const pageSize = 1000;
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await db
+      .from("leads")
+      .select("custom_fields")
+      .eq("org_id", orgId)
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const rows = data ?? [];
+    for (const row of rows) {
+      const cf = (row as { custom_fields?: unknown }).custom_fields;
+      if (!cf || typeof cf !== "object" || Array.isArray(cf)) continue;
+      for (const key of Object.keys(cf as Record<string, unknown>)) {
+        if (key.trim()) keys.add(key);
+      }
+    }
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+  return Array.from(keys).sort((a, b) => a.localeCompare(b));
 }
 
 export async function listLeadsInRange(

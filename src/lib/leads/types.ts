@@ -79,6 +79,15 @@ export type LeadRow = {
   post_call_status_updated_at: string | null;
   post_call_status_updated_by: string | null;
   lifecycle_status: string | null;
+  /** CRM work-queue status; null = Untouched (pre-backfill rows). */
+  action_status: string | null;
+  is_dead: boolean;
+  dead_reason: string | null;
+  contact_attempts: number;
+  call_confirmed: boolean | null;
+  next_action_at: string | null;
+  last_action: string | null;
+  last_action_at: string | null;
   updated_at: string;
   slack_form_notified: boolean;
   slack_booking_notified: boolean;
@@ -102,4 +111,12 @@ export type LeadListFilters = {
   /** Booked, setter_verified unset, verification not yet reached. */
   needsVerificationCall?: boolean;
   followUpsDue?: boolean;
+  /** Match action_status; include null rows when filtering Untouched. */
+  actionStatuses?: string[];
+  /** true / false / omit (no filter). */
+  isDead?: boolean;
+  /** Work Queue: hide dead + closed by default. */
+  excludeDeadAndClosed?: boolean;
+  /** next_action_at after end of today (IST). */
+  upcomingOnly?: boolean;
 };

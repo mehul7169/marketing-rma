@@ -113,17 +113,8 @@ export async function updateSession(request: NextRequest) {
         NextResponse.redirect(new URL("/", request.url))
       );
     }
-    // /admin/organizations works without an org membership.
-    // /clients-ads still needs membership for getCurrentOrgId() scoping.
-    if (
-      (pathname === "/clients-ads" || pathname.startsWith("/clients-ads/")) &&
-      !hasMembership
-    ) {
-      return withCookies(
-        supabaseResponse,
-        NextResponse.redirect(new URL("/admin/organizations", request.url))
-      );
-    }
+    // Platform-admin surfaces (/admin/organizations, /clients-ads) do not
+    // require an org membership — access is gated by is_platform_admin only.
     return supabaseResponse;
   }
 

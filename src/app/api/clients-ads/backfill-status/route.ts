@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireOrgId } from "@/lib/auth/getCurrentOrgId";
 import { isPlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import { getAdAccountById } from "@/lib/db/ad_accounts";
 import {
@@ -22,15 +21,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  const orgId = await requireOrgId();
-  const account = await getAdAccountById(id, orgId);
+  const account = await getAdAccountById(id);
   if (!account || account.is_lead_source) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 
   const [cron, rowCount] = await Promise.all([
     getLatestCronRunForJob(backfillCronJobName(id)),
-    countMetaAdsRowsForAccount(id, orgId)
+    countMetaAdsRowsForAccount(id)
   ]);
 
   if (cron?.status === "error") {

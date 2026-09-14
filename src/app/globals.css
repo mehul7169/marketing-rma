@@ -80,4 +80,22 @@ body {
     height: 2px;
     background-image: var(--brand-gradient);
   }
+
+  /**
+   * Viewport-bound table scrollport (see ScrollableDataTable).
+   * Sticky headers stay visible while scrolling rows vertically.
+   * border-collapse:separate is required for position:sticky on th.
+   */
+  .scrollable-data-table table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .scrollable-data-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f8fafc; /* slate-50 */
+    box-shadow: inset 0 -1px 0 #e2e8f0; /* slate-200 */
+  }
 }

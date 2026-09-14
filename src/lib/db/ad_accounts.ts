@@ -117,8 +117,7 @@ export async function insertAdAccount(input: {
 
 export async function updateAdAccountClientName(
   id: string,
-  clientName: string,
-  orgId: string
+  clientName: string
 ): Promise<AdAccountRow> {
   const db = requireDb();
   const name = clientName.trim();
@@ -127,7 +126,6 @@ export async function updateAdAccountClientName(
     .from("ad_accounts")
     .update({ client_name: name })
     .eq("id", id)
-    .eq("org_id", orgId)
     .eq("is_lead_source", false)
     .select("*")
     .maybeSingle();
@@ -140,15 +138,12 @@ export async function updateAdAccountClientName(
  * Hard-delete a client ad_accounts row. Parks meta_ads_daily history under the
  * stable Meta act_… id (rows are not deleted) so a later re-add can reclaim them.
  */
-export async function deleteClientAdAccount(
-  id: string,
-  orgId: string
-): Promise<{
+export async function deleteClientAdAccount(id: string): Promise<{
   meta_ad_account_id: string;
   client_name: string;
 }> {
   const db = requireDb();
-  const account = await getAdAccountById(id, orgId);
+  const account = await getAdAccountById(id);
   if (!account || account.is_lead_source) {
     throw new Error("Client ad account not found");
   }
@@ -158,13 +153,9 @@ export async function deleteClientAdAccount(
     "@/lib/db/meta_ads_daily"
   );
   const metaId = normalizeMetaAdAccountId(account.meta_ad_account_id);
-  await remappingMetaAdsDailyAccountId(account.id, metaId, orgId);
+  await remappingMetaAdsDailyAccountId(account.id, metaId, account.org_id);
 
-  const { error } = await db
-    .from("ad_accounts")
-    .delete()
-    .eq("id", id)
-    .eq("org_id", orgId);
+  const { error } = await db.from("ad_accounts").delete().eq("id", id);
   if (error) throw error;
 
   return {
@@ -173,17 +164,23 @@ export async function deleteClientAdAccount(
   };
 }
 
-/** Client accounts only — excludes lead-source rows (those stay on /meta-ads). */
-export async function listClientAdAccounts(orgId: string): Promise<AdAccountRow[]> {
+/**
+ * Client accounts only — excludes lead-source rows (those stay on /meta-ads).
+ * Platform-admin /clients-ads: omit orgId to list across every organization.
+ */
+export async function listClientAdAccounts(
+  orgId?: string
+): Promise<AdAccountRow[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
-  const { data, error } = await db
+  let query = db
     .from("ad_accounts")
     .select("*")
-    .eq("org_id", orgId)
     .eq("active", true)
     .eq("is_lead_source", false)
     .order("client_name", { ascending: true });
+  if (orgId) query = query.eq("org_id", orgId);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []).map(asAdAccount);
 }
