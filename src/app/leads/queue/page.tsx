@@ -16,11 +16,6 @@ const TABS: Array<{
 }> = [
   { id: "untouched", label: "Untouched", actionStatuses: ["Untouched"] },
   {
-    id: "call_unanswered",
-    label: "Call Unanswered",
-    actionStatuses: ["Call Unanswered"]
-  },
-  {
     id: "personally_contacted",
     label: "Personally Contacted",
     actionStatuses: ["Personally Contacted"]
@@ -52,7 +47,6 @@ export default async function WorkQueuePage({
 
   const [
     untouched,
-    unanswered,
     contacted,
     due,
     overdue,
@@ -62,7 +56,6 @@ export default async function WorkQueuePage({
     tableViewBootstrap
   ] = await Promise.all([
     listLeads({ ...countBase, actionStatuses: ["Untouched"] }),
-    listLeads({ ...countBase, actionStatuses: ["Call Unanswered"] }),
     listLeads({ ...countBase, actionStatuses: ["Personally Contacted"] }),
     listLeads({ ...countBase, actionStatuses: ["Follow-up Due"] }),
     listLeads({ ...countBase, actionStatuses: ["Follow-up Overdue"] }),
@@ -78,7 +71,6 @@ export default async function WorkQueuePage({
 
   const counts: Record<string, number> = {
     untouched: untouched.length,
-    call_unanswered: unanswered.length,
     personally_contacted: contacted.length,
     follow_up_due: due.length,
     follow_up_overdue: overdue.length,

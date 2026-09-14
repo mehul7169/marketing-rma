@@ -96,7 +96,8 @@ export async function logCallAttempt(
     patch.next_action_at = opts.followUpAt;
   } else if (outcome === "qualified") {
     patch.qualified = true;
-    if (opts.bookAndConfirm) {
+    // Quickform book+confirm, or already-booked website lead being qualified.
+    if (opts.bookAndConfirm || lead.call_booked_at) {
       patch.call_booked_at = lead.call_booked_at ?? now;
       patch.call_confirmed = true;
       patch.contact_attempts = 0;
@@ -105,13 +106,15 @@ export async function logCallAttempt(
   } else if (outcome === "not_qualified") {
     patch.qualified = false;
     patch.is_dead = true;
-    patch.dead_reason = "confirmed not a fit";
+    patch.dead_reason = "reached lead, confirmed not qualified";
     patch.next_action_at = null;
   } else if (outcome === "confirmed") {
+    // Reserved for future Reminder Call SOP (show-up confirmation) — not this step.
     patch.call_confirmed = true;
     patch.contact_attempts = 0;
     patch.next_action_at = null;
   } else if (outcome === "not_confirmed") {
+    // Reserved for future Reminder Call SOP.
     patch.is_dead = true;
     patch.dead_reason = "booked but not confirmed qualified";
     patch.next_action_at = null;

@@ -140,13 +140,15 @@ describe("computeActionStatus precedence", () => {
     ).toBe("Call Booked");
   });
 
-  it("contact_attempts + no_answer → Call Unanswered", () => {
+  it("contact_attempts + no_answer (no next_action_at) → Personally Contacted", () => {
+    // Normal no_answer sets next_action_at → Follow-up Due/Overdue; this covers
+    // the fall-through when attempts > 0 without a scheduled follow-up.
     expect(
       computeActionStatus(
         { ...base, contact_attempts: 1, last_action: "Called — No Answer" },
         "no_answer"
       )
-    ).toBe("Call Unanswered");
+    ).toBe("Personally Contacted");
   });
 
   it("contact_attempts + other outcome → Personally Contacted", () => {

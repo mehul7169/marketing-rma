@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { makeLead } from "@/test/fixtures";
 
@@ -20,7 +21,7 @@ import { renderLeadColumnCell } from "@/components/table-views/leadColumnCells";
 import CustomFieldsPanel from "@/components/leads/CustomFieldsPanel";
 
 describe("WorkQueueLeadActions UI", () => {
-  it("shows Log Call for Untouched and not Confirm Call", () => {
+  it("shows Log Call for Untouched and not Qualify Call", () => {
     render(
       <WorkQueueLeadActions
         lead={makeLead({ action_status: null, call_booked_at: null })}
@@ -28,11 +29,12 @@ describe("WorkQueueLeadActions UI", () => {
     );
     expect(screen.getByRole("button", { name: "Log Call" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Confirm Call" })
+      screen.queryByRole("button", { name: "Qualify Call" })
     ).not.toBeInTheDocument();
   });
 
-  it("shows Confirm Call for Call Booked", () => {
+  it("shows Qualify Call with shared qualification outcomes", async () => {
+    const user = userEvent.setup();
     render(
       <WorkQueueLeadActions
         lead={makeLead({
@@ -43,11 +45,21 @@ describe("WorkQueueLeadActions UI", () => {
       />
     );
     expect(
-      screen.getByRole("button", { name: "Confirm Call" })
+      screen.getByRole("button", { name: "Qualify Call" })
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Log Call" })
     ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Qualify Call" }));
+    expect(screen.getByRole("heading", { name: "Qualify call" })).toBeInTheDocument();
+    const select = screen.getByLabelText("Outcome");
+    expect(select).toHaveTextContent("No Answer");
+    expect(select).toHaveTextContent("Follow-up Needed");
+    expect(select).toHaveTextContent("Qualified");
+    expect(select).toHaveTextContent("Unqualified");
+    expect(select).not.toHaveTextContent("Confirmed");
+    expect(select).not.toHaveTextContent("Not confirmed");
   });
 });
 

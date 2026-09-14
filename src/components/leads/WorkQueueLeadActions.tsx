@@ -22,7 +22,7 @@ import {
 
 type ModalKind =
   | "log_call"
-  | "confirm_call"
+  | "qualify_call"
   | "show_outcome"
   | "reschedule"
   | "note"
@@ -36,9 +36,9 @@ function callPastDue(lead: LeadRow): boolean {
 
 export function primaryWorkQueueActions(
   lead: LeadRow
-): Array<"confirm" | "log_call" | "show" | "reschedule"> {
+): Array<"qualify" | "log_call" | "show" | "reschedule"> {
   const status = displayActionStatus(lead.action_status);
-  const actions: Array<"confirm" | "log_call" | "show" | "reschedule"> = [];
+  const actions: Array<"qualify" | "log_call" | "show" | "reschedule"> = [];
 
   if (lead.call_showed === false) {
     actions.push("reschedule");
@@ -51,11 +51,10 @@ export function primaryWorkQueueActions(
       status === "Untouched" ||
       status === "Personally Contacted")
   ) {
-    actions.push("confirm");
+    actions.push("qualify");
   } else if (
     status === "Untouched" ||
     status === "Personally Contacted" ||
-    status === "Call Unanswered" ||
     status === "Follow-up Due" ||
     status === "Follow-up Overdue"
   ) {
@@ -70,7 +69,7 @@ function shouldOfferWhatsApp(lead: LeadRow): boolean {
   const status = displayActionStatus(lead.action_status);
   return (
     (attempts === 1 || attempts === 3) &&
-    (status === "Call Unanswered" ||
+    (status === "Personally Contacted" ||
       status === "Dead" ||
       status === "Follow-up Due" ||
       status === "Follow-up Overdue")
@@ -129,25 +128,17 @@ export default function WorkQueueLeadActions({
     });
   }
 
-  function submitLogCall() {
+  function submitCallAttempt() {
     const bookAndConfirm =
-      outcome === "qualified" && isQuickformSource(lead.lead_source);
+      outcome === "qualified" &&
+      (modal === "qualify_call" ||
+        (modal === "log_call" && isQuickformSource(lead.lead_source)));
     run(() =>
       logLeadCallAttemptAction(lead.id, outcome, {
         note: note || null,
         followUpAtLocal: outcome === "follow_up_needed" ? followUpAt : null,
         bookAndConfirm
       })
-    );
-  }
-
-  function submitConfirm() {
-    run(() =>
-      logLeadCallAttemptAction(
-        lead.id,
-        outcome === "not_confirmed" ? "not_confirmed" : "confirmed",
-        { note: note || null }
-      )
     );
   }
 
@@ -177,16 +168,16 @@ export default function WorkQueueLeadActions({
             Log Call
           </button>
         ) : null}
-        {actions.includes("confirm") ? (
+        {actions.includes("qualify") ? (
           <button
             type="button"
             className={primaryBtn}
             onClick={() => {
-              setOutcome("confirmed");
-              setModal("confirm_call");
+              setOutcome("no_answer");
+              setModal("qualify_call");
             }}
           >
-            Confirm Call
+            Qualify Call
           </button>
         ) : null}
         {actions.includes("show") ? (
@@ -238,10 +229,10 @@ export default function WorkQueueLeadActions({
             className="w-full max-w-md rounded border border-slate-200 bg-white p-4 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            {modal === "log_call" || modal === "confirm_call" ? (
+            {modal === "log_call" || modal === "qualify_call" ? (
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-slate-900">
-                  {modal === "confirm_call" ? "Confirm call" : "Log call"}
+                  {modal === "qualify_call" ? "Qualify call" : "Log call"}
                 </h3>
                 <label className="block text-xs text-slate-600">
                   Outcome
@@ -252,19 +243,10 @@ export default function WorkQueueLeadActions({
                       setOutcome(e.target.value as CallAttemptOutcome)
                     }
                   >
-                    {modal === "confirm_call" ? (
-                      <>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="not_confirmed">Not confirmed</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="no_answer">No Answer</option>
-                        <option value="follow_up_needed">Follow-up Needed</option>
-                        <option value="qualified">Qualified</option>
-                        <option value="not_qualified">Not Qualified</option>
-                      </>
-                    )}
+                    <option value="no_answer">No Answer</option>
+                    <option value="follow_up_needed">Follow-up Needed</option>
+                    <option value="qualified">Qualified</option>
+                    <option value="not_qualified">Unqualified</option>
                   </select>
                 </label>
                 {outcome === "follow_up_needed" ? (
@@ -300,9 +282,7 @@ export default function WorkQueueLeadActions({
                     type="button"
                     className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-60"
                     disabled={pending}
-                    onClick={
-                      modal === "confirm_call" ? submitConfirm : submitLogCall
-                    }
+                    onClick={submitCallAttempt}
                   >
                     {pending ? "Saving…" : "Save"}
                   </button>

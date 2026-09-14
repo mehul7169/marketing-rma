@@ -12,7 +12,6 @@ export const ACTION_STATUSES = [
   "Dead",
   "Follow-up Overdue",
   "Follow-up Due",
-  "Call Unanswered",
   "Personally Contacted",
   "Qualified Call Booked",
   "Call Booked",
@@ -74,7 +73,7 @@ export function callAttemptSummary(outcome: CallAttemptOutcome): string {
     case "qualified":
       return "Called — Qualified";
     case "not_qualified":
-      return "Called — Not Qualified";
+      return "Called — Unqualified";
     case "confirmed":
       return "Called — Confirmed";
     case "not_confirmed":
@@ -135,12 +134,15 @@ export type ActionStatusInput = {
 /**
  * Precedence (highest wins):
  * Closed → Dead → Follow-up Overdue → Follow-up Due →
- * Call Unanswered → Personally Contacted →
- * Qualified Call Booked → Call Booked → Untouched
+ * Personally Contacted → Qualified Call Booked → Call Booked → Untouched
+ *
+ * no_answer always schedules next_action_at, so those leads land in
+ * Follow-up Due/Overdue — not a separate unanswered status. Last Action
+ * still shows "Called — No Answer".
  */
 export function computeActionStatus(
   lead: ActionStatusInput,
-  lastCallOutcome?: CallAttemptOutcome | null,
+  _lastCallOutcome?: CallAttemptOutcome | null,
   _now: Date = new Date()
 ): ActionStatus {
   if (lead.deal_closed === true) return "Closed";
@@ -157,14 +159,11 @@ export function computeActionStatus(
     // Future next_action_at: fall through to contact/booking branches.
   }
 
-  const outcome =
-    lastCallOutcome ?? inferLastCallOutcome(lead.last_action ?? null);
   const attempts = lead.contact_attempts ?? 0;
   const noResolution =
     attempts > 0 && !lead.is_dead && lead.call_confirmed !== true;
 
   if (noResolution) {
-    if (outcome === "no_answer") return "Call Unanswered";
     return "Personally Contacted";
   }
 

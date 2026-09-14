@@ -90,20 +90,43 @@ describe("logCallAttempt", () => {
     );
   });
 
-  it("confirmed only sets call_confirmed (and resets attempts)", async () => {
+  it("qualified on an already-booked lead sets call_confirmed (Qualify Call path)", async () => {
     const lead = makeLead({
       call_booked_at: "2026-01-01T00:00:00.000Z",
       contact_attempts: 1
     });
     getLeadById.mockResolvedValue(lead);
 
-    await logCallAttempt(lead.id, lead.org_id, "confirmed");
+    await logCallAttempt(lead.id, lead.org_id, "qualified");
 
-    const patch = updateLead.mock.calls[0]?.[1] as Record<string, unknown>;
-    expect(patch.call_confirmed).toBe(true);
-    expect(patch.contact_attempts).toBe(0);
-    expect(patch.qualified).toBeUndefined();
-    expect(patch.call_booked_at).toBeUndefined();
+    expect(updateLead).toHaveBeenCalledWith(
+      lead,
+      expect.objectContaining({
+        qualified: true,
+        call_confirmed: true,
+        contact_attempts: 0,
+        next_action_at: null
+      })
+    );
+  });
+
+  it("not_qualified marks dead with qualification dead_reason", async () => {
+    const lead = makeLead({
+      call_booked_at: "2026-01-01T00:00:00.000Z"
+    });
+    getLeadById.mockResolvedValue(lead);
+
+    await logCallAttempt(lead.id, lead.org_id, "not_qualified");
+
+    expect(updateLead).toHaveBeenCalledWith(
+      lead,
+      expect.objectContaining({
+        qualified: false,
+        is_dead: true,
+        dead_reason: "reached lead, confirmed not qualified",
+        next_action_at: null
+      })
+    );
   });
 });
 

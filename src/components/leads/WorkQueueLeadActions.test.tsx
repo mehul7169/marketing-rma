@@ -11,11 +11,11 @@ describe("primaryWorkQueueActions", () => {
     ).toEqual(["log_call"]);
   });
 
-  it("Call Unanswered → Log Call", () => {
+  it("Personally Contacted → Log Call", () => {
     expect(
       primaryWorkQueueActions(
         makeLead({
-          action_status: "Call Unanswered",
+          action_status: "Personally Contacted",
           contact_attempts: 1
         })
       )
@@ -31,7 +31,7 @@ describe("primaryWorkQueueActions", () => {
     ).toEqual(["log_call"]);
   });
 
-  it("Call Booked (unconfirmed) → Confirm Call", () => {
+  it("Call Booked (unconfirmed) → Qualify Call", () => {
     expect(
       primaryWorkQueueActions(
         makeLead({
@@ -40,7 +40,7 @@ describe("primaryWorkQueueActions", () => {
           call_confirmed: null
         })
       )
-    ).toEqual(["confirm"]);
+    ).toEqual(["qualify"]);
   });
 
   it("past-due scheduled call → Log Outcome (show)", () => {

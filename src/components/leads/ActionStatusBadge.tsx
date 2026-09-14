@@ -9,7 +9,6 @@ const STYLES: Record<ActionStatus, string> = {
   Dead: "bg-slate-200 text-slate-600",
   "Follow-up Overdue": "bg-red-50 text-red-800",
   "Follow-up Due": "bg-amber-50 text-amber-900",
-  "Call Unanswered": "bg-orange-50 text-orange-900",
   "Personally Contacted": "bg-sky-50 text-sky-900",
   "Qualified Call Booked": "bg-blue-50 text-blue-800",
   "Call Booked": "bg-indigo-50 text-indigo-800",
