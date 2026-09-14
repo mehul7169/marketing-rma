@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireOrgId } from "@/lib/auth/getCurrentOrgId";
-import { getActorEmail } from "@/lib/auth/session";
+import { getActorEmail, getActorUserId } from "@/lib/auth/session";
 import { insertLeadReminder, resolveLeadReminder } from "@/lib/db/lead_reminders";
 import { getLeadById, scheduleLeadCall, updateLead } from "@/lib/db/leads";
 import type { CallAttemptOutcome, ShowOutcome } from "@/lib/leads/actionStatus";
@@ -47,7 +47,13 @@ const CALL_OUTCOMES: CallAttemptOutcome[] = [
   "not_confirmed"
 ];
 
-async function actor(): Promise<string> {
+/** UUID for lead_activities.created_by / lead_reminders.created_by / cadence actor. */
+async function actorId(): Promise<string> {
+  return getActorUserId();
+}
+
+/** Email for legacy text *_by columns on leads (not UUID FKs). */
+async function actorEmail(): Promise<string> {
   return getActorEmail();
 }
 
@@ -63,7 +69,7 @@ export async function saveLeadActions(id: string, input: LeadActionInput) {
   const existing = await getLeadById(id, orgId);
   if (!existing) throw new Error("Lead not found");
 
-  const by = await actor();
+  const by = await actorEmail();
   const now = new Date().toISOString();
   const patch: Parameters<typeof updateLead>[1] = {};
 
@@ -155,7 +161,7 @@ export async function saveLeadSchedule(id: string, scheduledForLocal: string) {
   const existing = await getLeadById(id, orgId);
   if (!existing) throw new Error("Lead not found");
   const iso = fromDatetimeLocalIST(scheduledForLocal);
-  const updated = await scheduleLeadCall(existing, iso, await actor());
+  const updated = await scheduleLeadCall(existing, iso, await actorId());
   revalidateLead(id);
   return {
     id: updated.id,
@@ -181,7 +187,7 @@ export async function addLeadFollowUp(
     lead_id: leadId,
     text: trimmed,
     due_at,
-    created_by: await actor()
+    created_by: await actorId()
   });
   revalidateLead(leadId);
 }
@@ -216,7 +222,7 @@ export async function logLeadCallAttemptAction(
     note: opts?.note,
     followUpAt,
     bookAndConfirm: opts?.bookAndConfirm,
-    actor: await actor()
+    actor: await actorId()
   });
   revalidateLead(leadId);
   return {
@@ -234,7 +240,7 @@ export async function sendLeadWhatsAppNudgeAction(
   const orgId = await requireOrgId();
   const updated = await sendWhatsAppNudge(leadId, orgId, {
     note,
-    actor: await actor()
+    actor: await actorId()
   });
   revalidateLead(leadId);
   return { id: updated.id, action_status: updated.action_status };
@@ -249,7 +255,7 @@ export async function rescheduleLeadCallAction(
   const iso = fromDatetimeLocalIST(newDateTimeLocal);
   const updated = await rescheduleCall(leadId, orgId, iso, {
     note,
-    actor: await actor()
+    actor: await actorId()
   });
   revalidateLead(leadId);
   return { id: updated.id, call_scheduled_for: updated.call_scheduled_for };
@@ -262,7 +268,7 @@ export async function reviveDeadLeadAction(
   const orgId = await requireOrgId();
   const updated = await reviveDeadLead(leadId, orgId, {
     note,
-    actor: await actor()
+    actor: await actorId()
   });
   revalidateLead(leadId);
   return {
@@ -276,7 +282,7 @@ export async function reviveDeadLeadAction(
 export async function addLeadNoteAction(leadId: string, note: string) {
   const orgId = await requireOrgId();
   const updated = await addLeadNoteActivity(leadId, orgId, note, {
-    actor: await actor()
+    actor: await actorId()
   });
   revalidateLead(leadId);
   return { id: updated.id, last_action: updated.last_action };
@@ -293,7 +299,7 @@ export async function logLeadShowOutcomeAction(
   const orgId = await requireOrgId();
   const updated = await logShowOutcome(leadId, orgId, outcome, {
     note,
-    actor: await actor()
+    actor: await actorId()
   });
   revalidateLead(leadId);
   return { id: updated.id, call_showed: updated.call_showed };

@@ -40,7 +40,20 @@ export async function getCurrentSession(): Promise<{
   };
 }
 
-/** Email for audit fields (lead actions). Falls back to a stable placeholder. */
+/**
+ * Auth user id (profiles.id / auth.uid()) for UUID FK columns such as
+ * lead_activities.created_by. Throws when unauthenticated — never invents a value.
+ */
+export async function getActorUserId(): Promise<string> {
+  const session = await getCurrentSession();
+  if (!session?.userId) throw new Error("Unauthorized");
+  return session.userId;
+}
+
+/**
+ * Email for legacy text audit fields on leads (qualified_by, closed_by, …).
+ * Do not use for UUID columns — use getActorUserId instead.
+ */
 export async function getActorEmail(): Promise<string> {
   const session = await getCurrentSession();
   return session?.email ?? "unknown";
