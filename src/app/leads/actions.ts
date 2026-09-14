@@ -207,7 +207,8 @@ export async function logLeadCallAttemptAction(
   opts?: {
     note?: string | null;
     followUpAtLocal?: string | null;
-    bookAndConfirm?: boolean;
+    /** Required for qualified — when the call is scheduled. */
+    scheduledForLocal?: string | null;
   }
 ) {
   if (!CALL_OUTCOMES.includes(outcome)) {
@@ -218,10 +219,17 @@ export async function logLeadCallAttemptAction(
     opts?.followUpAtLocal && opts.followUpAtLocal.trim()
       ? fromDatetimeLocalIST(opts.followUpAtLocal)
       : null;
+  const scheduledFor =
+    opts?.scheduledForLocal && opts.scheduledForLocal.trim()
+      ? fromDatetimeLocalIST(opts.scheduledForLocal)
+      : null;
+  if (outcome === "qualified" && !scheduledFor) {
+    throw new Error("Call date/time is required when marking Qualified");
+  }
   const updated = await logCallAttempt(leadId, orgId, outcome, {
     note: opts?.note,
     followUpAt,
-    bookAndConfirm: opts?.bookAndConfirm,
+    scheduledFor,
     actor: await actorId()
   });
   revalidateLead(leadId);

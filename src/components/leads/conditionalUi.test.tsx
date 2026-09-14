@@ -60,6 +60,9 @@ describe("WorkQueueLeadActions UI", () => {
     expect(select).toHaveTextContent("Unqualified");
     expect(select).not.toHaveTextContent("Confirmed");
     expect(select).not.toHaveTextContent("Not confirmed");
+
+    await user.selectOptions(select, "qualified");
+    expect(screen.getByLabelText("Call scheduled for")).toBeInTheDocument();
   });
 });
 

@@ -11,7 +11,6 @@ import {
 } from "@/app/leads/actions";
 import {
   displayActionStatus,
-  isQuickformSource,
   type CallAttemptOutcome
 } from "@/lib/leads/actionStatus";
 import type { LeadRow } from "@/lib/leads/types";
@@ -101,6 +100,9 @@ export default function WorkQueueLeadActions({
   const [showOutcome, setShowOutcome] = useState<"showed" | "no_show">("showed");
   const [note, setNote] = useState("");
   const [followUpAt, setFollowUpAt] = useState(tomorrowSameTimeLocalIST());
+  const [callAt, setCallAt] = useState(
+    toDatetimeLocalIST(lead.call_scheduled_for) || tomorrowSameTimeLocalIST()
+  );
   const [rescheduleAt, setRescheduleAt] = useState(
     toDatetimeLocalIST(lead.call_scheduled_for) || tomorrowSameTimeLocalIST()
   );
@@ -129,15 +131,15 @@ export default function WorkQueueLeadActions({
   }
 
   function submitCallAttempt() {
-    const bookAndConfirm =
-      outcome === "qualified" &&
-      (modal === "qualify_call" ||
-        (modal === "log_call" && isQuickformSource(lead.lead_source)));
+    if (outcome === "qualified" && !callAt.trim()) {
+      setError("Call date/time is required when marking Qualified");
+      return;
+    }
     run(() =>
       logLeadCallAttemptAction(lead.id, outcome, {
         note: note || null,
         followUpAtLocal: outcome === "follow_up_needed" ? followUpAt : null,
-        bookAndConfirm
+        scheduledForLocal: outcome === "qualified" ? callAt : null
       })
     );
   }
@@ -257,6 +259,18 @@ export default function WorkQueueLeadActions({
                       className="mt-1 w-full rounded border border-slate-200 px-2 py-2 text-sm"
                       value={followUpAt}
                       onChange={(e) => setFollowUpAt(e.target.value)}
+                    />
+                  </label>
+                ) : null}
+                {outcome === "qualified" ? (
+                  <label className="block text-xs text-slate-600">
+                    Call scheduled for
+                    <input
+                      type="datetime-local"
+                      required
+                      className="mt-1 w-full rounded border border-slate-200 px-2 py-2 text-sm"
+                      value={callAt}
+                      onChange={(e) => setCallAt(e.target.value)}
                     />
                   </label>
                 ) : null}

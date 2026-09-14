@@ -67,15 +67,20 @@ describe("logCallAttempt", () => {
     );
   });
 
-  it("qualified + bookAndConfirm sets qualified, booked, confirmed together", async () => {
+  it("qualified requires scheduledFor and books + confirms in one motion", async () => {
     const lead = makeLead({
-      lead_source: "quickform",
-      contact_attempts: 2
+      lead_source: "website",
+      contact_attempts: 2,
+      call_booked_at: null
     });
     getLeadById.mockResolvedValue(lead);
 
+    await expect(
+      logCallAttempt(lead.id, lead.org_id, "qualified")
+    ).rejects.toThrow("scheduledFor is required");
+
     await logCallAttempt(lead.id, lead.org_id, "qualified", {
-      bookAndConfirm: true
+      scheduledFor: "2026-06-15T10:00:00.000Z"
     });
 
     expect(updateLead).toHaveBeenCalledWith(
@@ -83,29 +88,36 @@ describe("logCallAttempt", () => {
       expect.objectContaining({
         qualified: true,
         call_booked_at: expect.any(String),
+        call_scheduled_for: "2026-06-15T10:00:00.000Z",
         call_confirmed: true,
         contact_attempts: 0,
-        next_action_at: null
+        next_action_at: null,
+        action_status: "Qualified Call Booked"
       })
     );
   });
 
-  it("qualified on an already-booked lead sets call_confirmed (Qualify Call path)", async () => {
+  it("qualified on already-booked lead keeps original call_booked_at", async () => {
+    const bookedAt = "2026-01-01T00:00:00.000Z";
     const lead = makeLead({
-      call_booked_at: "2026-01-01T00:00:00.000Z",
+      call_booked_at: bookedAt,
       contact_attempts: 1
     });
     getLeadById.mockResolvedValue(lead);
 
-    await logCallAttempt(lead.id, lead.org_id, "qualified");
+    await logCallAttempt(lead.id, lead.org_id, "qualified", {
+      scheduledFor: "2026-06-20T12:00:00.000Z"
+    });
 
     expect(updateLead).toHaveBeenCalledWith(
       lead,
       expect.objectContaining({
         qualified: true,
+        call_booked_at: bookedAt,
+        call_scheduled_for: "2026-06-20T12:00:00.000Z",
         call_confirmed: true,
         contact_attempts: 0,
-        next_action_at: null
+        action_status: "Qualified Call Booked"
       })
     );
   });
@@ -152,7 +164,6 @@ describe("reviveDeadLead", () => {
     expect(insertLeadActivity).toHaveBeenCalledWith(
       expect.objectContaining({ type: "revive", note: "came back" })
     );
-    // Only insert + update — never a delete on lead_activities
     expect(insertLeadActivity).toHaveBeenCalledTimes(1);
     expect(updateLead).toHaveBeenCalledWith(
       lead,

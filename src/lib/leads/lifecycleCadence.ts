@@ -14,10 +14,11 @@ export type LogCallAttemptOptions = {
   /** Required when outcome = follow_up_needed */
   followUpAt?: string | null;
   /**
-   * Quickform qualifying call: also set call_booked_at + call_confirmed
-   * and reset contact_attempts.
+   * Required when outcome = qualified — meeting time for the booked call.
+   * Sets call_scheduled_for; call_booked_at is when the booking was made (now,
+   * or preserved if already set by self-serve cal.com).
    */
-  bookAndConfirm?: boolean;
+  scheduledFor?: string | null;
   actor?: string | null;
 };
 
@@ -95,14 +96,17 @@ export async function logCallAttempt(
     }
     patch.next_action_at = opts.followUpAt;
   } else if (outcome === "qualified") {
-    patch.qualified = true;
-    // Quickform book+confirm, or already-booked website lead being qualified.
-    if (opts.bookAndConfirm || lead.call_booked_at) {
-      patch.call_booked_at = lead.call_booked_at ?? now;
-      patch.call_confirmed = true;
-      patch.contact_attempts = 0;
-      patch.next_action_at = null;
+    if (!opts.scheduledFor) {
+      throw new Error("scheduledFor is required for qualified");
     }
+    // Phone qualification always books + confirms in one motion.
+    // Self-serve cal.com bookings never go through this outcome.
+    patch.qualified = true;
+    patch.call_booked_at = lead.call_booked_at ?? now;
+    patch.call_scheduled_for = opts.scheduledFor;
+    patch.call_confirmed = true;
+    patch.contact_attempts = 0;
+    patch.next_action_at = null;
   } else if (outcome === "not_qualified") {
     patch.qualified = false;
     patch.is_dead = true;
