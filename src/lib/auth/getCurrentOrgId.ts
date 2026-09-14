@@ -1,28 +1,12 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
+import { resolveMembershipOrgId } from "@/lib/auth/cachedAuth";
 
 /**
  * Resolve the current user's org from memberships (first membership if several).
  * Returns null when there is no session or no membership — never invents an org.
  */
 export async function resolveCurrentOrgId(): Promise<string | null> {
-  const supabase = createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  if (!supabaseAdmin) return null;
-  const { data, error } = await supabaseAdmin
-    .from("memberships")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data?.org_id) return null;
-  return String(data.org_id);
+  return resolveMembershipOrgId();
 }
 
 /**

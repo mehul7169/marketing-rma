@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -9,10 +9,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const inFlight = useRef(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (inFlight.current) return;
+
     setError(null);
+    inFlight.current = true;
     setSubmitting(true);
 
     try {
@@ -24,17 +28,18 @@ export default function LoginPage() {
 
       if (signInError) {
         setError("Invalid email or password");
+        inFlight.current = false;
+        setSubmitting(false);
         return;
       }
 
       // Hard navigation so the next request includes the fresh session cookie.
-      // router.push + refresh can race middleware and leave you on a stale
-      // logged-out RSC payload until a full reload.
+      // Keep button disabled until the browser leaves this page — do not
+      // re-enable in finally or duplicate clicks can fire signIn again.
       window.location.assign("/");
-      return;
     } catch {
       setError("Invalid email or password");
-    } finally {
+      inFlight.current = false;
       setSubmitting(false);
     }
   }
@@ -44,6 +49,7 @@ export default function LoginPage() {
       <form
         onSubmit={onSubmit}
         className="w-full max-w-sm space-y-4 rounded border border-slate-200 p-6"
+        aria-busy={submitting}
       >
         <h1 className="page-title">Log in</h1>
         <p className="text-sm text-slate-600">
@@ -59,9 +65,10 @@ export default function LoginPage() {
             type="email"
             autoComplete="username"
             required
+            disabled={submitting}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+            className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900 disabled:opacity-60"
           />
         </div>
 
@@ -74,9 +81,10 @@ export default function LoginPage() {
             type="password"
             autoComplete="current-password"
             required
+            disabled={submitting}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+            className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900 disabled:opacity-60"
           />
         </div>
 
@@ -85,7 +93,8 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="btn-brand w-full disabled:opacity-60"
+          aria-disabled={submitting}
+          className="btn-brand w-full disabled:pointer-events-none disabled:opacity-60"
         >
           {submitting ? "Signing in…" : "Sign in"}
         </button>

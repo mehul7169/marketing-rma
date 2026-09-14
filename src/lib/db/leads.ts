@@ -423,15 +423,16 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   }
 
   if (cohortStage) {
+    // Cumulative “ever reached” — persistent fields only, never stage=.
     if (cohortStage === "call_booked") query = query.not("call_booked_at", "is", null);
     if (cohortStage === "qualified_call_booked") {
-      query = query.eq("call_confirmed", true).not("call_booked_at", "is", null);
+      query = query.eq("call_confirmed", true);
     }
     if (cohortStage === "show_up") query = query.eq("call_showed", true);
     if (cohortStage === "closed") query = query.eq("deal_closed", true);
   } else if (eventStage) {
     if (eventStage === "qualified_call_booked") {
-      query = query.eq("call_confirmed", true).not("call_booked_at", "is", null);
+      query = query.eq("call_confirmed", true);
     }
     if (eventStage === "show_up") query = query.eq("call_showed", true);
     if (eventStage === "closed") query = query.eq("deal_closed", true);

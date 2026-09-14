@@ -90,8 +90,14 @@ export function eventInRange(
 }
 
 /**
- * Cohort member reached this funnel stage at any time (raw field set).
+ * Cohort member reached this funnel stage at any time.
+ * Always count off persistent milestone fields — never current `stage`
+ * (stage is a snapshot; later progress would undercount earlier steps).
  * Cohort membership itself is created_at in range — apply that separately.
+ *
+ * Fields: created → membership; call_booked → call_booked_at;
+ * qualified_call_booked → call_confirmed; show_up → call_showed;
+ * closed → deal_closed.
  */
 export function leadReachedCohortStage(lead: LeadRow, stage: FunnelEventStage): boolean {
   switch (stage) {
@@ -100,7 +106,8 @@ export function leadReachedCohortStage(lead: LeadRow, stage: FunnelEventStage): 
     case "call_booked":
       return Boolean(lead.call_booked_at);
     case "qualified_call_booked":
-      return lead.call_confirmed === true && Boolean(lead.call_booked_at);
+      // Persistent flag — never resets once true. Do not use stage=.
+      return lead.call_confirmed === true;
     case "show_up":
       return lead.call_showed === true;
     case "closed":
@@ -126,9 +133,9 @@ export function leadMatchesFunnelStage(
       return Boolean(lead.call_booked_at && lead.call_booked_at > lead.call_cancelled_at);
     }
     case "qualified_call_booked":
+      // No dedicated confirmed_at; approximate with booking time when confirmed.
       return (
         lead.call_confirmed === true &&
-        Boolean(lead.call_booked_at) &&
         eventInRange(lead.call_booked_at, fromISO, toISO)
       );
     case "show_up":

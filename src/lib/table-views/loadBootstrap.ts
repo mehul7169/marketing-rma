@@ -61,10 +61,12 @@ export async function loadTableViewBootstrap(
   opts?: { orgId?: string }
 ): Promise<TableViewBootstrap | null> {
   if (!isTableViewPageKey(pageKey)) return null;
-  const session = await getCurrentSession();
+  const [session, admin] = await Promise.all([
+    getCurrentSession(),
+    isPlatformAdmin()
+  ]);
   if (!session) return null;
 
-  const admin = await isPlatformAdmin();
   const [savedRow, availableColumns] = await Promise.all([
     getTableViewForUser(session.userId, pageKey),
     listAvailableColumnsForPage(pageKey, {

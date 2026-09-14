@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { resolvePlatformAdmin } from "@/lib/auth/cachedAuth";
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 
 /**
@@ -21,12 +21,7 @@ export async function isPlatformAdminForUserId(
 
 /** Current session → profiles.is_platform_admin. */
 export async function isPlatformAdmin(): Promise<boolean> {
-  const supabase = createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) return false;
-  return isPlatformAdminForUserId(user.id);
+  return resolvePlatformAdmin();
 }
 
 /** Server Components / pages: non–platform-admins → home. */

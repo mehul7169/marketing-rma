@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/auth/cachedAuth";
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 
 /** Kept for memberships.role / invite UI — not used for page access. */
@@ -29,10 +29,7 @@ export async function getCurrentSession(): Promise<{
   userId: string;
   email: string | null;
 } | null> {
-  const supabase = createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return null;
   return {
     userId: user.id,

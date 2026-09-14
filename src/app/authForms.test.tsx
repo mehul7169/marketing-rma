@@ -30,6 +30,14 @@ import SignupPage from "@/app/signup/page";
 import AddClientAdAccountForm from "@/components/clients/AddClientAdAccountForm";
 
 describe("Login form", () => {
+  beforeEach(() => {
+    signInWithPassword.mockReset();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { assign: vi.fn() }
+    });
+  });
+
   it("shows auth error from Supabase without succeeding", async () => {
     signInWithPassword.mockResolvedValue({
       error: { message: "Invalid login credentials" }
@@ -44,7 +52,59 @@ describe("Login form", () => {
     expect(
       await screen.findByText("Invalid email or password")
     ).toBeInTheDocument();
-    expect(signInWithPassword).toHaveBeenCalled();
+    expect(signInWithPassword).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+  });
+
+  it("disables submit and shows pending label while signing in", async () => {
+    let resolveSignIn!: (value: { error: null }) => void;
+    signInWithPassword.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSignIn = resolve;
+        })
+    );
+    const user = userEvent.setup();
+    render(<LoginPage />);
+
+    await user.type(screen.getByLabelText("Email"), "a@b.com");
+    await user.type(screen.getByLabelText("Password"), "secret12");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    const pending = screen.getByRole("button", { name: "Signing in…" });
+    expect(pending).toBeDisabled();
+    expect(screen.getByLabelText("Email")).toBeDisabled();
+
+    resolveSignIn({ error: null });
+    await vi.waitFor(() =>
+      expect(window.location.assign).toHaveBeenCalledWith("/")
+    );
+  });
+
+  it("ignores rapid duplicate clicks while sign-in is in flight", async () => {
+    let resolveSignIn!: (value: { error: null }) => void;
+    signInWithPassword.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSignIn = resolve;
+        })
+    );
+    const user = userEvent.setup();
+    render(<LoginPage />);
+
+    await user.type(screen.getByLabelText("Email"), "a@b.com");
+    await user.type(screen.getByLabelText("Password"), "secret12");
+    const button = screen.getByRole("button", { name: "Sign in" });
+    await user.click(button);
+    await user.click(button);
+    await user.click(button);
+
+    expect(signInWithPassword).toHaveBeenCalledTimes(1);
+
+    resolveSignIn({ error: null });
+    await vi.waitFor(() =>
+      expect(window.location.assign).toHaveBeenCalledWith("/")
+    );
   });
 });
 
