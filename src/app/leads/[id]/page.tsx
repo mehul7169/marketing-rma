@@ -2,6 +2,7 @@ import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import { notFound } from "next/navigation";
 import CopyValue from "@/components/CopyValue";
 import ActionStatusBadge from "@/components/leads/ActionStatusBadge";
+import CustomFieldsPanel from "@/components/leads/CustomFieldsPanel";
 import LeadActions from "@/components/leads/LeadActions";
 import LeadFollowUps from "@/components/leads/LeadFollowUps";
 import ReviveLeadButton from "@/components/leads/ReviveLeadButton";
@@ -10,7 +11,6 @@ import StageBadge, { stageLabel } from "@/components/leads/StageBadge";
 import { listLeadActivities } from "@/lib/db/lead_activities";
 import { listRemindersForLead } from "@/lib/db/lead_reminders";
 import { getLeadById } from "@/lib/db/leads";
-import { humanizeFieldKey } from "@/lib/leads/customFields";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatCurrencyNullable } from "@/lib/format";
 import { formatDueFriendly, formatISTDateTime } from "@/lib/timezone";
@@ -287,48 +287,22 @@ export default async function LeadDetailPage({
             <summary className="cursor-pointer text-sm font-medium text-slate-900">
               Form Details
             </summary>
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              {(() => {
-                const entries = Object.entries(lead.custom_fields ?? {}).filter(
-                  ([, value]) => {
-                    if (value === null || value === undefined) return false;
-                    if (typeof value === "string" && !value.trim()) return false;
-                    return true;
+            <div className="mt-4 space-y-4">
+              <CustomFieldsPanel customFields={lead.custom_fields} />
+              <div className="grid grid-cols-2 gap-4">
+                <Field
+                  label="Qualified by"
+                  value={
+                    lead.qualified_by
+                      ? `${lead.qualified_by}${
+                          lead.qualified_at
+                            ? ` · ${fmtWhen(lead.qualified_at)}`
+                            : ""
+                        }`
+                      : null
                   }
-                );
-                if (entries.length === 0) {
-                  return (
-                    <p className="col-span-2 text-sm text-slate-500">
-                      No form details yet.
-                    </p>
-                  );
-                }
-                return entries.map(([key, value]) => (
-                  <Field
-                    key={key}
-                    label={humanizeFieldKey(key)}
-                    value={
-                      typeof value === "string"
-                        ? value
-                        : typeof value === "number" || typeof value === "boolean"
-                          ? String(value)
-                          : JSON.stringify(value)
-                    }
-                  />
-                ));
-              })()}
-              <Field
-                label="Qualified by"
-                value={
-                  lead.qualified_by
-                    ? `${lead.qualified_by}${
-                        lead.qualified_at
-                          ? ` · ${fmtWhen(lead.qualified_at)}`
-                          : ""
-                      }`
-                    : null
-                }
-              />
+                />
+              </div>
             </div>
           </details>
         </section>
