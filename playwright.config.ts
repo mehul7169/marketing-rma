@@ -26,10 +26,14 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
+        // /login returns 200 for anonymous users; `/` is a 307 to /login and can
+        // look "down" if a stale/broken Next process is holding :3000.
         command: "npm run dev",
-        url: baseURL,
+        url: `${baseURL}/login`,
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000
+        timeout: 180_000,
+        stdout: "pipe",
+        stderr: "pipe"
       },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }]
 });
