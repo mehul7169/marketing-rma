@@ -9,6 +9,8 @@ import {
   rescheduleLeadCallAction,
   sendLeadWhatsAppNudgeAction
 } from "@/app/leads/actions";
+import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
+import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
 import {
   displayActionStatus,
   type CallAttemptOutcome
@@ -94,6 +96,7 @@ export default function WorkQueueLeadActions({
   onToggleHistory?: () => void;
 }) {
   const router = useRouter();
+  const preview = useOrgPreview();
   const [pending, startTransition] = useTransition();
   const [modal, setModal] = useState<ModalKind>(null);
   const [outcome, setOutcome] = useState<CallAttemptOutcome>("no_answer");
@@ -115,6 +118,10 @@ export default function WorkQueueLeadActions({
   const primaryBtn = `${btn} border-slate-800 bg-slate-900 text-white`;
   const secondaryBtn = `${btn} border-slate-300 text-slate-800`;
   const ghostBtn = `${btn} border-slate-200 text-slate-600 hover:bg-slate-50`;
+
+  if (preview.active) {
+    return <OrgPreviewReadOnlyNotice />;
+  }
 
   function run(fn: () => Promise<unknown>) {
     setError(null);

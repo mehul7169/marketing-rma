@@ -3,11 +3,18 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { reviveDeadLeadAction } from "@/app/leads/actions";
+import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
+import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
 
 export default function ReviveLeadButton({ leadId }: { leadId: string }) {
   const router = useRouter();
+  const preview = useOrgPreview();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  if (preview.active) {
+    return <OrgPreviewReadOnlyNotice />;
+  }
 
   function onRevive(e: React.MouseEvent) {
     e.preventDefault();

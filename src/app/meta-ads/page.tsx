@@ -8,7 +8,7 @@ import {
 } from "@/lib/utils/date";
 import { todayISTDateString } from "@/lib/timezone";
 import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
-import { getRmaAccountId } from "@/lib/ad-accounts/getRmaAccountId";
+import { getOrgMetaAdAccountIds } from "@/lib/ad-accounts/getRmaAccountId";
 import {
   getMetaAdsHierarchy,
   getMetaAdsTotals,
@@ -51,15 +51,16 @@ export default async function MetaAdsPage({
   const immature = isCohortImmature(toISO, todayISO);
 
   const orgId = await getCurrentOrgId();
-  const rmaAccountId = await getRmaAccountId(orgId);
+  const accountIds = await getOrgMetaAdAccountIds(orgId);
+  const hasAccounts = accountIds.length > 0;
 
   const [totals, priorTotals, trendRaw, hierarchy, cohortLeads, knownAdNames] =
-    rmaAccountId
+    hasAccounts
       ? await Promise.all([
-          getMetaAdsTotals(fromISO, toISO, orgId, rmaAccountId),
-          getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO, orgId, rmaAccountId),
-          getMetaAdsTrend(fromISO, toISO, orgId, rmaAccountId),
-          getMetaAdsHierarchy(fromISO, toISO, orgId, rmaAccountId),
+          getMetaAdsTotals(fromISO, toISO, orgId, accountIds),
+          getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO, orgId, accountIds),
+          getMetaAdsTrend(fromISO, toISO, orgId, accountIds),
+          getMetaAdsHierarchy(fromISO, toISO, orgId, accountIds),
           listLeadsInRange(fromISO, toISO, orgId),
           listKnownAdNames(orgId)
         ])
@@ -120,9 +121,10 @@ export default async function MetaAdsPage({
         />
       </div>
 
-      {!rmaAccountId ? (
+      {!hasAccounts ? (
         <div className="rounded border border-slate-200 p-10 text-center text-sm text-slate-600">
-          No RMA lead-source ad account configured in ad_accounts.
+          No lead-source ad account configured for this organization in
+          ad_accounts.
         </div>
       ) : !hasAnyData ? (
         <div className="rounded border border-slate-200 p-10 text-center text-sm text-slate-600">

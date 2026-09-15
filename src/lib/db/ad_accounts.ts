@@ -185,22 +185,36 @@ export async function listClientAdAccounts(
   return (data ?? []).map(asAdAccount);
 }
 
-/** Org's own lead-source account — used for /meta-ads and lead-attribution reads. */
-export async function getLeadSourceAdAccount(
+/**
+ * All active ad_accounts for one org (user-facing /meta-ads scope).
+ * Does not read is_lead_source — every active row for the org is in scope.
+ */
+export async function listActiveAdAccountsForOrg(
   orgId: string
-): Promise<AdAccountRow | null> {
-  if (!supabaseAdmin) return null;
+): Promise<AdAccountRow[]> {
+  if (!supabaseAdmin) return [];
+  if (!orgId) return [];
   const db = requireDb();
   const { data, error } = await db
     .from("ad_accounts")
     .select("*")
     .eq("org_id", orgId)
-    .eq("is_lead_source", true)
     .eq("active", true)
-    .order("created_at", { ascending: true });
+    .order("client_name", { ascending: true });
   if (error) throw error;
-  const rows = (data ?? []).map(asAdAccount);
-  if (rows.length === 0) return null;
-  const withAct = rows.find((r) => r.meta_ad_account_id.startsWith("act_"));
-  return withAct ?? rows[0]!;
+  return (data ?? []).map(asAdAccount);
+}
+
+/**
+ * Single-account helper for call sites that still need one row.
+ * Prefers an act_-prefixed meta id when multiple active rows exist.
+ * Does not read is_lead_source (column kept; unused on this path).
+ */
+export async function getLeadSourceAdAccount(
+  orgId: string
+): Promise<AdAccountRow | null> {
+  const accounts = await listActiveAdAccountsForOrg(orgId);
+  if (accounts.length === 0) return null;
+  const withAct = accounts.find((r) => r.meta_ad_account_id.startsWith("act_"));
+  return withAct ?? accounts[0]!;
 }

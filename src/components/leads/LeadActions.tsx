@@ -9,6 +9,8 @@ import {
   saveLeadActions,
   saveLeadSchedule
 } from "@/app/leads/actions";
+import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
+import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
 import { formatCurrencyNullable } from "@/lib/format";
 import {
   POST_CALL_STATUSES,
@@ -407,6 +409,7 @@ function BookingHistoryList({ entries }: { entries: BookingHistoryEntry[] }) {
 
 export default function LeadActions({ lead }: { lead: LeadRow }) {
   const router = useRouter();
+  const preview = useOrgPreview();
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState(lead.notes ?? "");
   const [recordingUrl, setRecordingUrl] = useState(lead.recording_url ?? "");
@@ -451,6 +454,8 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
 
   return (
     <div className="space-y-8">
+      {preview.active ? <OrgPreviewReadOnlyNotice /> : null}
+      <fieldset disabled={preview.active} className="min-w-0 space-y-8 disabled:opacity-70">
       <ActionSection title="Before Call">
         <TriToggle
           label="Qualified"
@@ -641,6 +646,7 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
         {saving ? "Saving…" : "Save notes"}
       </button>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      </fieldset>
     </div>
   );
 }

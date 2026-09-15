@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireOrgId } from "@/lib/auth/getCurrentOrgId";
+import { requireWritableOrgId } from "@/lib/auth/getCurrentOrgId";
 import { getActorEmail, getActorUserId } from "@/lib/auth/session";
 import { insertLeadReminder, resolveLeadReminder } from "@/lib/db/lead_reminders";
 import { getLeadById, scheduleLeadCall, updateLead } from "@/lib/db/leads";
@@ -65,7 +65,7 @@ function revalidateLead(id: string) {
 }
 
 export async function saveLeadActions(id: string, input: LeadActionInput) {
-  const orgId = await requireOrgId();
+  const orgId = await requireWritableOrgId();
   const existing = await getLeadById(id, orgId);
   if (!existing) throw new Error("Lead not found");
 
@@ -134,7 +134,7 @@ export async function logVerificationCallAttempt(
   if (!VERIFICATION_ATTEMPT_STATUSES.includes(status)) {
     throw new Error("Invalid verification call status");
   }
-  const orgId = await requireOrgId();
+  const orgId = await requireWritableOrgId();
   const existing = await getLeadById(id, orgId);
   if (!existing) throw new Error("Lead not found");
   if (!existing.call_booked_at) {
@@ -157,7 +157,7 @@ export async function logVerificationCallAttempt(
 }
 
 export async function saveLeadSchedule(id: string, scheduledForLocal: string) {
-  const orgId = await requireOrgId();
+  const orgId = await requireWritableOrgId();
   const existing = await getLeadById(id, orgId);
   if (!existing) throw new Error("Lead not found");
   const iso = fromDatetimeLocalIST(scheduledForLocal);
@@ -175,7 +175,7 @@ export async function addLeadFollowUp(
   text: string,
   dueAtLocal: string | null
 ) {
-  const orgId = await requireOrgId();
+  const orgId = await requireWritableOrgId();
   const existing = await getLeadById(leadId, orgId);
   if (!existing) throw new Error("Lead not found");
   const trimmed = text.trim();
@@ -196,7 +196,7 @@ export async function markLeadFollowUpResolved(
   reminderId: string,
   leadId: string
 ) {
-  const orgId = await requireOrgId();
+  const orgId = await requireWritableOrgId();
   await resolveLeadReminder(reminderId, orgId);
   revalidateLead(leadId);
 }
@@ -214,7 +214,7 @@ export async function logLeadCallAttemptAction(
   if (!CALL_OUTCOMES.includes(outcome)) {
     throw new Error("Invalid call outcome");
   }
-  const orgId = await requireOrgId();
+  const orgId = await requireWritableOrgId();
   const followUpAt =
     opts?.followUpAtLocal && opts.followUpAtLocal.trim()
       ? fromDatetimeLocalIST(opts.followUpAtLocal)
@@ -245,7 +245,7 @@ export async function sendLeadWhatsAppNudgeAction(
   leadId: string,
   note?: string | null
 ) {
-  const orgId = await requireOrgId();
+  const orgId = await requireWritableOrgId();
   const updated = await sendWhatsAppNudge(leadId, orgId, {
     note,
     actor: await actorId()
@@ -259,7 +259,7 @@ export async function rescheduleLeadCallAction(
   newDateTimeLocal: string,
   note?: string | null
 ) {
-  const orgId = await requireOrgId();
+  const orgId = await requireWritableOrgId();
   const iso = fromDatetimeLocalIST(newDateTimeLocal);
   const updated = await rescheduleCall(leadId, orgId, iso, {
     note,
@@ -273,7 +273,7 @@ export async function reviveDeadLeadAction(
   leadId: string,
   note?: string | null
 ) {
-  const orgId = await requireOrgId();
+  const orgId = await requireWritableOrgId();
   const updated = await reviveDeadLead(leadId, orgId, {
     note,
     actor: await actorId()
@@ -288,7 +288,7 @@ export async function reviveDeadLeadAction(
 }
 
 export async function addLeadNoteAction(leadId: string, note: string) {
-  const orgId = await requireOrgId();
+  const orgId = await requireWritableOrgId();
   const updated = await addLeadNoteActivity(leadId, orgId, note, {
     actor: await actorId()
   });
@@ -304,7 +304,7 @@ export async function logLeadShowOutcomeAction(
   if (outcome !== "showed" && outcome !== "no_show") {
     throw new Error("Invalid show outcome");
   }
-  const orgId = await requireOrgId();
+  const orgId = await requireWritableOrgId();
   const updated = await logShowOutcome(leadId, orgId, outcome, {
     note,
     actor: await actorId()

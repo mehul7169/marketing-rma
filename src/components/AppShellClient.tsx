@@ -7,6 +7,8 @@ import {
   useState,
   type ReactNode
 } from "react";
+import OrgPreviewBanner from "@/components/admin/OrgPreviewBanner";
+import OrgPreviewSwitcher from "@/components/admin/OrgPreviewSwitcher";
 import { createClient } from "@/lib/supabase/client";
 
 const SIDEBAR_KEY = "sidebar-collapsed";
@@ -58,13 +60,21 @@ function NavLink({
 export default function AppShellClient({
   signedIn,
   isPlatformAdmin,
+  organizations = [],
+  previewOrgId = null,
+  previewOrgName = null,
   children
 }: {
   signedIn: boolean;
   isPlatformAdmin: boolean;
+  organizations?: Array<{ id: string; name: string }>;
+  previewOrgId?: string | null;
+  previewOrgName?: string | null;
   children: ReactNode;
 }) {
   const showNav = signedIn || isPlatformAdmin;
+  // Previewing lets platform admins without membership use org nav.
+  const showOrgNav = signedIn || Boolean(previewOrgId);
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -159,7 +169,7 @@ export default function AppShellClient({
         </div>
 
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-          {signedIn ? (
+          {showOrgNav ? (
             <>
               <NavLink href="/" collapsed={isCollapsed}>
                 Home
@@ -183,7 +193,7 @@ export default function AppShellClient({
           ) : null}
           {isPlatformAdmin ? (
             <>
-              {signedIn ? (
+              {showOrgNav ? (
                 <NavLink href="/clients-ads" collapsed={isCollapsed}>
                   Client Ads
                 </NavLink>
@@ -211,7 +221,7 @@ export default function AppShellClient({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
+        <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
           <button
             type="button"
             onClick={toggle}
@@ -221,12 +231,18 @@ export default function AppShellClient({
           >
             ☰
           </button>
-          <span className="text-sm text-slate-500">
-            {isCollapsed ? "Menu" : ""}
-          </span>
+          {isPlatformAdmin ? (
+            <OrgPreviewSwitcher
+              organizations={organizations}
+              previewOrgId={previewOrgId}
+            />
+          ) : null}
         </header>
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
           <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col">
+            {previewOrgName ? (
+              <OrgPreviewBanner orgName={previewOrgName} />
+            ) : null}
             {children}
           </div>
         </main>

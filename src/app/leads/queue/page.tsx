@@ -2,7 +2,7 @@ import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import WorkQueueView from "@/components/table-views/WorkQueueView";
 import { DataTablePageShell } from "@/components/table-views/ScrollableDataTable";
 import { listRecentLeadActivitiesForLeads } from "@/lib/db/lead_activities";
-import { listLeads } from "@/lib/db/leads";
+import { countLeads, listLeads } from "@/lib/db/leads";
 import { getOrganizationById } from "@/lib/db/organizations";
 import type { ActionStatus } from "@/lib/leads/actionStatus";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
@@ -36,30 +36,32 @@ const TABS: Array<{
 export default async function WorkQueuePage({
   searchParams
 }: {
-  searchParams: { tab?: string; view?: string };
+  searchParams: { tab?: string; view?: string; search?: string };
 }) {
   const orgId = await getCurrentOrgId();
   const tabId = searchParams.tab ?? "untouched";
   const initialViewMode = searchParams.view === "table" ? "table" : "cards";
+  // Tab links omit search= so switching tabs clears the query (reload starts fresh).
+  const initialSearch = (searchParams.search ?? "").trim();
   const activeTab = TABS.find((t) => t.id === tabId) ?? TABS[0];
 
   const countBase = { orgId, excludeDeadAndClosed: true as const };
 
   const [
-    untouched,
-    contacted,
-    due,
-    overdue,
-    upcoming,
+    untouchedCount,
+    contactedCount,
+    dueCount,
+    overdueCount,
+    upcomingCount,
     rows,
     org,
     tableViewBootstrap
   ] = await Promise.all([
-    listLeads({ ...countBase, actionStatuses: ["Untouched"] }),
-    listLeads({ ...countBase, actionStatuses: ["Personally Contacted"] }),
-    listLeads({ ...countBase, actionStatuses: ["Follow-up Due"] }),
-    listLeads({ ...countBase, actionStatuses: ["Follow-up Overdue"] }),
-    listLeads({ ...countBase, upcomingOnly: true }),
+    countLeads({ ...countBase, actionStatuses: ["Untouched"] }),
+    countLeads({ ...countBase, actionStatuses: ["Personally Contacted"] }),
+    countLeads({ ...countBase, actionStatuses: ["Follow-up Due"] }),
+    countLeads({ ...countBase, actionStatuses: ["Follow-up Overdue"] }),
+    countLeads({ ...countBase, upcomingOnly: true }),
     listLeads({
       ...countBase,
       actionStatuses: activeTab.actionStatuses,
@@ -70,11 +72,11 @@ export default async function WorkQueuePage({
   ]);
 
   const counts: Record<string, number> = {
-    untouched: untouched.length,
-    personally_contacted: contacted.length,
-    follow_up_due: due.length,
-    follow_up_overdue: overdue.length,
-    upcoming: upcoming.length
+    untouched: untouchedCount,
+    personally_contacted: contactedCount,
+    follow_up_due: dueCount,
+    follow_up_overdue: overdueCount,
+    upcoming: upcomingCount
   };
 
   const activitiesMap = await listRecentLeadActivitiesForLeads(
@@ -126,6 +128,7 @@ export default async function WorkQueuePage({
       <WorkQueueView
         key={activeTab.id}
         initialViewMode={initialViewMode}
+        initialSearch={initialSearch}
         activeTabId={activeTab.id}
         rows={rows}
         activitiesByLead={activitiesByLead}

@@ -3,11 +3,18 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { sendLeadWhatsAppNudgeAction } from "@/app/leads/actions";
+import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
+import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
 
 export default function WhatsAppNudgeButton({ leadId }: { leadId: string }) {
   const router = useRouter();
+  const preview = useOrgPreview();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  if (preview.active) {
+    return <OrgPreviewReadOnlyNotice />;
+  }
 
   return (
     <div className="inline-flex flex-col gap-1">

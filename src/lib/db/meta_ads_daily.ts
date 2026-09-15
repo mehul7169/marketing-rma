@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
-import { getRmaAccountId } from "@/lib/ad-accounts/getRmaAccountId";
+import { getOrgMetaAdAccountIds } from "@/lib/ad-accounts/getRmaAccountId";
 
 export type MetaActionEntry = { action_type: string; value: string };
 
@@ -251,17 +251,20 @@ export async function remappingMetaAdsDailyAccountId(
 }
 
 /**
- * Resolve which ad_accounts.id to filter on.
- * Callers should pass an explicit UUID whenever possible.
- * Omitting it falls back via getRmaAccountId(orgId) — never unscoped.
+ * Resolve which ad_accounts.id value(s) to filter on.
+ * Callers should pass explicit UUID(s) whenever possible.
+ * Omitting them falls back to all active accounts for orgId — never unscoped.
  */
-async function resolveAccountId(
+async function resolveAccountIds(
   orgId: string | null | undefined,
-  adAccountId?: string
-): Promise<string | null> {
-  if (adAccountId) return adAccountId;
-  if (!orgId) return null;
-  return getRmaAccountId(orgId);
+  adAccountId?: string | string[]
+): Promise<string[]> {
+  if (Array.isArray(adAccountId)) {
+    return adAccountId.filter(Boolean);
+  }
+  if (adAccountId) return [adAccountId];
+  if (!orgId) return [];
+  return getOrgMetaAdAccountIds(orgId);
 }
 
 export async function countMetaAdsRowsForAccount(
@@ -324,20 +327,23 @@ export async function getMetaAdsTrend(
   fromISO: string,
   toISO: string,
   orgId: string | null | undefined,
-  adAccountId?: string,
+  adAccountId?: string | string[],
 ): Promise<MetaAdsTrendPoint[]> {
   if (!supabaseAdmin) return [];
-  const accountId = await resolveAccountId(orgId, adAccountId);
-  if (!accountId) return [];
+  const accountIds = await resolveAccountIds(orgId, adAccountId);
+  if (accountIds.length === 0) return [];
 
-  let query = supabaseAdmin
+  // Scope by ad_account_id only — do NOT also filter meta_ads_daily.org_id.
+  // Historical rows may still carry a pre-tenant org_id even after the
+  // ad_accounts row was moved under the current org (would look like a
+  // created_at clip if we filtered by org_id).
+  const query = supabaseAdmin
     .from("meta_ads_daily")
     .select("date, spend, clicks, leads_meta_reported")
-    .eq("ad_account_id", accountId)
+    .in("ad_account_id", accountIds)
     .gte("date", fromISO)
     .lte("date", toISO)
     .order("date", { ascending: true });
-  if (orgId) query = query.eq("org_id", orgId);
 
   const { data, error } = await query;
 
@@ -434,13 +440,14 @@ export async function getMetaAdsHierarchy(
   fromISO: string,
   toISO: string,
   orgId: string | null | undefined,
-  adAccountId?: string,
+  adAccountId?: string | string[],
 ): Promise<MetaCampaignNode[]> {
   if (!supabaseAdmin) return [];
-  const accountId = await resolveAccountId(orgId, adAccountId);
-  if (!accountId) return [];
+  const accountIds = await resolveAccountIds(orgId, adAccountId);
+  if (accountIds.length === 0) return [];
 
-  let query = supabaseAdmin
+  // Scope by ad_account_id only — see getMetaAdsTrend note on stale org_id.
+  const query = supabaseAdmin
     .from("meta_ads_daily")
     .select(
       [
@@ -462,10 +469,9 @@ export async function getMetaAdsHierarchy(
         "appointments_scheduled",
       ].join(","),
     )
-    .eq("ad_account_id", accountId)
+    .in("ad_account_id", accountIds)
     .gte("date", fromISO)
     .lte("date", toISO);
-  if (orgId) query = query.eq("org_id", orgId);
 
   const { data, error } = await query;
 
@@ -587,7 +593,7 @@ export async function getMetaAdsTotals(
   fromISO: string,
   toISO: string,
   orgId: string | null | undefined,
-  adAccountId?: string,
+  adAccountId?: string | string[],
 ): Promise<{
   totalSpend: number;
   totalLeads: number;
@@ -602,8 +608,8 @@ export async function getMetaAdsTotals(
       averageCtrPercent: 0,
     };
   }
-  const accountId = await resolveAccountId(orgId, adAccountId);
-  if (!accountId) {
+  const accountIds = await resolveAccountIds(orgId, adAccountId);
+  if (accountIds.length === 0) {
     return {
       totalSpend: 0,
       totalLeads: 0,
@@ -611,13 +617,13 @@ export async function getMetaAdsTotals(
       averageCtrPercent: 0,
     };
   }
-  let query = supabaseAdmin
+  // Scope by ad_account_id only — see getMetaAdsTrend note on stale org_id.
+  const query = supabaseAdmin
     .from("meta_ads_daily")
     .select("spend, clicks, impressions, leads_meta_reported")
-    .eq("ad_account_id", accountId)
+    .in("ad_account_id", accountIds)
     .gte("date", fromISO)
     .lte("date", toISO);
-  if (orgId) query = query.eq("org_id", orgId);
 
   const { data, error } = await query;
 

@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 
+const PREVIEW_ORG_COOKIE = "preview_org_id";
+
 async function userHasMembership(userId: string): Promise<boolean> {
   if (!supabaseAdmin) return false;
   const { data, error } = await supabaseAdmin
@@ -46,6 +48,7 @@ function withCookies(from: NextResponse, to: NextResponse): NextResponse {
  * Refresh the Supabase Auth session cookie and enforce access:
  * - org membership → full org-scoped app
  * - is_platform_admin → also /admin/organizations + /clients-ads
+ * - is_platform_admin + preview_org_id cookie → org-scoped pages without membership
  * profiles.role is not used for access decisions.
  */
 export async function updateSession(request: NextRequest) {
@@ -93,13 +96,21 @@ export async function updateSession(request: NextRequest) {
     platformAdminForUserId(user.id)
   ]);
 
+  // Cookie alone is not enough — only platform admins may use preview access.
+  const hasPreviewCookie = Boolean(
+    request.cookies.get(PREVIEW_ORG_COOKIE)?.value?.trim()
+  );
+  const previewingAsAdmin = isPlatformAdmin && hasPreviewCookie;
+
   if (isAuthPage) {
     if (!hasMembership && !isPlatformAdmin) {
       // Authenticated but no org and not platform admin — stay on auth page.
       return supabaseResponse;
     }
     const dest =
-      !hasMembership && isPlatformAdmin ? "/admin/organizations" : "/";
+      !hasMembership && isPlatformAdmin && !previewingAsAdmin
+        ? "/admin/organizations"
+        : "/";
     return withCookies(
       supabaseResponse,
       NextResponse.redirect(new URL(dest, request.url))
@@ -119,6 +130,10 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (!hasMembership) {
+    if (previewingAsAdmin) {
+      // Platform admin reviewing a client org without a real membership row.
+      return supabaseResponse;
+    }
     if (isPlatformAdmin) {
       return withCookies(
         supabaseResponse,

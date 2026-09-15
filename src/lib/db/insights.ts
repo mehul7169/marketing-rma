@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
-import { getRmaAccountId } from "@/lib/ad-accounts/getRmaAccountId";
+import { getOrgMetaAdAccountIds } from "@/lib/ad-accounts/getRmaAccountId";
 import { listAllLeads, listDistinctLeadSources } from "@/lib/db/leads";
 import {
   computeInsights,
@@ -30,7 +30,7 @@ async function paginate<T>(
   return all;
 }
 
-/** Spend for Insights creative table — org lead-source account only. */
+/** Spend for Insights creative table — all active org ad accounts. */
 export async function getMetaSpendByAdName(
   fromISO: string,
   toISO: string,
@@ -38,15 +38,15 @@ export async function getMetaSpendByAdName(
 ): Promise<Map<string, { displayName: string; spend: number }>> {
   const map = new Map<string, { displayName: string; spend: number }>();
   if (!supabaseAdmin) return map;
-  const rmaAccountId = await getRmaAccountId(orgId);
-  if (!rmaAccountId) return map;
+  const accountIds = await getOrgMetaAdAccountIds(orgId);
+  if (accountIds.length === 0) return map;
 
+  // Filter by ad_account_id only — historical rows may carry a stale org_id.
   const rows = await paginate<{ ad_name: string | null; spend: unknown }>((from, to) =>
     supabaseAdmin!
       .from("meta_ads_daily")
       .select("ad_name, spend")
-      .eq("org_id", orgId)
-      .eq("ad_account_id", rmaAccountId)
+      .in("ad_account_id", accountIds)
       .gte("date", fromISO)
       .lte("date", toISO)
       .range(from, to)
@@ -69,15 +69,15 @@ export async function getMetaSpendByAdName(
 export async function listKnownAdNames(orgId: string): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   if (!supabaseAdmin) return map;
-  const rmaAccountId = await getRmaAccountId(orgId);
-  if (!rmaAccountId) return map;
+  const accountIds = await getOrgMetaAdAccountIds(orgId);
+  if (accountIds.length === 0) return map;
 
+  // Filter by ad_account_id only — historical rows may carry a stale org_id.
   const rows = await paginate<{ ad_name: string | null }>((from, to) =>
     supabaseAdmin!
       .from("meta_ads_daily")
       .select("ad_name")
-      .eq("org_id", orgId)
-      .eq("ad_account_id", rmaAccountId)
+      .in("ad_account_id", accountIds)
       .not("ad_name", "is", null)
       .range(from, to)
   );

@@ -381,6 +381,70 @@ export async function scheduleLeadCall(
   });
 }
 
+/** Columns for CRM list/queue views — omits slack notification flags (not rendered). */
+const LEAD_LIST_SELECT = [
+  "id",
+  "org_id",
+  "email",
+  "ghl_contact_id",
+  "name",
+  "phone",
+  "created_at",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "ad_set_id",
+  "lead_source",
+  "form_filled_at",
+  "custom_fields",
+  "qualified",
+  "qualified_at",
+  "qualified_by",
+  "call_booked_at",
+  "call_scheduled_for",
+  "cal_com_booking_id",
+  "booking_source",
+  "booking_history",
+  "call_cancelled_at",
+  "setter_verified",
+  "setter_verified_at",
+  "setter_verified_by",
+  "verification_call_status",
+  "verification_call_attempts",
+  "last_verification_call_at",
+  "reminder_sent",
+  "reminder_sent_at",
+  "call_showed",
+  "call_showed_at",
+  "call_showed_by",
+  "deal_closed",
+  "deal_value",
+  "closed_at",
+  "closed_by",
+  "notes",
+  "recording_url",
+  "stage",
+  "requalification_attempted",
+  "requalification_called_at",
+  "requalification_result",
+  "requalification_notes",
+  "post_call_status",
+  "post_call_status_updated_at",
+  "post_call_status_updated_by",
+  "lifecycle_status",
+  "action_status",
+  "is_dead",
+  "dead_reason",
+  "contact_attempts",
+  "call_confirmed",
+  "next_action_at",
+  "last_action",
+  "last_action_at",
+  "updated_at"
+].join(",");
+
 export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
@@ -394,7 +458,7 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
 
   if (!filters.orgId) throw new Error("listLeads requires orgId");
 
-  let query = db.from("leads").select("*").eq("org_id", filters.orgId);
+  let query = db.from("leads").select(LEAD_LIST_SELECT).eq("org_id", filters.orgId);
 
   if (filters.needsVerificationCall) {
     // Operational queue — not clipped by the page date range.
@@ -517,6 +581,120 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   }
 
   return rows;
+}
+
+
+/** Head-count for Work Queue tab badges — avoids fetching full lead rows. */
+export async function countLeads(filters: LeadListFilters): Promise<number> {
+  if (!supabaseAdmin) return 0;
+  const db = requireDb();
+  if (!filters.orgId) throw new Error("countLeads requires orgId");
+
+  const cohortStage = parseUrlEvent(filters.cohort);
+  const eventStage = cohortStage ? null : parseUrlEvent(filters.event);
+  const dateField = eventStage ? funnelEventField(eventStage) : "created_at";
+
+  let query = db
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", filters.orgId);
+
+  if (filters.needsVerificationCall) {
+    query = query
+      .not("call_booked_at", "is", null)
+      .is("setter_verified", null)
+      .or(
+        "verification_call_status.is.null,verification_call_status.eq.not_contacted,verification_call_status.eq.no_answer,verification_call_status.eq.follow_up_needed"
+      );
+  }
+
+  if (filters.followUpsDue) {
+    const dueIds = await listLeadIdsWithDueFollowUps(filters.orgId);
+    if (dueIds.length === 0) return 0;
+    query = query.in("id", dueIds);
+  } else if (!filters.needsVerificationCall) {
+    if (filters.fromISO) query = query.gte(dateField, istDayStartUtcIso(filters.fromISO));
+    if (filters.toISO) query = query.lte(dateField, istDayEndUtcIso(filters.toISO));
+    if (eventStage && dateField !== "created_at") {
+      query = query.not(dateField, "is", null);
+    }
+  }
+
+  if (cohortStage) {
+    if (cohortStage === "call_booked") query = query.not("call_booked_at", "is", null);
+    if (cohortStage === "qualified_call_booked") {
+      query = query.eq("call_confirmed", true);
+    }
+    if (cohortStage === "show_up") query = query.eq("call_showed", true);
+    if (cohortStage === "closed") query = query.eq("deal_closed", true);
+  } else if (eventStage) {
+    if (eventStage === "qualified_call_booked") {
+      query = query.eq("call_confirmed", true);
+    }
+    if (eventStage === "show_up") query = query.eq("call_showed", true);
+    if (eventStage === "closed") query = query.eq("deal_closed", true);
+  } else if (filters.stages && filters.stages.length > 0) {
+    query = query.in("stage", filters.stages);
+  }
+
+  if (filters.sources && filters.sources.length > 0) {
+    query = query.in("lead_source", filters.sources);
+  }
+  if (filters.needsRequal) {
+    query = query
+      .eq("qualified", false)
+      .or("requalification_attempted.eq.false,requalification_attempted.is.null");
+  } else if (
+    !filters.needsVerificationCall &&
+    filters.lifecycle &&
+    filters.lifecycle !== "all"
+  ) {
+    if (filters.lifecycle === "active") {
+      query = query.or("lifecycle_status.eq.active,lifecycle_status.is.null");
+    } else {
+      query = query.eq("lifecycle_status", filters.lifecycle);
+    }
+  }
+  if (filters.search && filters.search.trim()) {
+    const q = filters.search.trim().replace(/[%_,]/g, " ");
+    query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%`);
+  }
+
+  if (filters.excludeDeadAndClosed) {
+    query = query
+      .eq("is_dead", false)
+      .or("deal_closed.is.null,deal_closed.eq.false");
+  }
+  if (filters.isDead === true) {
+    query = query.eq("is_dead", true);
+  } else if (filters.isDead === false) {
+    query = query.eq("is_dead", false);
+  }
+  if (filters.actionStatuses && filters.actionStatuses.length > 0) {
+    const wantsUntouched = filters.actionStatuses.includes("Untouched");
+    const others = filters.actionStatuses.filter((s) => s !== "Untouched");
+    if (wantsUntouched && others.length === 0) {
+      query = query.or("action_status.is.null,action_status.eq.Untouched");
+    } else if (wantsUntouched && others.length > 0) {
+      const parts = [
+        "action_status.is.null",
+        ...filters.actionStatuses.map((s) => `action_status.eq.${s}`)
+      ];
+      query = query.or(parts.join(","));
+    } else {
+      query = query.in("action_status", others);
+    }
+  }
+  if (filters.upcomingOnly) {
+    const afterToday = istDayEndUtcIso(todayISTDateString());
+    query = query
+      .not("next_action_at", "is", null)
+      .gt("next_action_at", afterToday);
+  }
+
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function listDistinctLeadSources(orgId: string): Promise<string[]> {

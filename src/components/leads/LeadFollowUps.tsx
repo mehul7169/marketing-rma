@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addLeadFollowUp, markLeadFollowUpResolved } from "@/app/leads/actions";
+import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
+import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
 import type { LeadReminder } from "@/lib/leads/types";
 import { formatDueFriendly } from "@/lib/timezone";
 
@@ -21,6 +23,7 @@ export default function LeadFollowUps({
   reminders: LeadReminder[];
 }) {
   const router = useRouter();
+  const preview = useOrgPreview();
   const [text, setText] = useState("");
   const [due, setDue] = useState("");
   const [showResolved, setShowResolved] = useState(false);
@@ -40,6 +43,7 @@ export default function LeadFollowUps({
   );
 
   async function add() {
+    if (preview.active) return;
     setError(null);
     setSaving(true);
     try {
@@ -55,6 +59,7 @@ export default function LeadFollowUps({
   }
 
   async function resolve(id: string) {
+    if (preview.active) return;
     setError(null);
     setSaving(true);
     try {
@@ -67,47 +72,52 @@ export default function LeadFollowUps({
     }
   }
 
+  const locked = preview.active || saving;
+
   return (
     <div className="space-y-4">
+      {preview.active ? <OrgPreviewReadOnlyNotice /> : null}
       {active.length === 0 ? (
         <p className="text-sm text-slate-500">No open follow-ups.</p>
       ) : (
         <ul className="space-y-2">
           {active.map((r) => (
-            <ReminderRow key={r.id} reminder={r} disabled={saving} onResolve={resolve} />
+            <ReminderRow key={r.id} reminder={r} disabled={locked} onResolve={resolve} />
           ))}
         </ul>
       )}
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <label className="min-w-0 flex-1 text-xs text-slate-600">
-          Add follow-up
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="e.g. Call back at 5pm"
-            className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
-          />
-        </label>
-        <label className="text-xs text-slate-600">
-          Due (IST, optional)
-          <input
-            type="datetime-local"
-            value={due}
-            onChange={(e) => setDue(e.target.value)}
-            className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
-          />
-        </label>
-        <button
-          type="button"
-          disabled={saving || !text.trim()}
-          onClick={add}
-          className="btn-brand disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Add"}
-        </button>
-      </div>
+      <fieldset disabled={preview.active} className="min-w-0 disabled:opacity-70">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="min-w-0 flex-1 text-xs text-slate-600">
+            Add follow-up
+            <input
+              type="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="e.g. Call back at 5pm"
+              className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+            />
+          </label>
+          <label className="text-xs text-slate-600">
+            Due (IST, optional)
+            <input
+              type="datetime-local"
+              value={due}
+              onChange={(e) => setDue(e.target.value)}
+              className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={locked || !text.trim()}
+            onClick={add}
+            className="btn-brand disabled:opacity-60"
+          >
+            {saving ? "Saving…" : "Add"}
+          </button>
+        </div>
+      </fieldset>
 
       {resolved.length > 0 ? (
         <div>
