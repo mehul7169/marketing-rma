@@ -1,17 +1,22 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { saveLeadPlainFieldsAction } from "@/app/leads/actions";
+import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import ColumnPicker from "@/components/table-views/ColumnPicker";
 import ScrollableDataTable from "@/components/table-views/ScrollableDataTable";
 import {
   LeadTableHeaderCell,
+  isInlineEditableColumn,
   leadCardFieldValue,
   renderLeadColumnCell
 } from "@/components/table-views/leadColumnCells";
 import WorkQueueCard from "@/components/leads/WorkQueueCard";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
+import WorkQueueToast from "@/components/leads/WorkQueueToast";
 import { useTableView } from "@/hooks/useTableView";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
+import { displayActionStatus } from "@/lib/leads/actionStatus";
 import { filterWorkQueueLeads } from "@/lib/leads/workQueueSearch";
 import { DEFAULT_COLUMNS } from "@/lib/table-views/registry";
 import type { TableColumnConfig, TableViewBootstrap } from "@/lib/table-views/types";
@@ -19,14 +24,6 @@ import type { LeadRow } from "@/lib/leads/types";
 
 const SEARCH_DEBOUNCE_MS = 175;
 
-/**
- * Shared column prefs for Work Queue cards + table.
- * One useTableView instance — Cards/Table toggle is local state so switching
- * views does not remount or re-fetch column config.
- *
- * Search is client-side (full tab already loaded) and scoped to the active tab.
- * Tab links omit `search=` so switching tabs clears the query.
- */
 export default function WorkQueueView({
   initialViewMode = "cards",
   initialSearch = "",
@@ -37,18 +34,23 @@ export default function WorkQueueView({
   tableViewBootstrap
 }: {
   initialViewMode?: "cards" | "table";
-  /** From ?search= — cleared when navigating to another tab. */
   initialSearch?: string;
-  /** Used to keep ?tab= in sync when rewriting the URL on view/search updates. */
   activeTabId: string;
   rows: LeadRow[];
   activitiesByLead: Record<string, LeadActivityRow[]>;
   orgName?: string | null;
   tableViewBootstrap?: TableViewBootstrap | null;
 }) {
+  const preview = useOrgPreview();
   const [viewMode, setViewMode] = useState<"cards" | "table">(initialViewMode);
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
+  const [localRows, setLocalRows] = useState(rows);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalRows(rows);
+  }, [rows]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -71,9 +73,114 @@ export default function WorkQueueView({
     }
   }, [activeTabId, viewMode, debouncedSearch]);
 
+  const applyLeadPatch = useCallback(
+    (leadId: string, patch: Partial<LeadRow>) => {
+      setLocalRows((prev) => {
+        const next = prev.map((l) =>
+          l.id === leadId ? { ...l, ...patch } : l
+        );
+        // Status-scoped tabs drop leads that no longer match; All keeps them
+        // (unless dead/closed — Work Queue never shows those).
+        return next.filter((l) => leadBelongsOnTab(l, activeTabId));
+      });
+    },
+    [activeTabId]
+  );
+
+  const restoreLead = useCallback((snapshot: LeadRow) => {
+    setLocalRows((prev) => {
+      const idx = prev.findIndex((l) => l.id === snapshot.id);
+      if (idx === -1) {
+        if (!leadBelongsOnTab(snapshot, activeTabId)) return prev;
+        return [snapshot, ...prev];
+      }
+      const copy = [...prev];
+      copy[idx] = snapshot;
+      return copy;
+    });
+  }, [activeTabId]);
+
+  const optimisticPatch = useCallback(
+    (leadId: string, patch: Partial<LeadRow>, rollback: LeadRow) => {
+      applyLeadPatch(leadId, patch);
+      return () => restoreLead(rollback);
+    },
+    [applyLeadPatch, restoreLead]
+  );
+
+  const commitPlainField = useCallback(
+    (
+      lead: LeadRow,
+      field: "name" | "email" | "phone" | "notes" | "deal_value",
+      raw: string
+    ) => {
+      if (preview.active) return;
+      const previous = lead;
+      let patch: Partial<LeadRow> = {};
+      let serverInput: Parameters<typeof saveLeadPlainFieldsAction>[1] = {};
+
+      if (field === "deal_value") {
+        const trimmed = raw.trim();
+        const num = trimmed === "" ? null : Number(trimmed);
+        if (trimmed !== "" && !Number.isFinite(num)) {
+          setToast("Deal value must be a number");
+          return;
+        }
+        patch = { deal_value: num };
+        serverInput = { deal_value: num };
+      } else if (field === "email") {
+        const trimmed = raw.trim();
+        if (!trimmed) {
+          setToast("Email is required");
+          return;
+        }
+        patch = { email: trimmed };
+        serverInput = { email: trimmed };
+      } else if (field === "name") {
+        const v = raw.trim() || null;
+        patch = { name: v };
+        serverInput = { name: v };
+      } else if (field === "phone") {
+        const v = raw.trim() || null;
+        patch = { phone: v };
+        serverInput = { phone: v };
+      } else {
+        const v = raw.trim() || null;
+        patch = { notes: v };
+        serverInput = { notes: v };
+      }
+
+      const rollback = optimisticPatch(lead.id, patch, previous);
+      void saveLeadPlainFieldsAction(lead.id, serverInput).catch((err) => {
+        rollback();
+        setToast(err instanceof Error ? err.message : "Save failed");
+      });
+    },
+    [optimisticPatch, preview.active]
+  );
+
+  const commitCustomField = useCallback(
+    (lead: LeadRow, key: string, raw: string) => {
+      if (preview.active) return;
+      const previous = lead;
+      const custom_fields = {
+        ...(lead.custom_fields ?? {}),
+        [key]: raw.trim() || null
+      };
+      const rollback = optimisticPatch(lead.id, { custom_fields }, previous);
+      void saveLeadPlainFieldsAction(lead.id, { custom_fields: { [key]: raw.trim() || null } }).catch(
+        (err) => {
+          rollback();
+          setToast(err instanceof Error ? err.message : "Save failed");
+        }
+      );
+    },
+    [optimisticPatch, preview.active]
+  );
+
   const filteredRows = useMemo(
-    () => filterWorkQueueLeads(rows, debouncedSearch),
-    [rows, debouncedSearch]
+    () => filterWorkQueueLeads(localRows, debouncedSearch),
+    [localRows, debouncedSearch]
   );
 
   const view = useTableView("leads-queue", {
@@ -87,6 +194,20 @@ export default function WorkQueueView({
 
   const tableColumns = ensureActionsColumn(view.visibleColumns);
   const hasSearch = debouncedSearch.trim().length > 0;
+  const editDisabled = preview.active;
+
+  const editHandlersFor = useCallback(
+    (lead: LeadRow) => ({
+      disabled: editDisabled,
+      onPlainField: (
+        field: "name" | "email" | "phone" | "notes" | "deal_value",
+        value: string
+      ) => commitPlainField(lead, field, value),
+      onCustomField: (key: string, value: string) =>
+        commitCustomField(lead, key, value)
+    }),
+    [commitCustomField, commitPlainField, editDisabled]
+  );
 
   const toolbar = (
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -136,6 +257,10 @@ export default function WorkQueueView({
     ? "No leads in this tab match your search."
     : "Nothing in this queue tab.";
 
+  const toastEl = (
+    <WorkQueueToast message={toast} onDismiss={() => setToast(null)} />
+  );
+
   if (filteredRows.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -143,6 +268,7 @@ export default function WorkQueueView({
         <p className="rounded border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
           {emptyMessage}
         </p>
+        {toastEl}
       </div>
     );
   }
@@ -158,6 +284,16 @@ export default function WorkQueueView({
                 key={lead.id}
                 lead={lead}
                 activities={activitiesByLead[lead.id] ?? []}
+                editDisabled={editDisabled}
+                onPlainField={(field, value) =>
+                  commitPlainField(lead, field, value)
+                }
+                onCustomField={(key, value) =>
+                  commitCustomField(lead, key, value)
+                }
+                onLeadPatched={(patch) => applyLeadPatch(lead.id, patch)}
+                onLeadRollback={(snapshot) => restoreLead(snapshot)}
+                onError={(msg) => setToast(msg)}
                 extraFields={visibleCardFields(
                   view.visibleColumns,
                   view.labelFor,
@@ -168,51 +304,64 @@ export default function WorkQueueView({
             ))}
           </div>
         </div>
+        {toastEl}
       </div>
     );
   }
 
   return (
-    <ScrollableDataTable toolbar={toolbar}>
-      <table className="min-w-[900px] w-full border-collapse text-sm">
-        <thead>
-          <tr className="bg-slate-50 text-slate-700">
-            {tableColumns.map((col) => (
-              <LeadTableHeaderCell
-                key={col.id}
-                columnId={col.id}
-                label={
-                  col.id === "actions" ? "Actions" : view.labelFor(col.id)
-                }
-              />
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200">
-          {filteredRows.map((lead) => (
-            <tr key={lead.id} className="hover:bg-slate-50/60">
-              {tableColumns.map((col) =>
-                col.id === "actions" ? (
-                  <td
-                    key={col.id}
-                    className="min-w-[200px] px-3 py-2 align-top"
-                  >
-                    <WorkQueueLeadActions lead={lead} compact />
-                  </td>
-                ) : (
-                  <Fragment key={col.id}>
-                    {renderLeadColumnCell(col.id, lead, {
-                      orgName,
-                      compactName: true
-                    })}
-                  </Fragment>
-                )
-              )}
+    <>
+      <ScrollableDataTable toolbar={toolbar}>
+        <table className="min-w-[900px] w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-slate-700">
+              {tableColumns.map((col) => (
+                <LeadTableHeaderCell
+                  key={col.id}
+                  columnId={col.id}
+                  label={
+                    col.id === "actions" ? "Actions" : view.labelFor(col.id)
+                  }
+                />
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollableDataTable>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {filteredRows.map((lead) => (
+              <tr key={lead.id} className="hover:bg-slate-50/60">
+                {tableColumns.map((col) =>
+                  col.id === "actions" ? (
+                    <td
+                      key={col.id}
+                      className="min-w-[200px] px-3 py-2 align-top"
+                    >
+                      <WorkQueueLeadActions
+                        lead={lead}
+                        compact
+                        onLeadPatched={(patch) => applyLeadPatch(lead.id, patch)}
+                        onLeadRollback={(snapshot) => restoreLead(snapshot)}
+                        onError={(msg) => setToast(msg)}
+                      />
+                    </td>
+                  ) : (
+                    <Fragment key={col.id}>
+                      {renderLeadColumnCell(col.id, lead, {
+                        orgName,
+                        compactName: true,
+                        edit: isInlineEditableColumn(col.id)
+                          ? editHandlersFor(lead)
+                          : undefined
+                      })}
+                    </Fragment>
+                  )
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScrollableDataTable>
+      {toastEl}
+    </>
   );
 }
 
@@ -238,4 +387,20 @@ function visibleCardFields(
     out.push({ id: col.id, label: labelFor(col.id), value });
   }
   return out;
+}
+
+function leadBelongsOnTab(lead: LeadRow, tabId: string): boolean {
+  if (lead.is_dead || lead.deal_closed === true) return false;
+  if (tabId === "all") return true;
+  if (tabId === "upcoming") {
+    if (!lead.next_action_at) return false;
+    // Keep simple: upcoming list is server-filtered; after patch keep if next_action future-ish
+    return true;
+  }
+  const status = displayActionStatus(lead.action_status);
+  if (tabId === "untouched") return status === "Untouched";
+  if (tabId === "personally_contacted") return status === "Personally Contacted";
+  if (tabId === "follow_up_due") return status === "Follow-up Due";
+  if (tabId === "follow_up_overdue") return status === "Follow-up Overdue";
+  return true;
 }

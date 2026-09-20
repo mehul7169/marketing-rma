@@ -2,35 +2,79 @@
 
 import { useState } from "react";
 import ActionStatusBadge from "@/components/leads/ActionStatusBadge";
+import InlineEditableValue from "@/components/leads/InlineEditableValue";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatDueFriendly, formatISTDateTime } from "@/lib/timezone";
+import {
+  customFieldKeyFromColumnId,
+  isCustomFieldColumnId
+} from "@/lib/table-views/types";
+import { isInlineEditableColumn } from "@/components/table-views/leadColumnCells";
 
 export default function WorkQueueCard({
   lead,
   activities,
-  extraFields
+  extraFields,
+  editDisabled = false,
+  onPlainField,
+  onCustomField,
+  onLeadPatched,
+  onLeadRollback,
+  onError
 }: {
   lead: LeadRow;
   activities: LeadActivityRow[];
-  /** Extra fields driven by table-view visible columns (beyond core status). */
   extraFields?: Array<{ id: string; label: string; value: string }>;
+  editDisabled?: boolean;
+  onPlainField?: (
+    field: "name" | "email" | "phone" | "notes" | "deal_value",
+    value: string
+  ) => void;
+  onCustomField?: (key: string, value: string) => void;
+  onLeadPatched?: (patch: Partial<LeadRow>) => void;
+  onLeadRollback?: (snapshot: LeadRow) => void;
+  onError?: (message: string) => void;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
 
   return (
     <article className="rounded border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <a
-            href={`/leads/${lead.id}`}
-            className="text-sm font-semibold text-slate-900 hover:underline"
-          >
-            {lead.name || lead.email}
-          </a>
-          <div className="mt-1 text-xs text-slate-600">
-            {lead.phone || "—"} · {lead.email}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1 text-sm font-semibold text-slate-900">
+              <InlineEditableValue
+                className="font-semibold"
+                value={lead.name ?? ""}
+                displayValue={lead.name || lead.email}
+                disabled={editDisabled || !onPlainField}
+                onCommit={(next) => onPlainField?.("name", next)}
+              />
+            </div>
+            <a
+              href={`/leads/${lead.id}`}
+              className="shrink-0 text-xs text-slate-400 hover:text-slate-700 hover:underline"
+            >
+              Open
+            </a>
+          </div>
+          <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-slate-600">
+            <InlineEditableValue
+              value={lead.phone ?? ""}
+              displayValue={lead.phone || "—"}
+              inputType="tel"
+              disabled={editDisabled || !onPlainField}
+              onCommit={(next) => onPlainField?.("phone", next)}
+            />
+            <span>·</span>
+            <InlineEditableValue
+              value={lead.email}
+              inputType="email"
+              disabled={editDisabled || !onPlainField}
+              onCommit={(next) => onPlainField?.("email", next)}
+            />
           </div>
         </div>
         <ActionStatusBadge actionStatus={lead.action_status} />
@@ -41,7 +85,9 @@ export default function WorkQueueCard({
           extraFields.map((f) => (
             <div key={f.id}>
               <dt className="text-slate-400">{f.label}</dt>
-              <dd className="mt-0.5 text-slate-800">{f.value}</dd>
+              <dd className="mt-0.5 text-slate-800">
+                {renderEditableExtra(f, lead, editDisabled, onPlainField, onCustomField)}
+              </dd>
             </div>
           ))
         ) : (
@@ -77,6 +123,9 @@ export default function WorkQueueCard({
         showHistoryToggle
         historyOpen={historyOpen}
         onToggleHistory={() => setHistoryOpen((v) => !v)}
+        onLeadPatched={onLeadPatched}
+        onLeadRollback={onLeadRollback}
+        onError={onError}
       />
 
       {historyOpen ? (
@@ -99,4 +148,84 @@ export default function WorkQueueCard({
       ) : null}
     </article>
   );
+}
+
+function renderEditableExtra(
+  f: { id: string; label: string; value: string },
+  lead: LeadRow,
+  editDisabled: boolean,
+  onPlainField?: (
+    field: "name" | "email" | "phone" | "notes" | "deal_value",
+    value: string
+  ) => void,
+  onCustomField?: (key: string, value: string) => void
+) {
+  if (editDisabled || !isInlineEditableColumn(f.id)) {
+    return f.value;
+  }
+
+  if (isCustomFieldColumnId(f.id)) {
+    const key = customFieldKeyFromColumnId(f.id);
+    if (!key || !onCustomField) return f.value;
+    const raw = lead.custom_fields?.[key];
+    const asText =
+      raw === null || raw === undefined
+        ? ""
+        : typeof raw === "string"
+          ? raw
+          : String(raw);
+    return (
+      <InlineEditableValue
+        value={asText}
+        displayValue={f.value}
+        onCommit={(next) => onCustomField(key, next)}
+      />
+    );
+  }
+
+  if (f.id === "email" && onPlainField) {
+    return (
+      <InlineEditableValue
+        value={lead.email}
+        inputType="email"
+        onCommit={(next) => onPlainField("email", next)}
+      />
+    );
+  }
+  if (f.id === "phone" && onPlainField) {
+    return (
+      <InlineEditableValue
+        value={lead.phone ?? ""}
+        displayValue={lead.phone || "—"}
+        inputType="tel"
+        onCommit={(next) => onPlainField("phone", next)}
+      />
+    );
+  }
+  if (f.id === "notes" && onPlainField) {
+    return (
+      <InlineEditableValue
+        value={lead.notes ?? ""}
+        displayValue={lead.notes || "—"}
+        multiline
+        onCommit={(next) => onPlainField("notes", next)}
+      />
+    );
+  }
+  if (f.id === "deal_value" && onPlainField) {
+    return (
+      <InlineEditableValue
+        value={
+          lead.deal_value !== null && lead.deal_value !== undefined
+            ? String(lead.deal_value)
+            : ""
+        }
+        displayValue={f.value}
+        inputType="number"
+        onCommit={(next) => onPlainField("deal_value", next)}
+      />
+    );
+  }
+
+  return f.value;
 }

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getLeadByEmail,
   getLeadByPhone,
-  insertLead,
-  updateLead
+  sheetFieldsForLeadUpdate,
+  updateLead,
+  upsertLeadByOrgEmail,
+  type LeadSheetUpsertFields
 } from "@/lib/db/leads";
 import type { LeadRow } from "@/lib/leads/types";
-import { mergeCustomFields } from "@/lib/leads/customFields";
 import { findOrgIdBySlug } from "@/lib/orgs/getOrgIdBySlug";
+import { formatUnknownError } from "@/lib/utils/formatUnknownError";
 import { assertQuickformIngestSecret } from "@/lib/utils/ingestAuth";
 
 export const runtime = "nodejs";
@@ -29,6 +30,11 @@ const STRUCTURAL_FIELD_KEYS = new Set([
   "campaign_name",
   "ad_name",
   "adset_name",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
   "lead_status",
   "id"
 ]);
@@ -50,7 +56,7 @@ function parseBookingDetails(raw: string | null): string | null {
   if (!trimmed) return null;
 
   const isoMatch = trimmed.match(
-    /\d{4}-\d{2}-\d{2}[ T]\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?/
+    /\d{4}-\d{2}-\d{2}[T ]\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?/
   );
   const candidate = isoMatch?.[0] ?? trimmed;
   const ms = Date.parse(candidate);
@@ -83,6 +89,40 @@ function customFieldsFromSheet(
   return out;
 }
 
+/**
+ * Initial workflow hints from sheet STATUS — applied only when the lead is new
+ * (or the relevant field is still empty). Never used to overwrite CRM progress.
+ */
+function insertOnlyStatusPatch(
+  lead: LeadRow,
+  leadStatus: string | null,
+  bookingDetails: string | null,
+  now: string
+): Partial<LeadRow> | null {
+  const statusLower = (leadStatus ?? "").toLowerCase();
+  const isReject = statusLower.includes("reject");
+  const isCallBooked = statusLower.includes("call booked");
+  const patch: Partial<LeadRow> = {};
+
+  if (isReject) {
+    if (lead.qualified == null) {
+      patch.qualified = false;
+      patch.qualified_by = "quickform";
+      patch.qualified_at = now;
+    }
+  } else if (isCallBooked) {
+    if (!lead.call_booked_at) {
+      patch.call_booked_at = now;
+    }
+    const scheduled = parseBookingDetails(bookingDetails);
+    if (scheduled && !lead.call_scheduled_for) {
+      patch.call_scheduled_for = scheduled;
+    }
+  }
+
+  return Object.keys(patch).length ? patch : null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     assertQuickformIngestSecret(req);
@@ -100,7 +140,9 @@ export async function POST(req: NextRequest) {
   const orgSlug =
     typeof body.org_slug === "string" ? body.org_slug.trim().toLowerCase() : "";
   if (!orgSlug) {
-    console.error("[quickform-lead] missing org_slug — acknowledging without write");
+    console.error(
+      "[quickform-lead] missing org_slug — acknowledging without write"
+    );
     return NextResponse.json({
       ok: true,
       skipped: true,
@@ -112,8 +154,9 @@ export async function POST(req: NextRequest) {
   try {
     orgId = await findOrgIdBySlug(orgSlug);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error(`[quickform-lead] org lookup failed for slug="${orgSlug}": ${msg}`);
+    console.error(
+      `[quickform-lead] org lookup failed for slug="${orgSlug}": ${formatUnknownError(e)}`
+    );
     return NextResponse.json({
       ok: true,
       skipped: true,
@@ -143,9 +186,11 @@ export async function POST(req: NextRequest) {
   const name = fieldStr(fields, "full_name", "name");
   const metaLeadId = fieldStr(fields, "id");
   const adSetId = fieldStr(fields, "adset_id", "ad_set_id");
-  const campaignName = fieldStr(fields, "campaign_name");
-  const adName = fieldStr(fields, "ad_name");
-  const adsetName = fieldStr(fields, "adset_name");
+  const campaignName = fieldStr(fields, "campaign_name", "utm_campaign");
+  const adName = fieldStr(fields, "ad_name", "utm_content");
+  const adsetName = fieldStr(fields, "adset_name", "utm_term");
+  const utmSource = fieldStr(fields, "utm_source");
+  const utmMedium = fieldStr(fields, "utm_medium");
   const leadStatus = fieldStr(fields, "lead_status");
   const bookingDetails = fieldStr(fields, "Booking details");
   const platform = fieldStr(fields, "platform");
@@ -159,110 +204,93 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const now = new Date().toISOString();
+  const filledAt =
+    (createdTime && Number.isFinite(Date.parse(createdTime))
+      ? new Date(createdTime).toISOString()
+      : null) ?? now;
+
+  const sheet: LeadSheetUpsertFields = {
+    name,
+    phone,
+    utm_source: utmSource,
+    utm_medium: utmMedium,
+    utm_campaign: campaignName,
+    utm_content: adName,
+    utm_term: adsetName,
+    ad_set_id: adSetId,
+    ghl_contact_id: metaLeadId,
+    lead_source: leadSourceFromPlatform(platform),
+    custom_fields: incomingCustom,
+    form_filled_at: filledAt
+  };
+
   try {
-    let existing: LeadRow | null = null;
-    let matchedBy: "email" | "phone" | null = null;
-
-    if (email) {
-      existing = await getLeadByEmail(email, orgId);
-      if (existing) matchedBy = "email";
-    }
-    if (!existing && phone) {
-      existing = await getLeadByPhone(phone, orgId);
-      if (existing) matchedBy = "phone";
-    }
-
-    const now = new Date().toISOString();
-
-    const basePatch: Partial<LeadRow> = {
-      name,
-      phone,
-      ad_set_id: adSetId,
-      utm_campaign: campaignName,
-      utm_content: adName,
-      utm_term: adsetName,
-      ghl_contact_id: metaLeadId,
-      lead_source: leadSourceFromPlatform(platform),
-      custom_fields: mergeCustomFields(existing?.custom_fields, incomingCustom)
-    };
-
-    const statusLower = (leadStatus ?? "").toLowerCase();
-    const isReject = statusLower.includes("reject");
-    const isCallBooked = statusLower.includes("call booked");
-
-    const statusPatch: Partial<LeadRow> = {};
-    const warnings: string[] = [];
-
-    if (isReject) {
-      if (existing?.qualified === true) {
-        warnings.push(
-          "lead_status indicates Reject but lead is already qualified=true — not flipping qualified back to false"
+    // Phone-only match within org (no email, or email not used for match yet).
+    // Email path uses true upsert on (org_id, email) below.
+    if (!email && phone) {
+      const byPhone = await getLeadByPhone(phone, orgId);
+      if (byPhone) {
+        const updated = await updateLead(
+          byPhone,
+          sheetFieldsForLeadUpdate(byPhone, sheet)
         );
-        console.warn(
-          `[quickform-lead] refuse to un-qualify lead ${existing.id} (status="${leadStatus}")`
-        );
-      } else if (existing?.qualified !== false) {
-        statusPatch.qualified = false;
-        statusPatch.qualified_by = "quickform";
+        return NextResponse.json({
+          ok: true,
+          action: "updated",
+          id: updated.id,
+          matched_by: "phone",
+          stage: updated.stage,
+          warnings: [] as string[]
+        });
       }
-    } else if (isCallBooked) {
-      if (!existing?.call_booked_at) {
-        statusPatch.call_booked_at = now;
-      }
-      const scheduled = parseBookingDetails(bookingDetails);
-      if (scheduled && !existing?.call_scheduled_for) {
-        statusPatch.call_scheduled_for = scheduled;
-      }
-    }
 
-    const filledAt =
-      (createdTime && Number.isFinite(Date.parse(createdTime))
-        ? new Date(createdTime).toISOString()
-        : null) ?? now;
-
-    if (!existing) {
-      const insertEmail = email ?? placeholderEmailFromPhone(phone!);
-      const created = await insertLead({
-        org_id: orgId,
-        email: insertEmail,
-        ...Object.fromEntries(
-          Object.entries(basePatch).filter(([, v]) => v !== null && v !== undefined)
-        ),
-        ...statusPatch,
-        form_filled_at: filledAt,
-        qualified_at: statusPatch.qualified === false ? now : null
-      });
+      const insertEmail = placeholderEmailFromPhone(phone);
+      const { lead: created, action } = await upsertLeadByOrgEmail(
+        orgId,
+        insertEmail,
+        sheet
+      );
+      const statusPatch = insertOnlyStatusPatch(
+        created,
+        leadStatus,
+        bookingDetails,
+        now
+      );
+      const finalLead = statusPatch
+        ? await updateLead(created, statusPatch)
+        : created;
 
       return NextResponse.json({
         ok: true,
-        action: "created",
-        id: created.id,
+        action,
+        id: finalLead.id,
         matched_by: null,
-        stage: created.stage,
-        warnings
+        stage: finalLead.stage,
+        warnings: [] as string[]
       });
     }
 
-    const updatePayload: Partial<LeadRow> = {
-      ...Object.fromEntries(
-        Object.entries(basePatch).filter(([, v]) => v !== null && v !== undefined)
-      ),
-      ...statusPatch,
-      form_filled_at: existing.form_filled_at ?? filledAt
-    };
+    const upsertEmail = email ?? placeholderEmailFromPhone(phone!);
+    const { lead, action } = await upsertLeadByOrgEmail(orgId, upsertEmail, sheet);
 
-    const updated = await updateLead(existing, updatePayload);
+    // Sheet STATUS may seed workflow fields on first ingest only (never overwrite).
+    const statusPatch =
+      action === "created"
+        ? insertOnlyStatusPatch(lead, leadStatus, bookingDetails, now)
+        : null;
+    const finalLead = statusPatch ? await updateLead(lead, statusPatch) : lead;
 
     return NextResponse.json({
       ok: true,
-      action: "updated",
-      id: updated.id,
-      matched_by: matchedBy,
-      stage: updated.stage,
-      warnings
+      action,
+      id: finalLead.id,
+      matched_by: action === "updated" ? "email" : null,
+      stage: finalLead.stage,
+      warnings: [] as string[]
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = formatUnknownError(e);
     console.error(`[quickform-lead] error: ${msg}`);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

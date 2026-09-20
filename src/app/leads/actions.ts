@@ -32,6 +32,17 @@ export type LeadActionInput = {
   post_call_status?: PostCallStatus | null;
 };
 
+/** Scalar / JSON fields safe for Work Queue click-to-edit. */
+export type LeadPlainFieldsPatch = {
+  name?: string | null;
+  phone?: string | null;
+  email?: string;
+  notes?: string | null;
+  deal_value?: number | null;
+  /** Merged into existing custom_fields (shallow). */
+  custom_fields?: Record<string, unknown>;
+};
+
 const VERIFICATION_ATTEMPT_STATUSES: VerificationCallStatus[] = [
   "no_answer",
   "follow_up_needed",
@@ -123,6 +134,56 @@ export async function saveLeadActions(id: string, input: LeadActionInput) {
     stage: updated.stage,
     lifecycle_status: updated.lifecycle_status,
     action_status: updated.action_status
+  };
+}
+
+/** Work Queue / CRM inline edits — name, phone, email, notes, deal_value, custom_fields. */
+export async function saveLeadPlainFieldsAction(
+  id: string,
+  input: LeadPlainFieldsPatch
+) {
+  const orgId = await requireWritableOrgId();
+  const existing = await getLeadById(id, orgId);
+  if (!existing) throw new Error("Lead not found");
+
+  const patch: Parameters<typeof updateLead>[1] = {};
+
+  if (input.name !== undefined) {
+    const trimmed = input.name?.trim() || null;
+    patch.name = trimmed;
+  }
+  if (input.phone !== undefined) {
+    const trimmed = input.phone?.trim() || null;
+    patch.phone = trimmed;
+  }
+  if (input.email !== undefined) {
+    const trimmed = input.email.trim();
+    if (!trimmed) throw new Error("Email is required");
+    patch.email = trimmed;
+  }
+  if (input.notes !== undefined) {
+    patch.notes = input.notes?.trim() || null;
+  }
+  if (input.deal_value !== undefined) {
+    patch.deal_value = input.deal_value;
+  }
+  if (input.custom_fields !== undefined) {
+    patch.custom_fields = {
+      ...(existing.custom_fields ?? {}),
+      ...input.custom_fields
+    };
+  }
+
+  const updated = await updateLead(existing, patch);
+  revalidateLead(id);
+  return {
+    id: updated.id,
+    name: updated.name,
+    phone: updated.phone,
+    email: updated.email,
+    notes: updated.notes,
+    deal_value: updated.deal_value,
+    custom_fields: updated.custom_fields
   };
 }
 
@@ -237,7 +298,16 @@ export async function logLeadCallAttemptAction(
     id: updated.id,
     action_status: updated.action_status,
     is_dead: updated.is_dead,
-    contact_attempts: updated.contact_attempts
+    dead_reason: updated.dead_reason,
+    contact_attempts: updated.contact_attempts,
+    next_action_at: updated.next_action_at,
+    last_action: updated.last_action,
+    last_action_at: updated.last_action_at,
+    qualified: updated.qualified,
+    call_booked_at: updated.call_booked_at,
+    call_scheduled_for: updated.call_scheduled_for,
+    call_confirmed: updated.call_confirmed,
+    stage: updated.stage
   };
 }
 

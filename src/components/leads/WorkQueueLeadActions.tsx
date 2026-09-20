@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   addLeadNoteAction,
   logLeadCallAttemptAction,
@@ -15,13 +15,15 @@ import {
   displayActionStatus,
   type CallAttemptOutcome
 } from "@/lib/leads/actionStatus";
+import { predictLogCallAttemptPatch } from "@/lib/leads/predictCallAttempt";
 import type { LeadRow } from "@/lib/leads/types";
 import {
+  fromDatetimeLocalIST,
   toDatetimeLocalIST,
   tomorrowSameTimeLocalIST
 } from "@/lib/timezone";
 
-type ModalKind =
+type PopoverKind =
   | "log_call"
   | "qualify_call"
   | "show_outcome"
@@ -79,26 +81,30 @@ function shouldOfferWhatsApp(lead: LeadRow): boolean {
 
 /**
  * Stage-driven Work Queue quick actions + Add Note.
- * Shared by card and table views.
+ * Call logging uses an anchored popover (not a screen-blocking modal) with
+ * optimistic updates via onLeadPatched / onLeadRollback.
  */
 export default function WorkQueueLeadActions({
   lead,
   compact = false,
   showHistoryToggle = false,
   historyOpen = false,
-  onToggleHistory
+  onToggleHistory,
+  onLeadPatched,
+  onLeadRollback,
+  onError
 }: {
   lead: LeadRow;
-  /** Tighter buttons for table rows. */
   compact?: boolean;
   showHistoryToggle?: boolean;
   historyOpen?: boolean;
   onToggleHistory?: () => void;
+  onLeadPatched?: (patch: Partial<LeadRow>) => void;
+  onLeadRollback?: (snapshot: LeadRow) => void;
+  onError?: (message: string) => void;
 }) {
-  const router = useRouter();
   const preview = useOrgPreview();
-  const [pending, startTransition] = useTransition();
-  const [modal, setModal] = useState<ModalKind>(null);
+  const [popover, setPopover] = useState<PopoverKind>(null);
   const [outcome, setOutcome] = useState<CallAttemptOutcome>("no_answer");
   const [showOutcome, setShowOutcome] = useState<"showed" | "no_show">("showed");
   const [note, setNote] = useState("");
@@ -110,6 +116,51 @@ export default function WorkQueueLeadActions({
     toDatetimeLocalIST(lead.call_scheduled_for) || tomorrowSameTimeLocalIST()
   );
   const [error, setError] = useState<string | null>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(
+    null
+  );
+  const rootRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!popover || !rootRef.current) {
+      setCoords(null);
+      return;
+    }
+    const rect = rootRef.current.getBoundingClientRect();
+    const width = 288;
+    const left = Math.min(
+      Math.max(8, rect.left),
+      window.innerWidth - width - 8
+    );
+    const top = Math.min(rect.bottom + 6, window.innerHeight - 8);
+    setCoords({ top, left });
+  }, [popover]);
+
+  useEffect(() => {
+    if (!popover) return;
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t) || popoverRef.current?.contains(t)) {
+        return;
+      }
+      setPopover(null);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setPopover(null);
+    }
+    function onScroll() {
+      setPopover(null);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [popover]);
 
   const actions = primaryWorkQueueActions(lead);
   const btn = compact
@@ -123,18 +174,9 @@ export default function WorkQueueLeadActions({
     return <OrgPreviewReadOnlyNotice />;
   }
 
-  function run(fn: () => Promise<unknown>) {
-    setError(null);
-    startTransition(async () => {
-      try {
-        await fn();
-        setModal(null);
-        setNote("");
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Action failed");
-      }
-    });
+  function fail(msg: string) {
+    setError(msg);
+    onError?.(msg);
   }
 
   function submitCallAttempt() {
@@ -142,25 +184,73 @@ export default function WorkQueueLeadActions({
       setError("Call date/time is required when marking Qualified");
       return;
     }
-    run(() =>
-      logLeadCallAttemptAction(lead.id, outcome, {
-        note: note || null,
-        followUpAtLocal: outcome === "follow_up_needed" ? followUpAt : null,
-        scheduledForLocal: outcome === "qualified" ? callAt : null
+    if (outcome === "follow_up_needed" && !followUpAt.trim()) {
+      setError("Follow-up time is required");
+      return;
+    }
+
+    const snapshot = lead;
+    const followUpIso =
+      outcome === "follow_up_needed" ? fromDatetimeLocalIST(followUpAt) : null;
+    const scheduledIso =
+      outcome === "qualified" ? fromDatetimeLocalIST(callAt) : null;
+
+    const optimistic = predictLogCallAttemptPatch(lead, outcome, {
+      followUpAtIso: followUpIso,
+      scheduledForIso: scheduledIso
+    });
+
+    setPopover(null);
+    setNote("");
+    setError(null);
+    onLeadPatched?.(optimistic);
+
+    void logLeadCallAttemptAction(lead.id, outcome, {
+      note: note || null,
+      followUpAtLocal: outcome === "follow_up_needed" ? followUpAt : null,
+      scheduledForLocal: outcome === "qualified" ? callAt : null
+    })
+      .then((result) => {
+        onLeadPatched?.(result);
       })
-    );
+      .catch((err) => {
+        onLeadRollback?.(snapshot);
+        fail(err instanceof Error ? err.message : "Action failed");
+      });
+  }
+
+  function runBackground(
+    fn: () => Promise<Partial<LeadRow> | unknown>,
+    optimistic?: Partial<LeadRow>
+  ) {
+    const snapshot = lead;
+    setPopover(null);
+    setNote("");
+    setError(null);
+    if (optimistic) onLeadPatched?.(optimistic);
+    void fn()
+      .then((result) => {
+        if (result && typeof result === "object" && "id" in (result as object)) {
+          onLeadPatched?.(result as Partial<LeadRow>);
+        }
+      })
+      .catch((err) => {
+        onLeadRollback?.(snapshot);
+        fail(err instanceof Error ? err.message : "Action failed");
+      });
   }
 
   return (
     <div
-      className={compact ? "flex flex-col items-start gap-1" : "contents"}
+      ref={rootRef}
+      className="relative"
       onClick={(e) => e.stopPropagation()}
     >
       <div className={`flex flex-wrap gap-1.5 ${compact ? "" : "mt-3 gap-2"}`}>
         <button
           type="button"
           title="Add note"
-          onClick={() => setModal("note")}
+          onClick={() => setPopover(popover === "note" ? null : "note")}
           className={ghostBtn}
         >
           Note
@@ -171,7 +261,7 @@ export default function WorkQueueLeadActions({
             className={primaryBtn}
             onClick={() => {
               setOutcome("no_answer");
-              setModal("log_call");
+              setPopover(popover === "log_call" ? null : "log_call");
             }}
           >
             Log Call
@@ -183,7 +273,7 @@ export default function WorkQueueLeadActions({
             className={primaryBtn}
             onClick={() => {
               setOutcome("no_answer");
-              setModal("qualify_call");
+              setPopover(popover === "qualify_call" ? null : "qualify_call");
             }}
           >
             Qualify Call
@@ -193,7 +283,9 @@ export default function WorkQueueLeadActions({
           <button
             type="button"
             className={primaryBtn}
-            onClick={() => setModal("show_outcome")}
+            onClick={() =>
+              setPopover(popover === "show_outcome" ? null : "show_outcome")
+            }
           >
             Log Outcome
           </button>
@@ -202,7 +294,9 @@ export default function WorkQueueLeadActions({
           <button
             type="button"
             className={secondaryBtn}
-            onClick={() => setModal("reschedule")}
+            onClick={() =>
+              setPopover(popover === "reschedule" ? null : "reschedule")
+            }
           >
             Reschedule
           </button>
@@ -211,7 +305,7 @@ export default function WorkQueueLeadActions({
           <button
             type="button"
             className={`${btn} border-emerald-200 bg-emerald-50 text-emerald-900`}
-            onClick={() => setModal("whatsapp")}
+            onClick={() => setPopover(popover === "whatsapp" ? null : "whatsapp")}
           >
             WhatsApp
           </button>
@@ -229,226 +323,240 @@ export default function WorkQueueLeadActions({
 
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
 
-      {modal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          onClick={() => !pending && setModal(null)}
-        >
-          <div
-            className="w-full max-w-md rounded border border-slate-200 bg-white p-4 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {modal === "log_call" || modal === "qualify_call" ? (
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-slate-900">
-                  {modal === "qualify_call" ? "Qualify call" : "Log call"}
-                </h3>
-                <label className="block text-xs text-slate-600">
-                  Outcome
+      {popover && coords
+        ? createPortal(
+            <div
+              ref={popoverRef}
+              style={{ top: coords.top, left: coords.left }}
+              className="fixed z-[70] w-72 rounded border border-slate-200 bg-white p-3 shadow-lg"
+            >
+              {popover === "log_call" || popover === "qualify_call" ? (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    {popover === "qualify_call" ? "Qualify call" : "Log call"}
+                  </h3>
+                  <label className="block text-xs text-slate-600">
+                    Outcome
+                    <select
+                      className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                      value={outcome}
+                      onChange={(e) =>
+                        setOutcome(e.target.value as CallAttemptOutcome)
+                      }
+                    >
+                      <option value="no_answer">No Answer</option>
+                      <option value="follow_up_needed">Follow-up Needed</option>
+                      <option value="qualified">Qualified</option>
+                      <option value="not_qualified">Unqualified</option>
+                    </select>
+                  </label>
+                  {outcome === "follow_up_needed" ? (
+                    <label className="block text-xs text-slate-600">
+                      Follow-up at
+                      <input
+                        type="datetime-local"
+                        className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                        value={followUpAt}
+                        onChange={(e) => setFollowUpAt(e.target.value)}
+                      />
+                    </label>
+                  ) : null}
+                  {outcome === "qualified" ? (
+                    <label className="block text-xs text-slate-600">
+                      Call scheduled for
+                      <input
+                        type="datetime-local"
+                        required
+                        className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                        value={callAt}
+                        onChange={(e) => setCallAt(e.target.value)}
+                      />
+                    </label>
+                  ) : null}
+                  <label className="block text-xs text-slate-600">
+                    Note (optional)
+                    <textarea
+                      className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                      rows={2}
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                  </label>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      className="rounded border border-slate-200 px-2.5 py-1 text-sm"
+                      onClick={() => setPopover(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded bg-slate-900 px-2.5 py-1 text-sm text-white"
+                      onClick={submitCallAttempt}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {popover === "show_outcome" ? (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold">Log show outcome</h3>
                   <select
-                    className="mt-1 w-full rounded border border-slate-200 px-2 py-2 text-sm"
-                    value={outcome}
+                    className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                    value={showOutcome}
                     onChange={(e) =>
-                      setOutcome(e.target.value as CallAttemptOutcome)
+                      setShowOutcome(e.target.value as "showed" | "no_show")
                     }
                   >
-                    <option value="no_answer">No Answer</option>
-                    <option value="follow_up_needed">Follow-up Needed</option>
-                    <option value="qualified">Qualified</option>
-                    <option value="not_qualified">Unqualified</option>
+                    <option value="showed">Showed</option>
+                    <option value="no_show">No-Show</option>
                   </select>
-                </label>
-                {outcome === "follow_up_needed" ? (
-                  <label className="block text-xs text-slate-600">
-                    Follow-up at
-                    <input
-                      type="datetime-local"
-                      className="mt-1 w-full rounded border border-slate-200 px-2 py-2 text-sm"
-                      value={followUpAt}
-                      onChange={(e) => setFollowUpAt(e.target.value)}
-                    />
-                  </label>
-                ) : null}
-                {outcome === "qualified" ? (
-                  <label className="block text-xs text-slate-600">
-                    Call scheduled for
-                    <input
-                      type="datetime-local"
-                      required
-                      className="mt-1 w-full rounded border border-slate-200 px-2 py-2 text-sm"
-                      value={callAt}
-                      onChange={(e) => setCallAt(e.target.value)}
-                    />
-                  </label>
-                ) : null}
-                <label className="block text-xs text-slate-600">
-                  Note (optional)
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="rounded border px-2.5 py-1 text-sm"
+                      onClick={() => setPopover(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded bg-slate-900 px-2.5 py-1 text-sm text-white"
+                      onClick={() =>
+                        runBackground(
+                          () =>
+                            logLeadShowOutcomeAction(
+                              lead.id,
+                              showOutcome,
+                              note || null
+                            ),
+                          { call_showed: showOutcome === "showed" }
+                        )
+                      }
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {popover === "reschedule" ? (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold">Reschedule call</h3>
+                  <input
+                    type="datetime-local"
+                    className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                    value={rescheduleAt}
+                    onChange={(e) => setRescheduleAt(e.target.value)}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="rounded border px-2.5 py-1 text-sm"
+                      onClick={() => setPopover(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded bg-slate-900 px-2.5 py-1 text-sm text-white"
+                      onClick={() =>
+                        runBackground(() =>
+                          rescheduleLeadCallAction(
+                            lead.id,
+                            rescheduleAt,
+                            note || null
+                          )
+                        )
+                      }
+                    >
+                      Reschedule
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {popover === "note" ? (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold">Add note</h3>
                   <textarea
-                    className="mt-1 w-full rounded border border-slate-200 px-2 py-2 text-sm"
-                    rows={2}
+                    className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                    rows={3}
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
                   />
-                </label>
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    className="rounded border border-slate-200 px-3 py-1.5 text-sm"
-                    onClick={() => setModal(null)}
-                    disabled={pending}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-60"
-                    disabled={pending}
-                    onClick={submitCallAttempt}
-                  >
-                    {pending ? "Saving…" : "Save"}
-                  </button>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="rounded border px-2.5 py-1 text-sm"
+                      onClick={() => setPopover(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded bg-slate-900 px-2.5 py-1 text-sm text-white disabled:opacity-60"
+                      disabled={!note.trim()}
+                      onClick={() =>
+                        runBackground(() => addLeadNoteAction(lead.id, note), {
+                          last_action: note.trim(),
+                          last_action_at: new Date().toISOString()
+                        })
+                      }
+                    >
+                      Save note
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
 
-            {modal === "show_outcome" ? (
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold">Log show outcome</h3>
-                <select
-                  className="w-full rounded border border-slate-200 px-2 py-2 text-sm"
-                  value={showOutcome}
-                  onChange={(e) =>
-                    setShowOutcome(e.target.value as "showed" | "no_show")
-                  }
-                >
-                  <option value="showed">Showed</option>
-                  <option value="no_show">No-Show</option>
-                </select>
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    className="rounded border px-3 py-1.5 text-sm"
-                    onClick={() => setModal(null)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white"
-                    disabled={pending}
-                    onClick={() =>
-                      run(() =>
-                        logLeadShowOutcomeAction(lead.id, showOutcome, note || null)
-                      )
-                    }
-                  >
-                    {pending ? "Saving…" : "Save"}
-                  </button>
+              {popover === "whatsapp" ? (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold">WhatsApp nudge</h3>
+                  <p className="text-xs text-slate-600">
+                    Logs a whatsapp_sent activity only — no WhatsApp API yet.
+                  </p>
+                  <textarea
+                    className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                    rows={2}
+                    placeholder="Optional note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="rounded border px-2.5 py-1 text-sm"
+                      onClick={() => setPopover(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded bg-emerald-700 px-2.5 py-1 text-sm text-white"
+                      onClick={() =>
+                        runBackground(
+                          () =>
+                            sendLeadWhatsAppNudgeAction(lead.id, note || null),
+                          {
+                            last_action: "WhatsApp nudge sent",
+                            last_action_at: new Date().toISOString()
+                          }
+                        )
+                      }
+                    >
+                      Mark sent
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : null}
-
-            {modal === "reschedule" ? (
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold">Reschedule call</h3>
-                <input
-                  type="datetime-local"
-                  className="w-full rounded border border-slate-200 px-2 py-2 text-sm"
-                  value={rescheduleAt}
-                  onChange={(e) => setRescheduleAt(e.target.value)}
-                />
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    className="rounded border px-3 py-1.5 text-sm"
-                    onClick={() => setModal(null)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white"
-                    disabled={pending}
-                    onClick={() =>
-                      run(() =>
-                        rescheduleLeadCallAction(lead.id, rescheduleAt, note || null)
-                      )
-                    }
-                  >
-                    {pending ? "Saving…" : "Reschedule"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {modal === "note" ? (
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold">Add note</h3>
-                <textarea
-                  className="w-full rounded border border-slate-200 px-2 py-2 text-sm"
-                  rows={3}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    className="rounded border px-3 py-1.5 text-sm"
-                    onClick={() => setModal(null)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white"
-                    disabled={pending || !note.trim()}
-                    onClick={() => run(() => addLeadNoteAction(lead.id, note))}
-                  >
-                    {pending ? "Saving…" : "Save note"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {modal === "whatsapp" ? (
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold">WhatsApp nudge</h3>
-                <p className="text-xs text-slate-600">
-                  Logs a whatsapp_sent activity only — no WhatsApp API yet.
-                </p>
-                <textarea
-                  className="w-full rounded border border-slate-200 px-2 py-2 text-sm"
-                  rows={2}
-                  placeholder="Optional note"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    className="rounded border px-3 py-1.5 text-sm"
-                    onClick={() => setModal(null)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded bg-emerald-700 px-3 py-1.5 text-sm text-white"
-                    disabled={pending}
-                    onClick={() =>
-                      run(() =>
-                        sendLeadWhatsAppNudgeAction(lead.id, note || null)
-                      )
-                    }
-                  >
-                    {pending ? "Logging…" : "Mark sent"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+              ) : null}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

@@ -11,9 +11,11 @@ import { loadTableViewBootstrap } from "@/lib/table-views/loadBootstrap";
 const TABS: Array<{
   id: string;
   label: string;
+  /** Omit for All — active leads only, no action_status filter. */
   actionStatuses?: ActionStatus[];
   upcomingOnly?: boolean;
 }> = [
+  { id: "all", label: "All" },
   { id: "untouched", label: "Untouched", actionStatuses: ["Untouched"] },
   {
     id: "personally_contacted",
@@ -43,11 +45,12 @@ export default async function WorkQueuePage({
   const initialViewMode = searchParams.view === "table" ? "table" : "cards";
   // Tab links omit search= so switching tabs clears the query (reload starts fresh).
   const initialSearch = (searchParams.search ?? "").trim();
-  const activeTab = TABS.find((t) => t.id === tabId) ?? TABS[0];
+  const activeTab = TABS.find((t) => t.id === tabId) ?? TABS[1]!;
 
   const countBase = { orgId, excludeDeadAndClosed: true as const };
 
   const [
+    allCount,
     untouchedCount,
     contactedCount,
     dueCount,
@@ -57,6 +60,8 @@ export default async function WorkQueuePage({
     org,
     tableViewBootstrap
   ] = await Promise.all([
+    // All = active leads only (dead/closed excluded). No action_status filter.
+    countLeads({ ...countBase }),
     countLeads({ ...countBase, actionStatuses: ["Untouched"] }),
     countLeads({ ...countBase, actionStatuses: ["Personally Contacted"] }),
     countLeads({ ...countBase, actionStatuses: ["Follow-up Due"] }),
@@ -72,6 +77,7 @@ export default async function WorkQueuePage({
   ]);
 
   const counts: Record<string, number> = {
+    all: allCount,
     untouched: untouchedCount,
     personally_contacted: contactedCount,
     follow_up_due: dueCount,
@@ -105,23 +111,34 @@ export default async function WorkQueuePage({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {TABS.map((tab) => (
-            <a
-              key={tab.id}
-              href={`/leads/queue?tab=${tab.id}&view=${initialViewMode}`}
-              className={`inline-flex items-center gap-2 rounded border px-3 py-1.5 text-sm ${
-                activeTab.id === tab.id
-                  ? "ui-active"
-                  : "border-slate-200 text-slate-700"
-              }`}
-            >
-              {tab.label}
-              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                {counts[tab.id] ?? 0}
-              </span>
-            </a>
-          ))}
+        <div
+          className="inline-flex max-w-full flex-wrap overflow-hidden border border-slate-300"
+          role="tablist"
+          aria-label="Work Queue tabs"
+        >
+          {TABS.map((tab, i) => {
+            const active = activeTab.id === tab.id;
+            return (
+              <a
+                key={tab.id}
+                role="tab"
+                aria-selected={active}
+                href={`/leads/queue?tab=${tab.id}&view=${initialViewMode}`}
+                className={`inline-flex items-center gap-2 px-3 py-2 text-sm ${
+                  i > 0 ? "border-l border-slate-300" : ""
+                } ${
+                  active
+                    ? "bg-slate-100 font-medium text-slate-900"
+                    : "bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {tab.label}
+                <span className="border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-600">
+                  {counts[tab.id] ?? 0}
+                </span>
+              </a>
+            );
+          })}
         </div>
       </div>
 

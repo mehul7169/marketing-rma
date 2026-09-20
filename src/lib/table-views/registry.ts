@@ -38,6 +38,7 @@ const LEADS_FIXED: FixedColumnDef[] = [
   { id: "qualified", label: "Qualified" },
   { id: "is_dead", label: "Dead" },
   { id: "notes", label: "Notes" },
+  { id: "deal_value", label: "Deal value" },
   { id: "recording_url", label: "Recording" },
   { id: "actions", label: "Actions" },
   { id: "org_name", label: "Org", platformAdminOnly: true }

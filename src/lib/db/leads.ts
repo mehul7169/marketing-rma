@@ -6,7 +6,10 @@ import {
 } from "@/lib/leads/actionStatus";
 import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
 import { computeStage } from "@/lib/leads/computeStage";
-import { omitLegacyLeadColumns } from "@/lib/leads/customFields";
+import {
+  mergeCustomFields,
+  omitLegacyLeadColumns
+} from "@/lib/leads/customFields";
 import {
   funnelEventField,
   leadMatchesFunnelStage,
@@ -308,6 +311,135 @@ export async function insertLead(
     .single();
   if (error) throw error;
   return asLead(data);
+}
+
+/** Sheet/form fields safe to refresh on re-ingest. Never includes workflow columns. */
+export type LeadSheetUpsertFields = {
+  name?: string | null;
+  phone?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  utm_content?: string | null;
+  utm_term?: string | null;
+  lead_source?: string | null;
+  ad_set_id?: string | null;
+  ghl_contact_id?: string | null;
+  custom_fields?: Record<string, unknown>;
+  form_filled_at?: string | null;
+};
+
+/**
+ * True upsert on UNIQUE (org_id, email).
+ * On conflict: refreshes sheet-sourced fields only (phone only if existing is empty).
+ * Workflow fields (qualified, call_*, stage, action_status, notes, …) are never in the
+ * upsert payload, so re-sync cannot clobber CRM progress.
+ */
+export async function upsertLeadByOrgEmail(
+  orgId: string,
+  email: string,
+  sheet: LeadSheetUpsertFields
+): Promise<{ lead: LeadRow; action: "created" | "updated" }> {
+  const db = requireDb();
+  const normalizedEmail = email.toLowerCase().trim();
+  if (!normalizedEmail) throw new Error("upsertLeadByOrgEmail requires email");
+  if (!orgId) throw new Error("upsertLeadByOrgEmail requires orgId");
+
+  const existing = await getLeadByEmail(normalizedEmail, orgId);
+  const now = new Date().toISOString();
+
+  const phone =
+    existing?.phone && existing.phone.trim()
+      ? existing.phone
+      : sheet.phone?.trim()
+        ? sheet.phone.trim()
+        : null;
+
+  const custom_fields = mergeCustomFields(
+    existing?.custom_fields,
+    sheet.custom_fields ?? {}
+  );
+
+  const payload: Record<string, unknown> = {
+    org_id: orgId,
+    email: normalizedEmail,
+    updated_at: now,
+    custom_fields
+  };
+
+  const setIfValue = (key: string, value: unknown) => {
+    if (value !== null && value !== undefined && value !== "") {
+      payload[key] = value;
+    }
+  };
+
+  setIfValue("name", sheet.name);
+  if (phone) payload.phone = phone;
+  setIfValue("utm_source", sheet.utm_source);
+  setIfValue("utm_medium", sheet.utm_medium);
+  setIfValue("utm_campaign", sheet.utm_campaign);
+  setIfValue("utm_content", sheet.utm_content);
+  setIfValue("utm_term", sheet.utm_term);
+  setIfValue("lead_source", sheet.lead_source);
+  setIfValue("ad_set_id", sheet.ad_set_id);
+  setIfValue("ghl_contact_id", sheet.ghl_contact_id);
+
+  // Preserve first form_filled_at; set on insert when provided.
+  const formFilledAt = existing?.form_filled_at ?? sheet.form_filled_at ?? null;
+  if (formFilledAt) payload.form_filled_at = formFilledAt;
+
+  const { data, error } = await db
+    .from("leads")
+    .upsert(omitLegacyLeadColumns(payload), { onConflict: "org_id,email" })
+    .select("*")
+    .single();
+  if (error) throw error;
+
+  let lead = asLead(data);
+  const action: "created" | "updated" = existing ? "updated" : "created";
+
+  // Fresh insert has no stamped stage/lifecycle yet — recompute without touching sheet data.
+  if (!existing) {
+    lead = await updateLead(lead, {});
+  }
+
+  return { lead, action };
+}
+
+/** Sheet-safe patch for an existing lead (e.g. matched by phone, not email). */
+export function sheetFieldsForLeadUpdate(
+  existing: LeadRow,
+  sheet: LeadSheetUpsertFields
+): Partial<LeadRow> {
+  const phone =
+    existing.phone && existing.phone.trim()
+      ? existing.phone
+      : sheet.phone?.trim()
+        ? sheet.phone.trim()
+        : undefined;
+
+  const patch: Partial<LeadRow> = {
+    custom_fields: mergeCustomFields(
+      existing.custom_fields,
+      sheet.custom_fields ?? {}
+    ),
+    form_filled_at: existing.form_filled_at ?? sheet.form_filled_at ?? existing.form_filled_at
+  };
+
+  if (sheet.name !== null && sheet.name !== undefined && sheet.name !== "") {
+    patch.name = sheet.name;
+  }
+  if (phone !== undefined) patch.phone = phone;
+  if (sheet.utm_source) patch.utm_source = sheet.utm_source;
+  if (sheet.utm_medium) patch.utm_medium = sheet.utm_medium;
+  if (sheet.utm_campaign) patch.utm_campaign = sheet.utm_campaign;
+  if (sheet.utm_content) patch.utm_content = sheet.utm_content;
+  if (sheet.utm_term) patch.utm_term = sheet.utm_term;
+  if (sheet.lead_source) patch.lead_source = sheet.lead_source;
+  if (sheet.ad_set_id) patch.ad_set_id = sheet.ad_set_id;
+  if (sheet.ghl_contact_id) patch.ghl_contact_id = sheet.ghl_contact_id;
+
+  return patch;
 }
 
 export async function updateLead(existing: LeadRow, patch: Partial<LeadRow>): Promise<LeadRow> {

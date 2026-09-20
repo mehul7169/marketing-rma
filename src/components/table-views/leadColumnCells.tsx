@@ -4,9 +4,11 @@ import type { ReactNode } from "react";
 import CopyValue from "@/components/CopyValue";
 import ActionStatusBadge from "@/components/leads/ActionStatusBadge";
 import DueFollowUpBadge from "@/components/leads/DueFollowUpBadge";
+import InlineEditableValue from "@/components/leads/InlineEditableValue";
 import RecordingLinkBadge from "@/components/leads/RecordingLinkBadge";
 import ReviveLeadButton from "@/components/leads/ReviveLeadButton";
 import StageBadge from "@/components/leads/StageBadge";
+import { formatCurrencyNullable } from "@/lib/format";
 import type { LeadReminder } from "@/lib/leads/types";
 import type { LeadRow as Lead } from "@/lib/leads/types";
 import {
@@ -33,22 +35,48 @@ function formatCustomValue(value: unknown): string {
   }
 }
 
+export type LeadCellEditHandlers = {
+  disabled?: boolean;
+  onPlainField?: (
+    field: "name" | "email" | "phone" | "notes" | "deal_value",
+    value: string
+  ) => void;
+  onCustomField?: (key: string, value: string) => void;
+};
+
 export function renderLeadColumnCell(
   columnId: string,
   lead: Lead,
   ctx: {
     dueReminders?: LeadReminder[];
     orgName?: string | null;
-    /** denser name cell for queue table */
     compactName?: boolean;
+    edit?: LeadCellEditHandlers;
   } = {}
 ): ReactNode {
+  const edit = ctx.edit;
+  const canEdit = Boolean(edit && !edit.disabled);
+
   if (isCustomFieldColumnId(columnId)) {
     const key = customFieldKeyFromColumnId(columnId);
-    const value = key ? lead.custom_fields?.[key] : undefined;
+    const raw = key ? lead.custom_fields?.[key] : undefined;
+    const asText =
+      raw === null || raw === undefined
+        ? ""
+        : typeof raw === "string"
+          ? raw
+          : String(raw);
     return (
-      <td className="max-w-[180px] truncate px-4 py-3 text-slate-700">
-        {formatCustomValue(value)}
+      <td className="max-w-[180px] px-4 py-3 text-slate-700">
+        {canEdit && key ? (
+          <InlineEditableValue
+            value={asText}
+            displayValue={formatCustomValue(raw)}
+            onCommit={(next) => edit?.onCustomField?.(key, next)}
+          />
+        ) : (
+          <span className="truncate">{formatCustomValue(raw)}</span>
+        )}
       </td>
     );
   }
@@ -59,20 +87,50 @@ export function renderLeadColumnCell(
         <td className="px-4 py-3 font-medium text-slate-900">
           {ctx.compactName ? (
             <>
-              <a
-                href={`/leads/${lead.id}`}
-                className="hover:underline"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {lead.name || lead.email}
-              </a>
+              <div className="flex items-center gap-1.5">
+                {canEdit ? (
+                  <InlineEditableValue
+                    className="font-medium"
+                    value={lead.name ?? ""}
+                    displayValue={lead.name || "—"}
+                    onCommit={(next) => edit?.onPlainField?.("name", next)}
+                  />
+                ) : (
+                  <span>{lead.name || "—"}</span>
+                )}
+                <a
+                  href={`/leads/${lead.id}`}
+                  className="shrink-0 text-xs font-normal text-slate-400 hover:text-slate-700 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Open lead"
+                >
+                  Open
+                </a>
+              </div>
               <div className="text-xs font-normal text-slate-500">
-                {lead.phone || "—"}
+                {canEdit ? (
+                  <InlineEditableValue
+                    value={lead.phone ?? ""}
+                    displayValue={lead.phone || "—"}
+                    inputType="tel"
+                    onCommit={(next) => edit?.onPlainField?.("phone", next)}
+                  />
+                ) : (
+                  lead.phone || "—"
+                )}
               </div>
             </>
           ) : (
             <>
-              {lead.name || "—"}
+              {canEdit ? (
+                <InlineEditableValue
+                  value={lead.name ?? ""}
+                  displayValue={lead.name || "—"}
+                  onCommit={(next) => edit?.onPlainField?.("name", next)}
+                />
+              ) : (
+                lead.name || "—"
+              )}
               <DueFollowUpBadge reminders={ctx.dueReminders ?? []} />
               <RecordingLinkBadge url={lead.recording_url} />
             </>
@@ -82,8 +140,16 @@ export function renderLeadColumnCell(
     case "email":
       return (
         <td className="px-4 py-3 text-slate-700">
-          <span className="inline-flex items-center gap-1">
-            {lead.email}
+          <span className="inline-flex w-full items-center gap-1">
+            {canEdit ? (
+              <InlineEditableValue
+                value={lead.email}
+                inputType="email"
+                onCommit={(next) => edit?.onPlainField?.("email", next)}
+              />
+            ) : (
+              lead.email
+            )}
             <CopyValue value={lead.email} hoverReveal />
           </span>
         </td>
@@ -91,8 +157,17 @@ export function renderLeadColumnCell(
     case "phone":
       return (
         <td className="px-4 py-3 text-slate-700">
-          <span className="inline-flex items-center gap-1">
-            {lead.phone || "—"}
+          <span className="inline-flex w-full items-center gap-1">
+            {canEdit ? (
+              <InlineEditableValue
+                value={lead.phone ?? ""}
+                displayValue={lead.phone || "—"}
+                inputType="tel"
+                onCommit={(next) => edit?.onPlainField?.("phone", next)}
+              />
+            ) : (
+              lead.phone || "—"
+            )}
             <CopyValue value={lead.phone} hoverReveal />
           </span>
         </td>
@@ -182,8 +257,36 @@ export function renderLeadColumnCell(
       );
     case "notes":
       return (
-        <td className="max-w-[180px] truncate px-4 py-3 text-slate-700">
-          {lead.notes || "—"}
+        <td className="max-w-[180px] px-4 py-3 text-slate-700">
+          {canEdit ? (
+            <InlineEditableValue
+              value={lead.notes ?? ""}
+              displayValue={lead.notes || "—"}
+              multiline
+              onCommit={(next) => edit?.onPlainField?.("notes", next)}
+            />
+          ) : (
+            <span className="truncate">{lead.notes || "—"}</span>
+          )}
+        </td>
+      );
+    case "deal_value":
+      return (
+        <td className="px-4 py-3 text-slate-700">
+          {canEdit ? (
+            <InlineEditableValue
+              value={
+                lead.deal_value !== null && lead.deal_value !== undefined
+                  ? String(lead.deal_value)
+                  : ""
+              }
+              displayValue={formatCurrencyNullable(lead.deal_value) || "—"}
+              inputType="number"
+              onCommit={(next) => edit?.onPlainField?.("deal_value", next)}
+            />
+          ) : (
+            formatCurrencyNullable(lead.deal_value) || "—"
+          )}
         </td>
       );
     case "recording_url":
@@ -221,7 +324,6 @@ export function LeadTableHeaderCell({
   );
 }
 
-/** Card field snippet for Work Queue — skips layout columns like actions. */
 export function leadCardFieldValue(
   columnId: string,
   lead: Lead,
@@ -240,7 +342,7 @@ export function leadCardFieldValue(
     case "lead_source":
       return lead.lead_source || "—";
     case "action_status":
-      return null; // rendered as badge separately
+      return null;
     case "last_action":
       return lead.last_action || "—";
     case "next_action":
@@ -273,9 +375,22 @@ export function leadCardFieldValue(
       return lead.is_dead ? "Yes" : "No";
     case "notes":
       return lead.notes || "—";
+    case "deal_value":
+      return formatCurrencyNullable(lead.deal_value) || "—";
     case "org_name":
       return orgName || "—";
     default:
       return null;
   }
+}
+
+export function isInlineEditableColumn(columnId: string): boolean {
+  if (isCustomFieldColumnId(columnId)) return true;
+  return (
+    columnId === "name" ||
+    columnId === "email" ||
+    columnId === "phone" ||
+    columnId === "notes" ||
+    columnId === "deal_value"
+  );
 }
