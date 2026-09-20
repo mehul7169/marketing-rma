@@ -20,7 +20,7 @@ export default function InlineEditableValue({
   displayValue?: string;
   placeholder?: string;
   multiline?: boolean;
-  inputType?: "text" | "email" | "tel" | "number";
+  inputType?: "text" | "email" | "tel" | "number" | "datetime-local";
   disabled?: boolean;
   className?: string;
   onCommit: (next: string) => void;

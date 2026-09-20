@@ -18,6 +18,7 @@ import {
 import { predictLogCallAttemptPatch } from "@/lib/leads/predictCallAttempt";
 import type { LeadRow } from "@/lib/leads/types";
 import {
+  formatISTDateTime,
   fromDatetimeLocalIST,
   toDatetimeLocalIST,
   tomorrowSameTimeLocalIST
@@ -180,7 +181,8 @@ export default function WorkQueueLeadActions({
   }
 
   function submitCallAttempt() {
-    if (outcome === "qualified" && !callAt.trim()) {
+    const alreadyScheduled = Boolean(lead.call_scheduled_for);
+    if (outcome === "qualified" && !alreadyScheduled && !callAt.trim()) {
       setError("Call date/time is required when marking Qualified");
       return;
     }
@@ -193,7 +195,11 @@ export default function WorkQueueLeadActions({
     const followUpIso =
       outcome === "follow_up_needed" ? fromDatetimeLocalIST(followUpAt) : null;
     const scheduledIso =
-      outcome === "qualified" ? fromDatetimeLocalIST(callAt) : null;
+      outcome === "qualified"
+        ? alreadyScheduled
+          ? lead.call_scheduled_for
+          : fromDatetimeLocalIST(callAt)
+        : null;
 
     const optimistic = predictLogCallAttemptPatch(lead, outcome, {
       followUpAtIso: followUpIso,
@@ -208,7 +214,8 @@ export default function WorkQueueLeadActions({
     void logLeadCallAttemptAction(lead.id, outcome, {
       note: note || null,
       followUpAtLocal: outcome === "follow_up_needed" ? followUpAt : null,
-      scheduledForLocal: outcome === "qualified" ? callAt : null
+      scheduledForLocal:
+        outcome === "qualified" && !alreadyScheduled ? callAt : null
     })
       .then((result) => {
         onLeadPatched?.(result);
@@ -361,7 +368,7 @@ export default function WorkQueueLeadActions({
                       />
                     </label>
                   ) : null}
-                  {outcome === "qualified" ? (
+                  {outcome === "qualified" && !lead.call_scheduled_for ? (
                     <label className="block text-xs text-slate-600">
                       Call scheduled for
                       <input
@@ -372,6 +379,12 @@ export default function WorkQueueLeadActions({
                         onChange={(e) => setCallAt(e.target.value)}
                       />
                     </label>
+                  ) : null}
+                  {outcome === "qualified" && lead.call_scheduled_for ? (
+                    <p className="text-xs text-slate-500">
+                      Keeping scheduled time:{" "}
+                      {formatISTDateTime(lead.call_scheduled_for)}
+                    </p>
                   ) : null}
                   <label className="block text-xs text-slate-600">
                     Note (optional)

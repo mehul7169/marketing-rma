@@ -690,6 +690,11 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
       .not("next_action_at", "is", null)
       .gt("next_action_at", afterToday);
   }
+  if (filters.meetingsBookedOnly) {
+    query = query
+      .not("call_scheduled_for", "is", null)
+      .gt("call_scheduled_for", new Date().toISOString());
+  }
 
   const { data, error } = await query;
   if (error) throw error;
@@ -822,6 +827,11 @@ export async function countLeads(filters: LeadListFilters): Promise<number> {
     query = query
       .not("next_action_at", "is", null)
       .gt("next_action_at", afterToday);
+  }
+  if (filters.meetingsBookedOnly) {
+    query = query
+      .not("call_scheduled_for", "is", null)
+      .gt("call_scheduled_for", new Date().toISOString());
   }
 
   const { count, error } = await query;

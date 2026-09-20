@@ -96,14 +96,15 @@ export async function logCallAttempt(
     }
     patch.next_action_at = opts.followUpAt;
   } else if (outcome === "qualified") {
-    if (!opts.scheduledFor) {
+    const scheduledFor = opts.scheduledFor ?? lead.call_scheduled_for;
+    if (!scheduledFor) {
       throw new Error("scheduledFor is required for qualified");
     }
     // Phone qualification always books + confirms in one motion.
     // Self-serve cal.com bookings never go through this outcome.
     patch.qualified = true;
     patch.call_booked_at = lead.call_booked_at ?? now;
-    patch.call_scheduled_for = opts.scheduledFor;
+    patch.call_scheduled_for = scheduledFor;
     patch.call_confirmed = true;
     patch.contact_attempts = 0;
     patch.next_action_at = null;

@@ -41,7 +41,8 @@ export function predictLogCallAttemptPatch(
   } else if (outcome === "qualified") {
     patch.qualified = true;
     patch.call_booked_at = lead.call_booked_at ?? now;
-    patch.call_scheduled_for = opts.scheduledForIso ?? lead.call_scheduled_for;
+    patch.call_scheduled_for =
+      opts.scheduledForIso ?? lead.call_scheduled_for;
     patch.call_confirmed = true;
     patch.contact_attempts = 0;
     patch.next_action_at = null;

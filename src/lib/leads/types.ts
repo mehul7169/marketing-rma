@@ -119,4 +119,6 @@ export type LeadListFilters = {
   excludeDeadAndClosed?: boolean;
   /** next_action_at after end of today (IST). */
   upcomingOnly?: boolean;
+  /** call_scheduled_for set and still in the future. */
+  meetingsBookedOnly?: boolean;
 };

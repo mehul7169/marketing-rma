@@ -21,13 +21,15 @@ import { filterWorkQueueLeads } from "@/lib/leads/workQueueSearch";
 import { DEFAULT_COLUMNS } from "@/lib/table-views/registry";
 import type { TableColumnConfig, TableViewBootstrap } from "@/lib/table-views/types";
 import type { LeadRow } from "@/lib/leads/types";
+import { fromDatetimeLocalIST } from "@/lib/timezone";
 
 const SEARCH_DEBOUNCE_MS = 175;
 
 export default function WorkQueueView({
-  initialViewMode = "cards",
+  initialViewMode = "table",
   initialSearch = "",
   activeTabId,
+  statusFilterId = null,
   rows,
   activitiesByLead,
   orgName,
@@ -36,6 +38,7 @@ export default function WorkQueueView({
   initialViewMode?: "cards" | "table";
   initialSearch?: string;
   activeTabId: string;
+  statusFilterId?: string | null;
   rows: LeadRow[];
   activitiesByLead: Record<string, LeadActivityRow[]>;
   orgName?: string | null;
@@ -62,7 +65,13 @@ export default function WorkQueueView({
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
-      url.searchParams.set("tab", activeTabId);
+      if (activeTabId && activeTabId !== "all") {
+        url.searchParams.set("tab", activeTabId);
+      } else {
+        url.searchParams.delete("tab");
+      }
+      if (statusFilterId) url.searchParams.set("filter", statusFilterId);
+      else url.searchParams.delete("filter");
       url.searchParams.set("view", viewMode);
       const trimmed = debouncedSearch.trim();
       if (trimmed) url.searchParams.set("search", trimmed);
@@ -71,7 +80,7 @@ export default function WorkQueueView({
     } catch {
       // ignore
     }
-  }, [activeTabId, viewMode, debouncedSearch]);
+  }, [activeTabId, statusFilterId, viewMode, debouncedSearch]);
 
   const applyLeadPatch = useCallback(
     (leadId: string, patch: Partial<LeadRow>) => {
@@ -79,26 +88,31 @@ export default function WorkQueueView({
         const next = prev.map((l) =>
           l.id === leadId ? { ...l, ...patch } : l
         );
-        // Status-scoped tabs drop leads that no longer match; All keeps them
-        // (unless dead/closed — Work Queue never shows those).
-        return next.filter((l) => leadBelongsOnTab(l, activeTabId));
+        return next.filter((l) =>
+          leadBelongsInView(l, activeTabId, statusFilterId)
+        );
       });
     },
-    [activeTabId]
+    [activeTabId, statusFilterId]
   );
 
-  const restoreLead = useCallback((snapshot: LeadRow) => {
-    setLocalRows((prev) => {
-      const idx = prev.findIndex((l) => l.id === snapshot.id);
-      if (idx === -1) {
-        if (!leadBelongsOnTab(snapshot, activeTabId)) return prev;
-        return [snapshot, ...prev];
-      }
-      const copy = [...prev];
-      copy[idx] = snapshot;
-      return copy;
-    });
-  }, [activeTabId]);
+  const restoreLead = useCallback(
+    (snapshot: LeadRow) => {
+      setLocalRows((prev) => {
+        const idx = prev.findIndex((l) => l.id === snapshot.id);
+        if (idx === -1) {
+          if (!leadBelongsInView(snapshot, activeTabId, statusFilterId)) {
+            return prev;
+          }
+          return [snapshot, ...prev];
+        }
+        const copy = [...prev];
+        copy[idx] = snapshot;
+        return copy;
+      });
+    },
+    [activeTabId, statusFilterId]
+  );
 
   const optimisticPatch = useCallback(
     (leadId: string, patch: Partial<LeadRow>, rollback: LeadRow) => {
@@ -111,7 +125,13 @@ export default function WorkQueueView({
   const commitPlainField = useCallback(
     (
       lead: LeadRow,
-      field: "name" | "email" | "phone" | "notes" | "deal_value",
+      field:
+        | "name"
+        | "email"
+        | "phone"
+        | "notes"
+        | "deal_value"
+        | "call_scheduled_for",
       raw: string
     ) => {
       if (preview.active) return;
@@ -128,6 +148,19 @@ export default function WorkQueueView({
         }
         patch = { deal_value: num };
         serverInput = { deal_value: num };
+      } else if (field === "call_scheduled_for") {
+        const trimmed = raw.trim();
+        let iso: string | null = null;
+        if (trimmed) {
+          try {
+            iso = fromDatetimeLocalIST(trimmed);
+          } catch {
+            setToast("Invalid date/time");
+            return;
+          }
+        }
+        patch = { call_scheduled_for: iso };
+        serverInput = { call_scheduled_for: iso };
       } else if (field === "email") {
         const trimmed = raw.trim();
         if (!trimmed) {
@@ -200,7 +233,13 @@ export default function WorkQueueView({
     (lead: LeadRow) => ({
       disabled: editDisabled,
       onPlainField: (
-        field: "name" | "email" | "phone" | "notes" | "deal_value",
+        field:
+          | "name"
+          | "email"
+          | "phone"
+          | "notes"
+          | "deal_value"
+          | "call_scheduled_for",
         value: string
       ) => commitPlainField(lead, field, value),
       onCustomField: (key: string, value: string) =>
@@ -328,12 +367,28 @@ export default function WorkQueueView({
           </thead>
           <tbody className="divide-y divide-slate-200">
             {filteredRows.map((lead) => (
-              <tr key={lead.id} className="hover:bg-slate-50/60">
+              <tr
+                key={lead.id}
+                className="cursor-pointer hover:bg-slate-50/60"
+                onClick={(e) => {
+                  const t = e.target as HTMLElement;
+                  if (
+                    t.closest(
+                      "a, button, input, textarea, select, label, [data-no-row-nav]"
+                    )
+                  ) {
+                    return;
+                  }
+                  window.location.href = `/leads/${lead.id}`;
+                }}
+              >
                 {tableColumns.map((col) =>
                   col.id === "actions" ? (
                     <td
                       key={col.id}
                       className="min-w-[200px] px-3 py-2 align-top"
+                      data-no-row-nav
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <WorkQueueLeadActions
                         lead={lead}
@@ -389,18 +444,31 @@ function visibleCardFields(
   return out;
 }
 
-function leadBelongsOnTab(lead: LeadRow, tabId: string): boolean {
+function leadBelongsInView(
+  lead: LeadRow,
+  tabId: string,
+  statusFilterId: string | null | undefined
+): boolean {
   if (lead.is_dead || lead.deal_closed === true) return false;
-  if (tabId === "all") return true;
-  if (tabId === "upcoming") {
-    if (!lead.next_action_at) return false;
-    // Keep simple: upcoming list is server-filtered; after patch keep if next_action future-ish
-    return true;
+
+  if (tabId === "meetings_booked") {
+    if (!lead.call_scheduled_for) return false;
+    return new Date(lead.call_scheduled_for).getTime() > Date.now();
   }
-  const status = displayActionStatus(lead.action_status);
-  if (tabId === "untouched") return status === "Untouched";
-  if (tabId === "personally_contacted") return status === "Personally Contacted";
-  if (tabId === "follow_up_due") return status === "Follow-up Due";
-  if (tabId === "follow_up_overdue") return status === "Follow-up Overdue";
+  if (tabId === "follow_ups_due") {
+    const status = displayActionStatus(lead.action_status);
+    return status === "Follow-up Due" || status === "Follow-up Overdue";
+  }
+
+  // Default "all" (+ optional status filter)
+  if (statusFilterId === "untouched") {
+    return displayActionStatus(lead.action_status) === "Untouched";
+  }
+  if (statusFilterId === "personally_contacted") {
+    return displayActionStatus(lead.action_status) === "Personally Contacted";
+  }
+  if (statusFilterId === "upcoming") {
+    return Boolean(lead.next_action_at);
+  }
   return true;
 }

@@ -6,7 +6,7 @@ import InlineEditableValue from "@/components/leads/InlineEditableValue";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
 import type { LeadRow } from "@/lib/leads/types";
-import { formatDueFriendly, formatISTDateTime } from "@/lib/timezone";
+import { formatDueFriendly, formatISTDateTime, toDatetimeLocalIST } from "@/lib/timezone";
 import {
   customFieldKeyFromColumnId,
   isCustomFieldColumnId
@@ -29,7 +29,13 @@ export default function WorkQueueCard({
   extraFields?: Array<{ id: string; label: string; value: string }>;
   editDisabled?: boolean;
   onPlainField?: (
-    field: "name" | "email" | "phone" | "notes" | "deal_value",
+    field:
+      | "name"
+      | "email"
+      | "phone"
+      | "notes"
+      | "deal_value"
+      | "call_scheduled_for",
     value: string
   ) => void;
   onCustomField?: (key: string, value: string) => void;
@@ -155,7 +161,13 @@ function renderEditableExtra(
   lead: LeadRow,
   editDisabled: boolean,
   onPlainField?: (
-    field: "name" | "email" | "phone" | "notes" | "deal_value",
+    field:
+      | "name"
+      | "email"
+      | "phone"
+      | "notes"
+      | "deal_value"
+      | "call_scheduled_for",
     value: string
   ) => void,
   onCustomField?: (key: string, value: string) => void
@@ -223,6 +235,16 @@ function renderEditableExtra(
         displayValue={f.value}
         inputType="number"
         onCommit={(next) => onPlainField("deal_value", next)}
+      />
+    );
+  }
+  if (f.id === "call_scheduled_for" && onPlainField) {
+    return (
+      <InlineEditableValue
+        value={toDatetimeLocalIST(lead.call_scheduled_for)}
+        displayValue={formatISTDateTime(lead.call_scheduled_for)}
+        inputType="datetime-local"
+        onCommit={(next) => onPlainField("call_scheduled_for", next)}
       />
     );
   }

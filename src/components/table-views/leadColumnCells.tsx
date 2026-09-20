@@ -17,7 +17,8 @@ import {
 } from "@/lib/table-views/types";
 import {
   formatDueFriendly,
-  formatISTDateTime
+  formatISTDateTime,
+  toDatetimeLocalIST
 } from "@/lib/timezone";
 
 function fmtWhen(iso: string | null | undefined): string {
@@ -38,7 +39,13 @@ function formatCustomValue(value: unknown): string {
 export type LeadCellEditHandlers = {
   disabled?: boolean;
   onPlainField?: (
-    field: "name" | "email" | "phone" | "notes" | "deal_value",
+    field:
+      | "name"
+      | "email"
+      | "phone"
+      | "notes"
+      | "deal_value"
+      | "call_scheduled_for",
     value: string
   ) => void;
   onCustomField?: (key: string, value: string) => void;
@@ -98,14 +105,6 @@ export function renderLeadColumnCell(
                 ) : (
                   <span>{lead.name || "—"}</span>
                 )}
-                <a
-                  href={`/leads/${lead.id}`}
-                  className="shrink-0 text-xs font-normal text-slate-400 hover:text-slate-700 hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                  title="Open lead"
-                >
-                  Open
-                </a>
               </div>
               <div className="text-xs font-normal text-slate-500">
                 {canEdit ? (
@@ -220,7 +219,18 @@ export function renderLeadColumnCell(
     case "call_scheduled_for":
       return (
         <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-          {fmtWhen(lead.call_scheduled_for)}
+          {canEdit ? (
+            <InlineEditableValue
+              value={toDatetimeLocalIST(lead.call_scheduled_for)}
+              displayValue={fmtWhen(lead.call_scheduled_for)}
+              inputType="datetime-local"
+              onCommit={(next) =>
+                edit?.onPlainField?.("call_scheduled_for", next)
+              }
+            />
+          ) : (
+            fmtWhen(lead.call_scheduled_for)
+          )}
         </td>
       );
     case "call_booked_at":
@@ -391,6 +401,7 @@ export function isInlineEditableColumn(columnId: string): boolean {
     columnId === "email" ||
     columnId === "phone" ||
     columnId === "notes" ||
-    columnId === "deal_value"
+    columnId === "deal_value" ||
+    columnId === "call_scheduled_for"
   );
 }

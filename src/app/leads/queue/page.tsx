@@ -1,4 +1,5 @@
 import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
+import WorkQueueStatusFilter from "@/components/leads/WorkQueueStatusFilter";
 import WorkQueueView from "@/components/table-views/WorkQueueView";
 import { DataTablePageShell } from "@/components/table-views/ScrollableDataTable";
 import { listRecentLeadActivitiesForLeads } from "@/lib/db/lead_activities";
@@ -6,83 +7,112 @@ import { countLeads, listLeads } from "@/lib/db/leads";
 import { getOrganizationById } from "@/lib/db/organizations";
 import type { ActionStatus } from "@/lib/leads/actionStatus";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
+import type { LeadListFilters } from "@/lib/leads/types";
 import { loadTableViewBootstrap } from "@/lib/table-views/loadBootstrap";
 
+/** Primary tabs — revisited throughout the day. */
 const TABS: Array<{
+  id: "meetings_booked" | "follow_ups_due";
+  label: string;
+}> = [
+  { id: "meetings_booked", label: "Meetings Booked" },
+  { id: "follow_ups_due", label: "Follow-ups Due" }
+];
+
+/** Narrow the default (all active) queue on demand — not permanent tabs. */
+const STATUS_FILTERS: Array<{
   id: string;
   label: string;
-  /** Omit for All — active leads only, no action_status filter. */
   actionStatuses?: ActionStatus[];
   upcomingOnly?: boolean;
 }> = [
-  { id: "all", label: "All" },
   { id: "untouched", label: "Untouched", actionStatuses: ["Untouched"] },
   {
     id: "personally_contacted",
     label: "Personally Contacted",
     actionStatuses: ["Personally Contacted"]
   },
-  {
-    id: "follow_up_due",
-    label: "Follow-up Due",
-    actionStatuses: ["Follow-up Due"]
-  },
-  {
-    id: "follow_up_overdue",
-    label: "Follow-up Overdue",
-    actionStatuses: ["Follow-up Overdue"]
-  },
   { id: "upcoming", label: "Upcoming", upcomingOnly: true }
 ];
+
+function queueHref(opts: {
+  view: string;
+  tab?: string;
+  filter?: string;
+}): string {
+  const params = new URLSearchParams();
+  params.set("view", opts.view);
+  if (opts.tab) params.set("tab", opts.tab);
+  if (opts.filter) params.set("filter", opts.filter);
+  return `/leads/queue?${params.toString()}`;
+}
+
+function listFiltersForView(
+  orgId: string,
+  tabId: string | null,
+  filterId: string | null
+): LeadListFilters {
+  const base: LeadListFilters = {
+    orgId,
+    excludeDeadAndClosed: true
+  };
+  if (tabId === "meetings_booked") {
+    return { ...base, meetingsBookedOnly: true };
+  }
+  if (tabId === "follow_ups_due") {
+    return {
+      ...base,
+      actionStatuses: ["Follow-up Due", "Follow-up Overdue"]
+    };
+  }
+  const filter = STATUS_FILTERS.find((f) => f.id === filterId);
+  if (filter) {
+    return {
+      ...base,
+      actionStatuses: filter.actionStatuses,
+      upcomingOnly: filter.upcomingOnly
+    };
+  }
+  // Default: all active leads, no action_status / meeting scope.
+  return base;
+}
 
 export default async function WorkQueuePage({
   searchParams
 }: {
-  searchParams: { tab?: string; view?: string; search?: string };
+  searchParams: { tab?: string; filter?: string; view?: string; search?: string };
 }) {
   const orgId = await getCurrentOrgId();
-  const tabId = searchParams.tab ?? "untouched";
-  const initialViewMode = searchParams.view === "table" ? "table" : "cards";
-  // Tab links omit search= so switching tabs clears the query (reload starts fresh).
+  const rawTab = searchParams.tab?.trim() || "";
+  const tabId =
+    rawTab === "meetings_booked" || rawTab === "follow_ups_due" ? rawTab : null;
+  // Tab wins over filter when both are present.
+  const filterId = tabId
+    ? null
+    : STATUS_FILTERS.some((f) => f.id === searchParams.filter)
+      ? (searchParams.filter as string)
+      : null;
+  const initialViewMode = searchParams.view === "cards" ? "cards" : "table";
   const initialSearch = (searchParams.search ?? "").trim();
-  const activeTab = TABS.find((t) => t.id === tabId) ?? TABS[1]!;
 
   const countBase = { orgId, excludeDeadAndClosed: true as const };
+  const listFilters = listFiltersForView(orgId, tabId, filterId);
 
-  const [
-    allCount,
-    untouchedCount,
-    contactedCount,
-    dueCount,
-    overdueCount,
-    upcomingCount,
-    rows,
-    org,
-    tableViewBootstrap
-  ] = await Promise.all([
-    // All = active leads only (dead/closed excluded). No action_status filter.
-    countLeads({ ...countBase }),
-    countLeads({ ...countBase, actionStatuses: ["Untouched"] }),
-    countLeads({ ...countBase, actionStatuses: ["Personally Contacted"] }),
-    countLeads({ ...countBase, actionStatuses: ["Follow-up Due"] }),
-    countLeads({ ...countBase, actionStatuses: ["Follow-up Overdue"] }),
-    countLeads({ ...countBase, upcomingOnly: true }),
-    listLeads({
-      ...countBase,
-      actionStatuses: activeTab.actionStatuses,
-      upcomingOnly: activeTab.upcomingOnly
-    }),
-    getOrganizationById(orgId),
-    loadTableViewBootstrap("leads-queue", { orgId })
-  ]);
+  const [meetingsCount, followUpsCount, rows, org, tableViewBootstrap] =
+    await Promise.all([
+      countLeads({ ...countBase, meetingsBookedOnly: true }),
+      countLeads({
+        ...countBase,
+        actionStatuses: ["Follow-up Due", "Follow-up Overdue"]
+      }),
+      listLeads(listFilters),
+      getOrganizationById(orgId),
+      loadTableViewBootstrap("leads-queue", { orgId })
+    ]);
 
   const counts: Record<string, number> = {
-    all: allCount,
-    untouched: untouchedCount,
-    personally_contacted: contactedCount,
-    follow_up_due: dueCount,
-    follow_up_overdue: overdueCount,
-    upcoming: upcomingCount
+    meetings_booked: meetingsCount,
+    follow_ups_due: followUpsCount
   };
 
   const activitiesMap = await listRecentLeadActivitiesForLeads(
@@ -97,7 +127,7 @@ export default async function WorkQueuePage({
 
   return (
     <DataTablePageShell className="gap-6">
-      <div className="shrink-0 space-y-4">
+      <div className="shrink-0 space-y-3">
         <div>
           <h1 className="page-title">Work Queue</h1>
           <p className="mt-1 text-sm text-slate-600">
@@ -111,42 +141,55 @@ export default async function WorkQueuePage({
           </p>
         </div>
 
-        <div
-          className="inline-flex max-w-full flex-wrap overflow-hidden border border-slate-300"
-          role="tablist"
-          aria-label="Work Queue tabs"
-        >
-          {TABS.map((tab, i) => {
-            const active = activeTab.id === tab.id;
-            return (
-              <a
-                key={tab.id}
-                role="tab"
-                aria-selected={active}
-                href={`/leads/queue?tab=${tab.id}&view=${initialViewMode}`}
-                className={`inline-flex items-center gap-2 px-3 py-2 text-sm ${
-                  i > 0 ? "border-l border-slate-300" : ""
-                } ${
-                  active
-                    ? "bg-slate-100 font-medium text-slate-900"
-                    : "bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                {tab.label}
-                <span className="border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-600">
-                  {counts[tab.id] ?? 0}
-                </span>
-              </a>
-            );
-          })}
+        <div className="flex flex-wrap items-center gap-3">
+          <div
+            className="inline-flex overflow-hidden rounded-sm border border-sky-200"
+            role="tablist"
+            aria-label="Work Queue tabs"
+          >
+            {TABS.map((tab, i) => {
+              const active = tabId === tab.id;
+              return (
+                <a
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={active}
+                  href={
+                    active
+                      ? queueHref({ view: initialViewMode })
+                      : queueHref({ view: initialViewMode, tab: tab.id })
+                  }
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs ${
+                    i > 0 ? "border-l border-sky-200" : ""
+                  } ${
+                    active
+                      ? "bg-sky-100 font-medium text-sky-950"
+                      : "bg-sky-50/60 text-sky-900 hover:bg-sky-100/80"
+                  }`}
+                >
+                  {tab.label}
+                  <span className="rounded-sm border border-sky-200/80 bg-white/80 px-1 py-px text-[10px] tabular-nums text-sky-800">
+                    {counts[tab.id] ?? 0}
+                  </span>
+                </a>
+              );
+            })}
+          </div>
+
+          <WorkQueueStatusFilter
+            view={initialViewMode}
+            value={filterId}
+            disabled={Boolean(tabId)}
+          />
         </div>
       </div>
 
       <WorkQueueView
-        key={activeTab.id}
+        key={`${tabId ?? "all"}:${filterId ?? ""}`}
         initialViewMode={initialViewMode}
         initialSearch={initialSearch}
-        activeTabId={activeTab.id}
+        activeTabId={tabId ?? "all"}
+        statusFilterId={filterId}
         rows={rows}
         activitiesByLead={activitiesByLead}
         orgName={org?.name ?? null}

@@ -39,6 +39,8 @@ export type LeadPlainFieldsPatch = {
   email?: string;
   notes?: string | null;
   deal_value?: number | null;
+  /** ISO timestamptz — inline edit of Call scheduled. */
+  call_scheduled_for?: string | null;
   /** Merged into existing custom_fields (shallow). */
   custom_fields?: Record<string, unknown>;
 };
@@ -167,6 +169,9 @@ export async function saveLeadPlainFieldsAction(
   if (input.deal_value !== undefined) {
     patch.deal_value = input.deal_value;
   }
+  if (input.call_scheduled_for !== undefined) {
+    patch.call_scheduled_for = input.call_scheduled_for;
+  }
   if (input.custom_fields !== undefined) {
     patch.custom_fields = {
       ...(existing.custom_fields ?? {}),
@@ -183,6 +188,7 @@ export async function saveLeadPlainFieldsAction(
     email: updated.email,
     notes: updated.notes,
     deal_value: updated.deal_value,
+    call_scheduled_for: updated.call_scheduled_for,
     custom_fields: updated.custom_fields
   };
 }
@@ -284,9 +290,7 @@ export async function logLeadCallAttemptAction(
     opts?.scheduledForLocal && opts.scheduledForLocal.trim()
       ? fromDatetimeLocalIST(opts.scheduledForLocal)
       : null;
-  if (outcome === "qualified" && !scheduledFor) {
-    throw new Error("Call date/time is required when marking Qualified");
-  }
+  // Allow qualify without a new time when the lead already has one — validated in logCallAttempt.
   const updated = await logCallAttempt(leadId, orgId, outcome, {
     note: opts?.note,
     followUpAt,
