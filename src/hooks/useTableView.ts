@@ -44,6 +44,7 @@ export type UseTableViewResult = {
   saving: boolean;
   error: string | null;
   setColumnVisible: (id: string, visible: boolean) => void;
+  setColumnWidth: (id: string, width: number) => void;
   moveColumn: (id: string, direction: "up" | "down") => void;
   reorderColumn: (fromId: string, toId: string) => void;
   resetToDefault: () => void;
@@ -200,6 +201,13 @@ export function useTableView(
     );
   }, []);
 
+  const setColumnWidth = useCallback((id: string, width: number) => {
+    const clamped = Math.min(480, Math.max(64, Math.round(width)));
+    setColumns((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, width: clamped } : c))
+    );
+  }, []);
+
   const moveColumn = useCallback((id: string, direction: "up" | "down") => {
     setColumns((prev) => {
       const idx = prev.findIndex((c) => c.id === id);
@@ -268,6 +276,7 @@ export function useTableView(
     saving,
     error,
     setColumnVisible,
+    setColumnWidth,
     moveColumn,
     reorderColumn,
     resetToDefault

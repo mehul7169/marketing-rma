@@ -4,7 +4,7 @@ export type TableColumnConfig = {
   /** Stable id, e.g. "email" or "custom_fields.describes_you" */
   id: string;
   visible: boolean;
-  /** Optional pixel width; reserved for future resize. */
+  /** Pixel width; null falls back to DEFAULT_COLUMN_WIDTHS / auto. */
   width?: number | null;
 };
 
@@ -104,7 +104,7 @@ export function mergeColumnsWithDefaults(
     result.push({
       id: col.id,
       visible: col.visible,
-      width: col.width ?? null
+      width: col.width ?? defaultsById.get(col.id)?.width ?? null
     });
   }
   for (const def of defaultColumns) {

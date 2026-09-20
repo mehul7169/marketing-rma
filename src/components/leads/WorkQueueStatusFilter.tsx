@@ -9,15 +9,17 @@ const FILTERS = [
 
 /**
  * Status filter for Work Queue — mutually exclusive with primary tabs.
- * Selecting a filter clears the tab and reloads the queue.
+ * Selecting a filter clears the tab, resets page, and reloads the queue.
  */
 export default function WorkQueueStatusFilter({
   view,
   value,
+  search = "",
   disabled = false
 }: {
   view: string;
   value: string | null;
+  search?: string;
   disabled?: boolean;
 }) {
   return (
@@ -41,8 +43,11 @@ export default function WorkQueueStatusFilter({
           const url = new URL(window.location.href);
           url.searchParams.set("view", view);
           url.searchParams.delete("tab");
+          url.searchParams.delete("page");
           if (next) url.searchParams.set("filter", next);
           else url.searchParams.delete("filter");
+          if (search.trim()) url.searchParams.set("search", search.trim());
+          else url.searchParams.delete("search");
           window.location.href = url.pathname + url.search;
         }}
       >

@@ -59,11 +59,36 @@ export function fixedColumnsForPage(
   return cols.filter((c) => !c.platformAdminOnly);
 }
 
-function col(
-  id: string,
-  visible = true
-): TableColumnConfig {
-  return { id, visible, width: null };
+/** Optional default pixel widths — content-sized, not equal stretch. */
+export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
+  name: 160,
+  email: 200,
+  phone: 120,
+  action_status: 140,
+  last_action: 140,
+  next_action: 120,
+  contact_attempts: 72,
+  lead_source: 110,
+  stage: 120,
+  created_at: 130,
+  call_scheduled_for: 150,
+  call_booked_at: 130,
+  call_confirmed: 100,
+  qualified: 90,
+  is_dead: 72,
+  notes: 180,
+  deal_value: 100,
+  recording_url: 100,
+  actions: 220,
+  org_name: 120
+};
+
+function col(id: string, visible = true): TableColumnConfig {
+  return {
+    id,
+    visible,
+    width: DEFAULT_COLUMN_WIDTHS[id] ?? 120
+  };
 }
 
 /** Hardcoded defaults matching each page before this feature. */

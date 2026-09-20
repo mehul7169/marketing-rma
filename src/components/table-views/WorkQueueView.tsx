@@ -14,22 +14,27 @@ import {
 import WorkQueueCard from "@/components/leads/WorkQueueCard";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
 import WorkQueueToast from "@/components/leads/WorkQueueToast";
+import AsyncStatusIndicator from "@/components/ui/AsyncStatusIndicator";
+import Pagination from "@/components/ui/Pagination";
 import { useTableView } from "@/hooks/useTableView";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
 import { displayActionStatus } from "@/lib/leads/actionStatus";
-import { filterWorkQueueLeads } from "@/lib/leads/workQueueSearch";
 import { DEFAULT_COLUMNS } from "@/lib/table-views/registry";
 import type { TableColumnConfig, TableViewBootstrap } from "@/lib/table-views/types";
 import type { LeadRow } from "@/lib/leads/types";
 import { fromDatetimeLocalIST } from "@/lib/timezone";
+import { useRouter } from "next/navigation";
 
-const SEARCH_DEBOUNCE_MS = 175;
+const SEARCH_DEBOUNCE_MS = 300;
 
 export default function WorkQueueView({
   initialViewMode = "table",
   initialSearch = "",
   activeTabId,
   statusFilterId = null,
+  page = 1,
+  total = 0,
+  pageSize = 50,
   rows,
   activitiesByLead,
   orgName,
@@ -39,48 +44,92 @@ export default function WorkQueueView({
   initialSearch?: string;
   activeTabId: string;
   statusFilterId?: string | null;
+  page?: number;
+  total?: number;
+  pageSize?: number;
   rows: LeadRow[];
   activitiesByLead: Record<string, LeadActivityRow[]>;
   orgName?: string | null;
   tableViewBootstrap?: TableViewBootstrap | null;
 }) {
+  const router = useRouter();
   const preview = useOrgPreview();
   const [viewMode, setViewMode] = useState<"cards" | "table">(initialViewMode);
   const [searchInput, setSearchInput] = useState(initialSearch);
-  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [localRows, setLocalRows] = useState(rows);
   const [toast, setToast] = useState<string | null>(null);
+  /** Per-lead async confirm status for optimistic saves. */
+  const [rowStatus, setRowStatus] = useState<
+    Record<string, "saving" | "saved">
+  >({});
+
+  const markSaving = useCallback((leadId: string) => {
+    setRowStatus((prev) => ({ ...prev, [leadId]: "saving" }));
+  }, []);
+
+  const markSaved = useCallback((leadId: string) => {
+    setRowStatus((prev) => ({ ...prev, [leadId]: "saved" }));
+    window.setTimeout(() => {
+      setRowStatus((prev) => {
+        if (prev[leadId] !== "saved") return prev;
+        const next = { ...prev };
+        delete next[leadId];
+        return next;
+      });
+    }, 900);
+  }, []);
+
+  const clearRowStatus = useCallback((leadId: string) => {
+    setRowStatus((prev) => {
+      if (!(leadId in prev)) return prev;
+      const next = { ...prev };
+      delete next[leadId];
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     setLocalRows(rows);
   }, [rows]);
 
   useEffect(() => {
+    setSearchInput(initialSearch);
+  }, [initialSearch]);
+
+  /** Server-side search: navigate so RSC reloads the scoped page of results. */
+  useEffect(() => {
     const handle = window.setTimeout(() => {
-      setDebouncedSearch(searchInput);
+      const next = searchInput.trim();
+      if (next === initialSearch.trim()) return;
+      const url = new URL(window.location.href);
+      url.searchParams.set("view", viewMode);
+      url.searchParams.delete("page");
+      if (next) url.searchParams.set("search", next);
+      else url.searchParams.delete("search");
+      router.push(url.pathname + url.search);
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-  }, [searchInput]);
+  }, [searchInput, initialSearch, viewMode, router]);
+
+  const paginationQuery = useMemo(() => {
+    const q: Record<string, string> = { view: viewMode };
+    if (activeTabId && activeTabId !== "all") q.tab = activeTabId;
+    if (statusFilterId) q.filter = statusFilterId;
+    if (initialSearch.trim()) q.search = initialSearch.trim();
+    return q;
+  }, [activeTabId, statusFilterId, initialSearch, viewMode]);
 
   useEffect(() => {
+    // Keep view mode in the URL without a full navigation when toggling cards/table.
     try {
       const url = new URL(window.location.href);
-      if (activeTabId && activeTabId !== "all") {
-        url.searchParams.set("tab", activeTabId);
-      } else {
-        url.searchParams.delete("tab");
-      }
-      if (statusFilterId) url.searchParams.set("filter", statusFilterId);
-      else url.searchParams.delete("filter");
+      if (url.searchParams.get("view") === viewMode) return;
       url.searchParams.set("view", viewMode);
-      const trimmed = debouncedSearch.trim();
-      if (trimmed) url.searchParams.set("search", trimmed);
-      else url.searchParams.delete("search");
       window.history.replaceState(null, "", url.pathname + url.search);
     } catch {
       // ignore
     }
-  }, [activeTabId, statusFilterId, viewMode, debouncedSearch]);
+  }, [viewMode]);
 
   const applyLeadPatch = useCallback(
     (leadId: string, patch: Partial<LeadRow>) => {
@@ -184,12 +233,16 @@ export default function WorkQueueView({
       }
 
       const rollback = optimisticPatch(lead.id, patch, previous);
-      void saveLeadPlainFieldsAction(lead.id, serverInput).catch((err) => {
-        rollback();
-        setToast(err instanceof Error ? err.message : "Save failed");
-      });
+      markSaving(lead.id);
+      void saveLeadPlainFieldsAction(lead.id, serverInput)
+        .then(() => markSaved(lead.id))
+        .catch((err) => {
+          rollback();
+          clearRowStatus(lead.id);
+          setToast(err instanceof Error ? err.message : "Save failed");
+        });
     },
-    [optimisticPatch, preview.active]
+    [clearRowStatus, markSaved, markSaving, optimisticPatch, preview.active]
   );
 
   const commitCustomField = useCallback(
@@ -201,20 +254,21 @@ export default function WorkQueueView({
         [key]: raw.trim() || null
       };
       const rollback = optimisticPatch(lead.id, { custom_fields }, previous);
-      void saveLeadPlainFieldsAction(lead.id, { custom_fields: { [key]: raw.trim() || null } }).catch(
-        (err) => {
+      markSaving(lead.id);
+      void saveLeadPlainFieldsAction(lead.id, {
+        custom_fields: { [key]: raw.trim() || null }
+      })
+        .then(() => markSaved(lead.id))
+        .catch((err) => {
           rollback();
+          clearRowStatus(lead.id);
           setToast(err instanceof Error ? err.message : "Save failed");
-        }
-      );
+        });
     },
-    [optimisticPatch, preview.active]
+    [clearRowStatus, markSaved, markSaving, optimisticPatch, preview.active]
   );
 
-  const filteredRows = useMemo(
-    () => filterWorkQueueLeads(localRows, debouncedSearch),
-    [localRows, debouncedSearch]
-  );
+  const filteredRows = localRows;
 
   const view = useTableView("leads-queue", {
     defaultColumns: DEFAULT_COLUMNS["leads-queue"],
@@ -226,8 +280,13 @@ export default function WorkQueueView({
   }, []);
 
   const tableColumns = ensureActionsColumn(view.visibleColumns);
-  const hasSearch = debouncedSearch.trim().length > 0;
+  const hasSearch = initialSearch.trim().length > 0;
   const editDisabled = preview.active;
+
+  const tableMinWidth = tableColumns.reduce((sum, col) => {
+    const w = typeof col.width === "number" && col.width > 0 ? col.width : 120;
+    return sum + w;
+  }, 0);
 
   const editHandlersFor = useCallback(
     (lead: LeadRow) => ({
@@ -248,8 +307,20 @@ export default function WorkQueueView({
     [commitCustomField, commitPlainField, editDisabled]
   );
 
+  const pagination = (
+    <div className="shrink-0">
+      <Pagination
+        page={page}
+        total={total}
+        pageSize={pageSize}
+        pathname="/leads/queue"
+        query={paginationQuery}
+      />
+    </div>
+  );
+
   const toolbar = (
-    <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="flex w-full flex-wrap items-center justify-between gap-2">
       <label className="sr-only" htmlFor="work-queue-search">
         Search leads
       </label>
@@ -259,7 +330,7 @@ export default function WorkQueueView({
         value={searchInput}
         onChange={(e) => setSearchInput(e.target.value)}
         placeholder="Search name, email, or phone"
-        className="min-w-[200px] flex-1 rounded border border-slate-200 px-3 py-1.5 text-sm text-slate-900 sm:max-w-xs"
+        className="w-full max-w-xs shrink-0 rounded border border-slate-200 px-3 py-1.5 text-sm text-slate-900"
         autoComplete="off"
       />
       <div className="flex flex-wrap items-center gap-2">
@@ -293,8 +364,8 @@ export default function WorkQueueView({
   );
 
   const emptyMessage = hasSearch
-    ? "No leads in this tab match your search."
-    : "Nothing in this queue tab.";
+    ? "No leads match your search in this view."
+    : "Nothing in this queue view.";
 
   const toastEl = (
     <WorkQueueToast message={toast} onDismiss={() => setToast(null)} />
@@ -307,6 +378,7 @@ export default function WorkQueueView({
         <p className="rounded border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
           {emptyMessage}
         </p>
+        {pagination}
         {toastEl}
       </div>
     );
@@ -324,6 +396,7 @@ export default function WorkQueueView({
                 lead={lead}
                 activities={activitiesByLead[lead.id] ?? []}
                 editDisabled={editDisabled}
+                saveStatus={rowStatus[lead.id] ?? "idle"}
                 onPlainField={(field, value) =>
                   commitPlainField(lead, field, value)
                 }
@@ -332,6 +405,10 @@ export default function WorkQueueView({
                 }
                 onLeadPatched={(patch) => applyLeadPatch(lead.id, patch)}
                 onLeadRollback={(snapshot) => restoreLead(snapshot)}
+                onSaveStart={() => markSaving(lead.id)}
+                onSaveEnd={(ok) =>
+                  ok ? markSaved(lead.id) : clearRowStatus(lead.id)
+                }
                 onError={(msg) => setToast(msg)}
                 extraFields={visibleCardFields(
                   view.visibleColumns,
@@ -343,6 +420,7 @@ export default function WorkQueueView({
             ))}
           </div>
         </div>
+        {pagination}
         {toastEl}
       </div>
     );
@@ -351,7 +429,10 @@ export default function WorkQueueView({
   return (
     <>
       <ScrollableDataTable toolbar={toolbar}>
-        <table className="min-w-[900px] w-full border-collapse text-sm">
+        <table
+          className="w-full border-collapse text-sm"
+          style={{ tableLayout: "fixed", minWidth: tableMinWidth }}
+        >
           <thead>
             <tr className="bg-slate-50 text-slate-700">
               {tableColumns.map((col) => (
@@ -361,6 +442,8 @@ export default function WorkQueueView({
                   label={
                     col.id === "actions" ? "Actions" : view.labelFor(col.id)
                   }
+                  width={col.width}
+                  onResize={view.setColumnWidth}
                 />
               ))}
             </tr>
@@ -386,17 +469,37 @@ export default function WorkQueueView({
                   col.id === "actions" ? (
                     <td
                       key={col.id}
-                      className="min-w-[200px] px-3 py-2 align-top"
+                      className="px-3 py-2 align-top"
+                      style={
+                        typeof col.width === "number" && col.width > 0
+                          ? { width: col.width }
+                          : undefined
+                      }
                       data-no-row-nav
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <WorkQueueLeadActions
-                        lead={lead}
-                        compact
-                        onLeadPatched={(patch) => applyLeadPatch(lead.id, patch)}
-                        onLeadRollback={(snapshot) => restoreLead(snapshot)}
-                        onError={(msg) => setToast(msg)}
-                      />
+                      <div className="flex items-start gap-1.5">
+                        <div className="min-w-0 flex-1">
+                          <WorkQueueLeadActions
+                            lead={lead}
+                            compact
+                            onLeadPatched={(patch) =>
+                              applyLeadPatch(lead.id, patch)
+                            }
+                            onLeadRollback={(snapshot) => restoreLead(snapshot)}
+                            onSaveStart={() => markSaving(lead.id)}
+                            onSaveEnd={(ok) =>
+                              ok ? markSaved(lead.id) : clearRowStatus(lead.id)
+                            }
+                            onError={(msg) => setToast(msg)}
+                          />
+                        </div>
+                        <div className="pt-1.5">
+                          <AsyncStatusIndicator
+                            status={rowStatus[lead.id] ?? "idle"}
+                          />
+                        </div>
+                      </div>
                     </td>
                   ) : (
                     <Fragment key={col.id}>
@@ -415,6 +518,7 @@ export default function WorkQueueView({
           </tbody>
         </table>
       </ScrollableDataTable>
+      <div className="shrink-0 pt-2">{pagination}</div>
       {toastEl}
     </>
   );
@@ -424,7 +528,7 @@ function ensureActionsColumn(
   columns: TableColumnConfig[]
 ): TableColumnConfig[] {
   if (columns.some((c) => c.id === "actions")) return columns;
-  return [...columns, { id: "actions", visible: true, width: null }];
+  return [...columns, { id: "actions", visible: true, width: 220 }];
 }
 
 function visibleCardFields(

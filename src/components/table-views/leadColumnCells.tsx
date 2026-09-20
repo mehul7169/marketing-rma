@@ -93,32 +93,16 @@ export function renderLeadColumnCell(
       return (
         <td className="px-4 py-3 font-medium text-slate-900">
           {ctx.compactName ? (
-            <>
-              <div className="flex items-center gap-1.5">
-                {canEdit ? (
-                  <InlineEditableValue
-                    className="font-medium"
-                    value={lead.name ?? ""}
-                    displayValue={lead.name || "—"}
-                    onCommit={(next) => edit?.onPlainField?.("name", next)}
-                  />
-                ) : (
-                  <span>{lead.name || "—"}</span>
-                )}
-              </div>
-              <div className="text-xs font-normal text-slate-500">
-                {canEdit ? (
-                  <InlineEditableValue
-                    value={lead.phone ?? ""}
-                    displayValue={lead.phone || "—"}
-                    inputType="tel"
-                    onCommit={(next) => edit?.onPlainField?.("phone", next)}
-                  />
-                ) : (
-                  lead.phone || "—"
-                )}
-              </div>
-            </>
+            canEdit ? (
+              <InlineEditableValue
+                className="font-medium"
+                value={lead.name ?? ""}
+                displayValue={lead.name || "—"}
+                onCommit={(next) => edit?.onPlainField?.("name", next)}
+              />
+            ) : (
+              <span>{lead.name || "—"}</span>
+            )
           ) : (
             <>
               {canEdit ? (
@@ -322,14 +306,56 @@ export function renderLeadColumnCell(
 
 export function LeadTableHeaderCell({
   columnId,
-  label
+  label,
+  width,
+  onResize
 }: {
   columnId: string;
   label: string;
+  width?: number | null;
+  onResize?: (columnId: string, width: number) => void;
 }) {
+  const style =
+    typeof width === "number" && width > 0
+      ? { width, minWidth: width, maxWidth: width }
+      : undefined;
+
   return (
-    <th key={columnId} className="px-4 py-3 text-left">
-      {label}
+    <th
+      key={columnId}
+      className="relative px-4 py-3 text-left"
+      style={style}
+    >
+      <span className="pr-2">{label}</span>
+      {onResize ? (
+        <span
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={`Resize ${label}`}
+          data-no-row-nav
+          className="absolute right-0 top-0 z-10 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-sky-300/60"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const startX = e.clientX;
+            const startW =
+              typeof width === "number" && width > 0
+                ? width
+                : (e.currentTarget.parentElement?.getBoundingClientRect()
+                    .width ?? 120);
+
+            function onMove(ev: MouseEvent) {
+              onResize?.(columnId, startW + (ev.clientX - startX));
+            }
+            function onUp() {
+              document.removeEventListener("mousemove", onMove);
+              document.removeEventListener("mouseup", onUp);
+            }
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
+          }}
+        />
+      ) : null}
     </th>
   );
 }

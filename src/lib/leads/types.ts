@@ -121,4 +121,8 @@ export type LeadListFilters = {
   upcomingOnly?: boolean;
   /** call_scheduled_for set and still in the future. */
   meetingsBookedOnly?: boolean;
+  /** Page size (e.g. 50). Omit for unbounded (admin/scripts). */
+  limit?: number;
+  /** 0-based offset into the ordered result set. */
+  offset?: number;
 };

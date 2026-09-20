@@ -93,6 +93,8 @@ export default function WorkQueueLeadActions({
   onToggleHistory,
   onLeadPatched,
   onLeadRollback,
+  onSaveStart,
+  onSaveEnd,
   onError
 }: {
   lead: LeadRow;
@@ -102,6 +104,9 @@ export default function WorkQueueLeadActions({
   onToggleHistory?: () => void;
   onLeadPatched?: (patch: Partial<LeadRow>) => void;
   onLeadRollback?: (snapshot: LeadRow) => void;
+  onSaveStart?: () => void;
+  /** ok=true after successful save; ok=false after failure/rollback. */
+  onSaveEnd?: (ok: boolean) => void;
   onError?: (message: string) => void;
 }) {
   const preview = useOrgPreview();
@@ -210,6 +215,7 @@ export default function WorkQueueLeadActions({
     setNote("");
     setError(null);
     onLeadPatched?.(optimistic);
+    onSaveStart?.();
 
     void logLeadCallAttemptAction(lead.id, outcome, {
       note: note || null,
@@ -219,9 +225,11 @@ export default function WorkQueueLeadActions({
     })
       .then((result) => {
         onLeadPatched?.(result);
+        onSaveEnd?.(true);
       })
       .catch((err) => {
         onLeadRollback?.(snapshot);
+        onSaveEnd?.(false);
         fail(err instanceof Error ? err.message : "Action failed");
       });
   }
@@ -235,14 +243,17 @@ export default function WorkQueueLeadActions({
     setNote("");
     setError(null);
     if (optimistic) onLeadPatched?.(optimistic);
+    onSaveStart?.();
     void fn()
       .then((result) => {
         if (result && typeof result === "object" && "id" in (result as object)) {
           onLeadPatched?.(result as Partial<LeadRow>);
         }
+        onSaveEnd?.(true);
       })
       .catch((err) => {
         onLeadRollback?.(snapshot);
+        onSaveEnd?.(false);
         fail(err instanceof Error ? err.message : "Action failed");
       });
   }

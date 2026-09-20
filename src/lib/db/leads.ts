@@ -655,8 +655,17 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
     }
   }
   if (filters.search && filters.search.trim()) {
-    const q = filters.search.trim().replace(/[%_,]/g, " ");
-    query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%`);
+    const raw = filters.search.trim().replace(/[%_,]/g, " ");
+    const digits = raw.replace(/\D/g, "");
+    const parts = [
+      `name.ilike.%${raw}%`,
+      `email.ilike.%${raw}%`,
+      `phone.ilike.%${raw}%`
+    ];
+    if (digits.length >= 3 && digits !== raw) {
+      parts.push(`phone.ilike.%${digits}%`);
+    }
+    query = query.or(parts.join(","));
   }
 
   if (filters.excludeDeadAndClosed) {
@@ -694,6 +703,19 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
     query = query
       .not("call_scheduled_for", "is", null)
       .gt("call_scheduled_for", new Date().toISOString());
+  }
+
+  if (
+    typeof filters.limit === "number" &&
+    filters.limit > 0 &&
+    Number.isFinite(filters.limit)
+  ) {
+    const offset =
+      typeof filters.offset === "number" && filters.offset > 0
+        ? Math.floor(filters.offset)
+        : 0;
+    const limit = Math.floor(filters.limit);
+    query = query.range(offset, offset + limit - 1);
   }
 
   const { data, error } = await query;
@@ -793,8 +815,17 @@ export async function countLeads(filters: LeadListFilters): Promise<number> {
     }
   }
   if (filters.search && filters.search.trim()) {
-    const q = filters.search.trim().replace(/[%_,]/g, " ");
-    query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%`);
+    const raw = filters.search.trim().replace(/[%_,]/g, " ");
+    const digits = raw.replace(/\D/g, "");
+    const parts = [
+      `name.ilike.%${raw}%`,
+      `email.ilike.%${raw}%`,
+      `phone.ilike.%${raw}%`
+    ];
+    if (digits.length >= 3 && digits !== raw) {
+      parts.push(`phone.ilike.%${digits}%`);
+    }
+    query = query.or(parts.join(","));
   }
 
   if (filters.excludeDeadAndClosed) {

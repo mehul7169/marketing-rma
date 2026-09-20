@@ -32,10 +32,17 @@ export default function ConfigurableLeadsTable({
   });
   const compactName = pageKey === "leads-queue";
   const colCount = Math.max(view.visibleColumns.length, 1);
+  const tableMinWidth = view.visibleColumns.reduce((sum, col) => {
+    const w = typeof col.width === "number" && col.width > 0 ? col.width : 120;
+    return sum + w;
+  }, 0);
 
   return (
     <ScrollableDataTable toolbar={<ColumnPicker view={view} />}>
-      <table className="min-w-[900px] w-full border-collapse text-sm">
+      <table
+        className="w-full border-collapse text-sm"
+        style={{ tableLayout: "fixed", minWidth: tableMinWidth }}
+      >
         <thead>
           <tr className="bg-slate-50 text-slate-700">
             {view.visibleColumns.map((col) => (
@@ -43,6 +50,8 @@ export default function ConfigurableLeadsTable({
                 key={col.id}
                 columnId={col.id}
                 label={view.labelFor(col.id)}
+                width={col.width}
+                onResize={view.setColumnWidth}
               />
             ))}
           </tr>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import ActionStatusBadge from "@/components/leads/ActionStatusBadge";
 import InlineEditableValue from "@/components/leads/InlineEditableValue";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
+import AsyncStatusIndicator from "@/components/ui/AsyncStatusIndicator";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatDueFriendly, formatISTDateTime, toDatetimeLocalIST } from "@/lib/timezone";
@@ -18,16 +19,20 @@ export default function WorkQueueCard({
   activities,
   extraFields,
   editDisabled = false,
+  saveStatus = "idle",
   onPlainField,
   onCustomField,
   onLeadPatched,
   onLeadRollback,
+  onSaveStart,
+  onSaveEnd,
   onError
 }: {
   lead: LeadRow;
   activities: LeadActivityRow[];
   extraFields?: Array<{ id: string; label: string; value: string }>;
   editDisabled?: boolean;
+  saveStatus?: "idle" | "saving" | "saved";
   onPlainField?: (
     field:
       | "name"
@@ -41,6 +46,8 @@ export default function WorkQueueCard({
   onCustomField?: (key: string, value: string) => void;
   onLeadPatched?: (patch: Partial<LeadRow>) => void;
   onLeadRollback?: (snapshot: LeadRow) => void;
+  onSaveStart?: () => void;
+  onSaveEnd?: (ok: boolean) => void;
   onError?: (message: string) => void;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -59,6 +66,7 @@ export default function WorkQueueCard({
                 onCommit={(next) => onPlainField?.("name", next)}
               />
             </div>
+            <AsyncStatusIndicator status={saveStatus} />
             <a
               href={`/leads/${lead.id}`}
               className="shrink-0 text-xs text-slate-400 hover:text-slate-700 hover:underline"
@@ -131,6 +139,8 @@ export default function WorkQueueCard({
         onToggleHistory={() => setHistoryOpen((v) => !v)}
         onLeadPatched={onLeadPatched}
         onLeadRollback={onLeadRollback}
+        onSaveStart={onSaveStart}
+        onSaveEnd={onSaveEnd}
         onError={onError}
       />
 

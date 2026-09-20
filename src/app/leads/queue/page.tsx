@@ -7,6 +7,11 @@ import { countLeads, listLeads } from "@/lib/db/leads";
 import { getOrganizationById } from "@/lib/db/organizations";
 import type { ActionStatus } from "@/lib/leads/actionStatus";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
+import {
+  LEAD_LIST_PAGE_SIZE,
+  pageOffset,
+  parsePageParam
+} from "@/lib/leads/pagination";
 import type { LeadListFilters } from "@/lib/leads/types";
 import { loadTableViewBootstrap } from "@/lib/table-views/loadBootstrap";
 
@@ -37,24 +42,30 @@ const STATUS_FILTERS: Array<{
 
 function queueHref(opts: {
   view: string;
-  tab?: string;
-  filter?: string;
+  tab?: string | null;
+  filter?: string | null;
+  search?: string;
+  page?: number;
 }): string {
   const params = new URLSearchParams();
   params.set("view", opts.view);
   if (opts.tab) params.set("tab", opts.tab);
   if (opts.filter) params.set("filter", opts.filter);
+  if (opts.search?.trim()) params.set("search", opts.search.trim());
+  if (opts.page && opts.page > 1) params.set("page", String(opts.page));
   return `/leads/queue?${params.toString()}`;
 }
 
 function listFiltersForView(
   orgId: string,
   tabId: string | null,
-  filterId: string | null
+  filterId: string | null,
+  search: string
 ): LeadListFilters {
   const base: LeadListFilters = {
     orgId,
-    excludeDeadAndClosed: true
+    excludeDeadAndClosed: true,
+    search: search || undefined
   };
   if (tabId === "meetings_booked") {
     return { ...base, meetingsBookedOnly: true };
@@ -73,20 +84,24 @@ function listFiltersForView(
       upcomingOnly: filter.upcomingOnly
     };
   }
-  // Default: all active leads, no action_status / meeting scope.
   return base;
 }
 
 export default async function WorkQueuePage({
   searchParams
 }: {
-  searchParams: { tab?: string; filter?: string; view?: string; search?: string };
+  searchParams: {
+    tab?: string;
+    filter?: string;
+    view?: string;
+    search?: string;
+    page?: string;
+  };
 }) {
   const orgId = await getCurrentOrgId();
   const rawTab = searchParams.tab?.trim() || "";
   const tabId =
     rawTab === "meetings_booked" || rawTab === "follow_ups_due" ? rawTab : null;
-  // Tab wins over filter when both are present.
   const filterId = tabId
     ? null
     : STATUS_FILTERS.some((f) => f.id === searchParams.filter)
@@ -94,21 +109,35 @@ export default async function WorkQueuePage({
       : null;
   const initialViewMode = searchParams.view === "cards" ? "cards" : "table";
   const initialSearch = (searchParams.search ?? "").trim();
+  const page = parsePageParam(searchParams.page);
 
   const countBase = { orgId, excludeDeadAndClosed: true as const };
-  const listFilters = listFiltersForView(orgId, tabId, filterId);
+  const scopeFilters = listFiltersForView(orgId, tabId, filterId, initialSearch);
+  const listFilters: LeadListFilters = {
+    ...scopeFilters,
+    limit: LEAD_LIST_PAGE_SIZE,
+    offset: pageOffset(page)
+  };
 
-  const [meetingsCount, followUpsCount, rows, org, tableViewBootstrap] =
-    await Promise.all([
-      countLeads({ ...countBase, meetingsBookedOnly: true }),
-      countLeads({
-        ...countBase,
-        actionStatuses: ["Follow-up Due", "Follow-up Overdue"]
-      }),
-      listLeads(listFilters),
-      getOrganizationById(orgId),
-      loadTableViewBootstrap("leads-queue", { orgId })
-    ]);
+  const [
+    meetingsCount,
+    followUpsCount,
+    total,
+    rows,
+    org,
+    tableViewBootstrap
+  ] = await Promise.all([
+    // Badge counts: lightweight count(*), not the paged row set.
+    countLeads({ ...countBase, meetingsBookedOnly: true }),
+    countLeads({
+      ...countBase,
+      actionStatuses: ["Follow-up Due", "Follow-up Overdue"]
+    }),
+    countLeads(scopeFilters),
+    listLeads(listFilters),
+    getOrganizationById(orgId),
+    loadTableViewBootstrap("leads-queue", { orgId })
+  ]);
 
   const counts: Record<string, number> = {
     meetings_booked: meetingsCount,
@@ -156,8 +185,15 @@ export default async function WorkQueuePage({
                   aria-selected={active}
                   href={
                     active
-                      ? queueHref({ view: initialViewMode })
-                      : queueHref({ view: initialViewMode, tab: tab.id })
+                      ? queueHref({
+                          view: initialViewMode,
+                          search: initialSearch
+                        })
+                      : queueHref({
+                          view: initialViewMode,
+                          tab: tab.id,
+                          search: initialSearch
+                        })
                   }
                   className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs ${
                     i > 0 ? "border-l border-sky-200" : ""
@@ -179,17 +215,21 @@ export default async function WorkQueuePage({
           <WorkQueueStatusFilter
             view={initialViewMode}
             value={filterId}
+            search={initialSearch}
             disabled={Boolean(tabId)}
           />
         </div>
       </div>
 
       <WorkQueueView
-        key={`${tabId ?? "all"}:${filterId ?? ""}`}
+        key={`${tabId ?? "all"}:${filterId ?? ""}:${page}:${initialSearch}`}
         initialViewMode={initialViewMode}
         initialSearch={initialSearch}
         activeTabId={tabId ?? "all"}
         statusFilterId={filterId}
+        page={page}
+        total={total}
+        pageSize={LEAD_LIST_PAGE_SIZE}
         rows={rows}
         activitiesByLead={activitiesByLead}
         orgName={org?.name ?? null}

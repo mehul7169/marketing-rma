@@ -3,18 +3,24 @@ import DateRangePicker from "@/components/DateRangePicker";
 import LeadsFilters from "@/components/leads/LeadsFilters";
 import ConfigurableLeadsTable from "@/components/table-views/ConfigurableLeadsTable";
 import { DataTablePageShell } from "@/components/table-views/ScrollableDataTable";
+import Pagination from "@/components/ui/Pagination";
 import { listDueFollowUps } from "@/lib/db/lead_reminders";
-import { listDistinctLeadSources, listLeads } from "@/lib/db/leads";
+import { countLeads, listDistinctLeadSources, listLeads } from "@/lib/db/leads";
 import { getOrganizationById } from "@/lib/db/organizations";
 import {
   cohortBannerCopy,
   eventBannerCopy,
   parseUrlEvent
 } from "@/lib/leads/stageEvents";
+import {
+  LEAD_LIST_PAGE_SIZE,
+  pageOffset,
+  parsePageParam
+} from "@/lib/leads/pagination";
 import { loadTableViewBootstrap } from "@/lib/table-views/loadBootstrap";
 import { clampDateRange, defaultFromISO } from "@/lib/utils/date";
 import { todayISTDateString } from "@/lib/timezone";
-import type { LeadReminder } from "@/lib/leads/types";
+import type { LeadListFilters, LeadReminder } from "@/lib/leads/types";
 
 function parseList(value: string | undefined): string[] {
   if (!value) return [];
@@ -35,6 +41,7 @@ export default async function LeadsPage({
     lifecycle?: string;
     action_status?: string;
     is_dead?: string;
+    page?: string;
   };
 }) {
   const todayISO = todayISTDateString();
@@ -66,28 +73,35 @@ export default async function LeadsPage({
   const needsVerificationCall = lifecycle === "needs_verification";
   const followUpsDue = lifecycle === "follow_ups_due";
   const orgId = await getCurrentOrgId();
+  const page = parsePageParam(searchParams.page);
 
-  const [rows, allSources, org, tableViewBootstrap] = await Promise.all([
+  const scopeFilters: LeadListFilters = {
+    orgId,
+    fromISO,
+    toISO,
+    stages: deepLinkStage ? undefined : stages,
+    cohort,
+    event: cohortStage ? undefined : event,
+    sources,
+    search,
+    lifecycle: followUpsDue || needsVerificationCall ? undefined : lifecycle,
+    followUpsDue,
+    needsVerificationCall,
+    actionStatuses: actionStatusFilter ? [actionStatusFilter] : undefined,
+    isDead:
+      isDeadFilter === "true"
+        ? true
+        : isDeadFilter === "false"
+          ? false
+          : undefined
+  };
+
+  const [total, rows, allSources, org, tableViewBootstrap] = await Promise.all([
+    countLeads(scopeFilters),
     listLeads({
-      orgId,
-      fromISO,
-      toISO,
-      stages: deepLinkStage ? undefined : stages,
-      cohort,
-      event: cohortStage ? undefined : event,
-      sources,
-      search,
-      lifecycle:
-        followUpsDue || needsVerificationCall ? undefined : lifecycle,
-      followUpsDue,
-      needsVerificationCall,
-      actionStatuses: actionStatusFilter ? [actionStatusFilter] : undefined,
-      isDead:
-        isDeadFilter === "true"
-          ? true
-          : isDeadFilter === "false"
-            ? false
-            : undefined
+      ...scopeFilters,
+      limit: LEAD_LIST_PAGE_SIZE,
+      offset: pageOffset(page)
     }),
     listDistinctLeadSources(orgId),
     getOrganizationById(orgId),
@@ -105,6 +119,24 @@ export default async function LeadsPage({
     dueByLead[r.lead_id] = list;
   }
 
+  function leadsQuery(): Record<string, string> {
+    const q: Record<string, string> = {
+      from: fromISO,
+      to: toISO
+    };
+    if (lifecycle) q.lifecycle = lifecycle;
+    if (!deepLinkStage && stages.length) q.stage = stages.join(",");
+    if (cohort) q.cohort = cohort;
+    if (!cohortStage && event) q.event = event;
+    if (sources.length) q.source = sources.join(",");
+    if (search) q.q = search;
+    if (actionStatusFilter) q.action_status = actionStatusFilter;
+    if (isDeadFilter === "true" || isDeadFilter === "false") {
+      q.is_dead = isDeadFilter;
+    }
+    return q;
+  }
+
   return (
     <DataTablePageShell className="gap-6">
       <div className="shrink-0 space-y-4">
@@ -113,10 +145,10 @@ export default async function LeadsPage({
             <h1 className="page-title">Leads</h1>
             <p className="mt-1 text-sm text-slate-600">
               {lifecycle === "follow_ups_due"
-                ? `${rows.length} with follow-ups due today or overdue`
+                ? `${total} with follow-ups due today or overdue`
                 : lifecycle === "needs_verification"
-                  ? `${rows.length} needing a verification call`
-                  : `${rows.length} in ${fromISO} to ${toISO}`}
+                  ? `${total} needing a verification call`
+                  : `${total} in ${fromISO} to ${toISO}`}
               {" · "}
               <a
                 href="/leads/queue"
@@ -174,6 +206,15 @@ export default async function LeadsPage({
         orgName={org?.name ?? null}
         tableViewBootstrap={tableViewBootstrap}
       />
+      <div className="shrink-0">
+        <Pagination
+          page={page}
+          total={total}
+          pageSize={LEAD_LIST_PAGE_SIZE}
+          pathname="/leads"
+          query={leadsQuery()}
+        />
+      </div>
     </DataTablePageShell>
   );
 }
