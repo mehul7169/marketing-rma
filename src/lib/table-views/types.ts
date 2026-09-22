@@ -1,7 +1,7 @@
 /** Shared table-view config — per-user, per page_key. */
 
 export type TableColumnConfig = {
-  /** Stable id, e.g. "email" or "custom_fields.describes_you" */
+  /** Stable id, e.g. "email" or "custom_fields.what_describes_you_best?" */
   id: string;
   visible: boolean;
   /** Pixel width; null falls back to DEFAULT_COLUMN_WIDTHS / auto. */

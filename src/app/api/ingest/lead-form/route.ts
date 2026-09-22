@@ -3,8 +3,8 @@ import { getLeadByEmail, insertLead, updateLead } from "@/lib/db/leads";
 import type { LeadRow } from "@/lib/leads/types";
 import {
   mergeCustomFields,
-  WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS,
-  type WebsiteCanonicalCustomFieldKey
+  resolveWebsiteFieldValue,
+  WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS
 } from "@/lib/leads/customFields";
 import { getOrgIdBySlug } from "@/lib/orgs/getOrgIdBySlug";
 import { notifySlackNewLead } from "@/lib/slack/messages";
@@ -25,7 +25,9 @@ type LeadFormBody = {
   lead_source?: unknown;
   form_answers?: unknown;
   qualified?: unknown;
-} & Partial<Record<WebsiteCanonicalCustomFieldKey, unknown>>;
+  /** Legacy short keys and/or canonical long keys may appear at the top level. */
+  [key: string]: unknown;
+};
 
 function str(v: unknown): string | null {
   if (v === null || v === undefined) return null;
@@ -47,8 +49,9 @@ function optionalBool(v: unknown): boolean | null | undefined {
 }
 
 /**
- * Website qual answers always land under these exact custom_fields keys
- * (same as the historical backfill) — never under raw/alternate payload names.
+ * Website qual answers always land under Quickform's canonical long keys
+ * in custom_fields. Accepts legacy short names from the form payload.
+ * Never writes the four legacy strict columns (describes_you, etc.).
  */
 function customFieldsFromWebsiteBody(
   body: LeadFormBody
@@ -61,17 +64,18 @@ function customFieldsFromWebsiteBody(
       ? (body.form_answers as Record<string, unknown>)
       : null;
 
-  for (const key of WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS) {
-    const fromTop = str(body[key as WebsiteCanonicalCustomFieldKey]);
-    const fromAnswers = formAnswers ? str(formAnswers[key]) : null;
-    const value = fromTop ?? fromAnswers;
-    if (value) out[key] = value;
+  for (const canonical of WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS) {
+    const value = resolveWebsiteFieldValue([body, formAnswers], canonical);
+    if (value) out[canonical] = value;
   }
 
   return out;
 }
 
-async function maybeNotifyNewLead(existing: LeadRow | null, lead: LeadRow): Promise<LeadRow> {
+async function maybeNotifyNewLead(
+  existing: LeadRow | null,
+  lead: LeadRow
+): Promise<LeadRow> {
   if (existing?.slack_form_notified) return lead;
   await notifySlackNewLead(lead);
   return updateLead(lead, { slack_form_notified: true });
@@ -130,7 +134,11 @@ export async function POST(req: NextRequest) {
         qualified_by: qualified === true || qualified === false ? "form" : null
       });
       created = await maybeNotifyNewLead(null, created);
-      return NextResponse.json({ id: created.id, stage: created.stage, created: true });
+      return NextResponse.json({
+        id: created.id,
+        stage: created.stage,
+        created: true
+      });
     }
 
     const nextQualified =
@@ -151,7 +159,11 @@ export async function POST(req: NextRequest) {
 
     updated = await maybeNotifyNewLead(existing, updated);
 
-    return NextResponse.json({ id: updated.id, stage: updated.stage, created: false });
+    return NextResponse.json({
+      id: updated.id,
+      stage: updated.stage,
+      created: false
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { status: 500 });

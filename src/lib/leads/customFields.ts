@@ -1,20 +1,43 @@
 /**
  * Canonical custom_fields keys for website qualification answers.
- * Always write/read these exact keys (matches historical backfill).
+ * Match Quickform's long-form keys exactly so RMA's two ingest pipelines
+ * (website webhook + Quickform sync) store the same semantic answers under
+ * one key each. Phase 1 SQL already consolidated historical data onto these.
  */
 export const WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS = [
-  "describes_you",
-  "biggest_goal",
-  "monthly_revenue",
-  "investment_capacity"
+  "what_describes_you_best?",
+  "what_is_your_biggest_goal_right_now?",
+  "what_is_your_current_monthly_revenue?",
+  "what_is_your_investment_capacity?"
 ] as const;
 
 export type WebsiteCanonicalCustomFieldKey =
   (typeof WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS)[number];
 
 /**
+ * Legacy short names the website form may still POST (top-level or under
+ * form_answers). Always map these onto the canonical long keys above —
+ * never write the short names into custom_fields.
+ */
+export const WEBSITE_FIELD_ALIASES: Record<
+  string,
+  WebsiteCanonicalCustomFieldKey
+> = {
+  describes_you: "what_describes_you_best?",
+  biggest_goal: "what_is_your_biggest_goal_right_now?",
+  monthly_revenue: "what_is_your_current_monthly_revenue?",
+  investment_capacity: "what_is_your_investment_capacity?",
+  "what_describes_you_best?": "what_describes_you_best?",
+  "what_is_your_biggest_goal_right_now?":
+    "what_is_your_biggest_goal_right_now?",
+  "what_is_your_current_monthly_revenue?":
+    "what_is_your_current_monthly_revenue?",
+  "what_is_your_investment_capacity?": "what_is_your_investment_capacity?"
+};
+
+/**
  * Legacy Postgres columns on leads — inert; never read or write from app code.
- * Kept in the DB until a follow-up drop migration.
+ * Kept in the DB until a follow-up drop migration (Phase 4).
  */
 export const LEGACY_LEAD_COLUMN_KEYS = [
   "describes_you",
@@ -102,6 +125,31 @@ export function getCustomFieldString(
     const v = cf[key];
     if (typeof v === "string" && v.trim()) return v.trim();
     if (typeof v === "number" || typeof v === "boolean") return String(v);
+  }
+  return null;
+}
+
+/**
+ * Resolve a website payload value for one canonical key, accepting either the
+ * long-form key or its legacy short alias (top-level or inside form_answers).
+ */
+export function resolveWebsiteFieldValue(
+  sources: Array<Record<string, unknown> | null | undefined>,
+  canonical: WebsiteCanonicalCustomFieldKey
+): string | null {
+  const aliases = Object.entries(WEBSITE_FIELD_ALIASES)
+    .filter(([, target]) => target === canonical)
+    .map(([alias]) => alias);
+
+  for (const source of sources) {
+    if (!source) continue;
+    for (const alias of aliases) {
+      if (!(alias in source)) continue;
+      const v = source[alias];
+      if (v === null || v === undefined) continue;
+      const t = String(v).trim();
+      if (t) return t;
+    }
   }
   return null;
 }
