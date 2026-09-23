@@ -84,10 +84,17 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
   const isSignup = pathname === "/signup" || pathname.startsWith("/signup/");
+  const isForgotPassword =
+    pathname === "/forgot-password" || pathname.startsWith("/forgot-password/");
+  const isResetPassword =
+    pathname === "/reset-password" || pathname.startsWith("/reset-password/");
+  // Password recovery must stay reachable even with a session: the recovery
+  // link establishes a temporary session before updateUser({ password }).
+  const isPasswordRecoveryPage = isForgotPassword || isResetPassword;
   const isAuthPage = isLogin || isSignup;
 
   if (!user) {
-    if (isAuthPage) return supabaseResponse;
+    if (isAuthPage || isPasswordRecoveryPage) return supabaseResponse;
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -101,6 +108,10 @@ export async function updateSession(request: NextRequest) {
     request.cookies.get(PREVIEW_ORG_COOKIE)?.value?.trim()
   );
   const previewingAsAdmin = isPlatformAdmin && hasPreviewCookie;
+
+  if (isPasswordRecoveryPage) {
+    return supabaseResponse;
+  }
 
   if (isAuthPage) {
     if (!hasMembership && !isPlatformAdmin) {

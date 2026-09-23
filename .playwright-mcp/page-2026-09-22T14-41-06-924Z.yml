@@ -1,0 +1,122 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - complementary [ref=f4e3]:
+      - link "Run More Ads Dashboard" [ref=f4e5] [cursor=pointer]:
+        - /url: /
+        - img "Run More Ads" [ref=f4e6]
+        - generic [ref=f4e7]: Dashboard
+      - navigation [ref=f4e8]:
+        - link "Home" [ref=f4e9] [cursor=pointer]:
+          - /url: /
+        - link "Leads" [ref=f4e10] [cursor=pointer]:
+          - /url: /leads
+        - link "Work Queue" [ref=f4e11] [cursor=pointer]:
+          - /url: /leads/queue
+        - link "Insights" [ref=f4e12] [cursor=pointer]:
+          - /url: /insights
+        - link "Meta Ads" [ref=f4e13] [cursor=pointer]:
+          - /url: /meta-ads
+        - link "Website" [ref=f4e14] [cursor=pointer]:
+          - /url: /website
+      - button "Log out" [ref=f4e16] [cursor=pointer]
+    - generic [ref=f4e17]:
+      - banner [ref=f4e18]:
+        - button "Collapse sidebar" [ref=f4e19] [cursor=pointer]: ☰
+      - main [ref=f4e20]:
+        - generic [ref=f4e22]:
+          - generic [ref=f4e23]:
+            - generic [ref=f4e24]:
+              - heading "Funnel overview" [level=1] [ref=f4e25]
+              - paragraph [ref=f4e26]: 2026-08-24 to 2026-09-22
+            - generic [ref=f4e27]:
+              - generic [ref=f4e28]:
+                - generic [ref=f4e29]: From (IST)
+                - textbox [ref=f4e30]: 2026-08-24
+              - generic [ref=f4e31]:
+                - generic [ref=f4e32]: To (IST)
+                - textbox [ref=f4e33]: 2026-09-22
+              - generic [ref=f4e34]:
+                - button "Update" [ref=f4e35] [cursor=pointer]
+                - generic [ref=f4e36]: "Default: last 30 days (IST)"
+          - generic [ref=f4e37]:
+            - link "All sources" [ref=f4e38] [cursor=pointer]:
+              - /url: /?from=2026-08-24&to=2026-09-22
+            - link "facebook" [ref=f4e39] [cursor=pointer]:
+              - /url: /?from=2026-08-24&to=2026-09-22&source=facebook
+            - link "ig" [ref=f4e40] [cursor=pointer]:
+              - /url: /?from=2026-08-24&to=2026-09-22&source=ig
+            - link "quickform_fb" [ref=f4e41] [cursor=pointer]:
+              - /url: /?from=2026-08-24&to=2026-09-22&source=quickform_fb
+            - link "quickform_ig" [ref=f4e42] [cursor=pointer]:
+              - /url: /?from=2026-08-24&to=2026-09-22&source=quickform_ig
+            - link "youtube" [ref=f4e43] [cursor=pointer]:
+              - /url: /?from=2026-08-24&to=2026-09-22&source=youtube
+            - link "youtubemokshvideo" [ref=f4e44] [cursor=pointer]:
+              - /url: /?from=2026-08-24&to=2026-09-22&source=youtubemokshvideo
+          - paragraph [ref=f4e45]:
+            - link "199 Active" [ref=f4e46] [cursor=pointer]:
+              - /url: /leads?from=2026-08-24&to=2026-09-22&lifecycle=active
+            - text: ·
+            - link "122 Unqualified" [ref=f4e47] [cursor=pointer]:
+              - /url: /leads?from=2026-08-24&to=2026-09-22&lifecycle=unqualified
+            - text: ·
+            - link "52 Dead" [ref=f4e48] [cursor=pointer]:
+              - /url: /leads?from=2026-08-24&to=2026-09-22&lifecycle=dead
+            - text: ·
+            - link "4 Closed" [ref=f4e49] [cursor=pointer]:
+              - /url: /leads?from=2026-08-24&to=2026-09-22&lifecycle=closed
+          - generic [ref=f4e50]:
+            - generic [ref=f4e51]:
+              - generic [ref=f4e52]: Total Leads
+              - generic [ref=f4e53]: "377"
+            - generic [ref=f4e54]:
+              - generic [ref=f4e55]: Booked Rate
+              - generic [ref=f4e56]: 14.85%
+            - generic [ref=f4e57]:
+              - generic [ref=f4e58]: Show-up Rate
+              - generic [ref=f4e59]: 77.78%
+            - generic [ref=f4e60]:
+              - generic [ref=f4e61]: Closing Rate
+              - generic [ref=f4e62]: 28.57%
+            - generic [ref=f4e63]:
+              - generic [ref=f4e64]: Total Revenue
+              - generic [ref=f4e65]: ₹9,79,976
+          - generic [ref=f4e66]:
+            - heading "Funnel" [level=2] [ref=f4e67]
+            - paragraph [ref=f4e68]: This cohort includes recent leads who may still be moving through the funnel — later-stage numbers may increase as follow-ups complete.
+            - generic [ref=f4e69]:
+              - link "Created 377 100% of leads" [ref=f4e70] [cursor=pointer]:
+                - /url: /leads?from=2026-08-24&to=2026-09-22&lifecycle=all
+                - generic [ref=f4e71]: Created
+                - generic [ref=f4e72]: "377"
+                - generic [ref=f4e73]: 100% of leads
+              - link "Call Booked 56 15% of previous" [ref=f4e74] [cursor=pointer]:
+                - /url: /leads?from=2026-08-24&to=2026-09-22&lifecycle=all&cohort=call_booked
+                - generic [ref=f4e75]: Call Booked
+                - generic [ref=f4e76]: "56"
+                - generic [ref=f4e77]: 15% of previous
+              - link "Qualified Call Booked 18 32% of previous" [ref=f4e78] [cursor=pointer]:
+                - /url: /leads?from=2026-08-24&to=2026-09-22&lifecycle=all&cohort=qualified_call_booked
+                - generic [ref=f4e79]: Qualified Call Booked
+                - generic [ref=f4e80]: "18"
+                - generic [ref=f4e81]: 32% of previous
+              - link "Show Up 14 78% of previous" [ref=f4e82] [cursor=pointer]:
+                - /url: /leads?from=2026-08-24&to=2026-09-22&lifecycle=all&cohort=show_up
+                - generic [ref=f4e83]: Show Up
+                - generic [ref=f4e84]: "14"
+                - generic [ref=f4e85]: 78% of previous
+              - link "Closed 4 29% of previous" [ref=f4e86] [cursor=pointer]:
+                - /url: /leads?from=2026-08-24&to=2026-09-22&lifecycle=all&cohort=closed
+                - generic [ref=f4e87]: Closed
+                - generic [ref=f4e88]: "4"
+                - generic [ref=f4e89]: 29% of previous
+          - generic [ref=f4e90]:
+            - link "Insights →" [ref=f4e91] [cursor=pointer]:
+              - /url: /insights
+            - link "Open leads CRM →" [ref=f4e92] [cursor=pointer]:
+              - /url: /leads
+            - link "Meta Ads →" [ref=f4e93] [cursor=pointer]:
+              - /url: /meta-ads
+            - link "Website analytics →" [ref=f4e94] [cursor=pointer]:
+              - /url: /website
+  - alert [ref=f4e95]
