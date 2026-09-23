@@ -69,6 +69,20 @@ function isFollowUpStatus(value: string | null): value is PostCallFollowUpStage 
 }
 
 /**
+ * call_confirmed is a persistent flag (never reset once true). Set by Work Queue
+ * "Qualified" call outcome, or by Setter verified = Yes on a booked lead.
+ */
+export function resolveCallConfirmed(input: {
+  call_confirmed: boolean | null;
+  setter_verified: boolean | null;
+  call_booked_at: string | null;
+}): boolean | null {
+  if (input.call_confirmed === true) return true;
+  if (input.setter_verified === true && input.call_booked_at) return true;
+  return input.call_confirmed;
+}
+
+/**
  * Single source of truth for lead.stage. Called on every write.
  * Precedence (highest wins):
  * closed → dead → post-call follow-up → show_up →

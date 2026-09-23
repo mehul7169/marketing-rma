@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { requireWritableOrgId } from "@/lib/auth/getCurrentOrgId";
 import { getActorEmail, getActorUserId } from "@/lib/auth/session";
+import { insertLeadActivity } from "@/lib/db/lead_activities";
 import { insertLeadReminder, resolveLeadReminder } from "@/lib/db/lead_reminders";
 import { getLeadById, scheduleLeadCall, updateLead } from "@/lib/db/leads";
+import { detailMilestones } from "@/lib/leads/detailMilestones";
 import type { CallAttemptOutcome, ShowOutcome } from "@/lib/leads/actionStatus";
 import type { PostCallStatus, RequalificationResult } from "@/lib/leads/computeStage";
 import {
@@ -128,6 +130,22 @@ export async function saveLeadActions(id: string, input: LeadActionInput) {
     patch.post_call_status_updated_by = by;
   }
 
+  const milestones = detailMilestones(existing, input);
+  if (milestones.length > 0) {
+    const created_by = await actorId();
+    for (const m of milestones) {
+      await insertLeadActivity({
+        org_id: orgId,
+        lead_id: id,
+        type: m.type,
+        outcome: m.outcome,
+        created_by
+      });
+    }
+    patch.last_action = milestones[milestones.length - 1].summary;
+    patch.last_action_at = now;
+  }
+
   const updated = await updateLead(existing, patch);
   revalidateLead(id);
   return {
@@ -227,7 +245,18 @@ export async function saveLeadSchedule(id: string, scheduledForLocal: string) {
   const existing = await getLeadById(id, orgId);
   if (!existing) throw new Error("Lead not found");
   const iso = fromDatetimeLocalIST(scheduledForLocal);
-  const updated = await scheduleLeadCall(existing, iso, await actorId());
+  const actor = await actorId();
+  const isReschedule = Boolean(existing.call_scheduled_for);
+  await insertLeadActivity({
+    org_id: orgId,
+    lead_id: id,
+    type: isReschedule ? "reschedule" : "schedule",
+    created_by: actor
+  });
+  const updated = await scheduleLeadCall(existing, iso, actor, {
+    last_action: isReschedule ? "Call rescheduled" : "Call scheduled",
+    last_action_at: new Date().toISOString()
+  });
   revalidateLead(id);
   return {
     id: updated.id,

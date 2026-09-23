@@ -4,7 +4,11 @@ import {
   displayActionStatus
 } from "@/lib/leads/actionStatus";
 import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
-import { computeStage, LEAD_STAGES } from "@/lib/leads/computeStage";
+import {
+  computeStage,
+  LEAD_STAGES,
+  resolveCallConfirmed
+} from "@/lib/leads/computeStage";
 
 const baseStage = {
   deal_closed: null as boolean | null,
@@ -92,6 +96,31 @@ describe("computeStage", () => {
         call_booked_at: null
       })
     ).toBe("created");
+  });
+});
+
+describe("resolveCallConfirmed", () => {
+  const booked = "2026-09-23T06:34:29.003Z";
+
+  it("setter verified on a booked lead confirms the call", () => {
+    expect(
+      resolveCallConfirmed({ call_confirmed: null, setter_verified: true, call_booked_at: booked })
+    ).toBe(true);
+  });
+
+  it("does not confirm without a booking or without verification", () => {
+    expect(
+      resolveCallConfirmed({ call_confirmed: null, setter_verified: true, call_booked_at: null })
+    ).toBeNull();
+    expect(
+      resolveCallConfirmed({ call_confirmed: null, setter_verified: false, call_booked_at: booked })
+    ).toBeNull();
+  });
+
+  it("never resets an existing confirmation", () => {
+    expect(
+      resolveCallConfirmed({ call_confirmed: true, setter_verified: false, call_booked_at: booked })
+    ).toBe(true);
   });
 });
 

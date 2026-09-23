@@ -36,7 +36,11 @@ export type LeadActivityType =
   | "reschedule"
   | "revive"
   | "note"
-  | "show_outcome";
+  | "show_outcome"
+  | "qualification"
+  | "setter_verification"
+  | "deal_outcome"
+  | "schedule";
 
 /** Default calling windows (IST): Morning / Afternoon / Evening. */
 export const TOUCHPOINT_HOURS_IST = [10, 13, 16] as const;

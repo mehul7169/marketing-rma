@@ -5,7 +5,7 @@ import {
   inferLastCallOutcome
 } from "@/lib/leads/actionStatus";
 import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
-import { computeStage } from "@/lib/leads/computeStage";
+import { computeStage, resolveCallConfirmed } from "@/lib/leads/computeStage";
 import {
   mergeCustomFields,
   omitLegacyLeadColumns
@@ -125,6 +125,7 @@ function asLead(row: unknown): LeadRow {
 
 function stamp(existing: LeadRow, patch: Partial<LeadRow>): LeadRow {
   const merged: LeadRow = { ...existing, ...patch };
+  merged.call_confirmed = resolveCallConfirmed(merged);
   merged.stage = computeStage({
     deal_closed: merged.deal_closed,
     is_dead: Boolean(merged.is_dead),
@@ -495,7 +496,8 @@ export async function updateLead(existing: LeadRow, patch: Partial<LeadRow>): Pr
 export async function scheduleLeadCall(
   existing: LeadRow,
   scheduledForIso: string,
-  changedBy: string
+  changedBy: string,
+  extra: Partial<LeadRow> = {}
 ): Promise<LeadRow> {
   const now = new Date().toISOString();
   const entry: BookingHistoryEntry = {
@@ -506,6 +508,7 @@ export async function scheduleLeadCall(
     changed_by: changedBy
   };
   return updateLead(existing, {
+    ...extra,
     call_scheduled_for: scheduledForIso,
     booking_source: "manual",
     booking_history: [...existing.booking_history, entry],
