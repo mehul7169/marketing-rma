@@ -9,10 +9,36 @@ type ReadyState = "loading" | "ready" | "invalid";
 const MIN_PASSWORD_LENGTH = 6;
 
 /**
+ * Module-level promise so React Strict Mode remounts (and any accidental
+ * double-invocation) share one bootstrap — never two PKCE exchanges.
+ * Keyed by the URL token so a failed attempt for one link cannot poison a
+ * later valid link in the same JS realm.
+ */
+let recoveryBootstrap: {
+  key: string;
+  promise: Promise<{ ok: boolean; errorMessage?: string }>;
+} | null = null;
+
+function recoveryBootstrapKey(href: string): string {
+  const url = new URL(href);
+  return (
+    url.searchParams.get("code") ||
+    url.searchParams.get("token_hash") ||
+    (url.hash.includes("access_token") ? url.hash : "") ||
+    "session"
+  );
+}
+
+/**
  * Recovery links from Supabase Auth land here with either:
  * - PKCE `?code=` (default for @supabase/ssr createBrowserClient), or
  * - `?token_hash=&type=recovery` (OTP verify), or
  * - hash `#access_token=&refresh_token=&type=recovery` (legacy implicit).
+ *
+ * Important: createBrowserClient sets detectSessionInUrl + flowType pkce, so
+ * constructing the client already exchanges `?code=` during initialize().
+ * Calling exchangeCodeForSession again burns the one-time verifier and yields
+ * "both auth code and code verifier should be non-empty".
  */
 async function establishRecoverySession(): Promise<{
   ok: boolean;
@@ -30,13 +56,39 @@ async function establishRecoverySession(): Promise<{
 
   const code = url.searchParams.get("code");
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) {
-      return { ok: false, errorMessage: error.message };
+    // Wait for createBrowserClient's auto PKCE exchange on initialize.
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+
+    if (session?.user) {
+      // Init already stripped ?code= on success; normalize to pathname.
+      window.history.replaceState({}, "", url.pathname);
+      return { ok: true };
     }
-    // Drop the code from the URL so refresh doesn't re-exchange.
-    window.history.replaceState({}, "", url.pathname);
-    return { ok: true };
+
+    // Singleton client may already have been initialized on a prior page in
+    // this tab (no code in URL then), so auto-detect never ran. Exchange once.
+    const stillHasCode = new URL(window.location.href).searchParams.get(
+      "code"
+    );
+    if (stillHasCode) {
+      const { error } = await supabase.auth.exchangeCodeForSession(
+        stillHasCode
+      );
+      if (error) {
+        return { ok: false, errorMessage: error.message };
+      }
+      window.history.replaceState({}, "", url.pathname);
+      return { ok: true };
+    }
+
+    // Code was present but init already tried (and failed) the exchange —
+    // verifier is gone; do not attempt a second call.
+    return {
+      ok: false,
+      errorMessage: "Link expired or invalid"
+    };
   }
 
   const tokenHash = url.searchParams.get("token_hash");
@@ -80,6 +132,14 @@ async function establishRecoverySession(): Promise<{
   return { ok: false };
 }
 
+function bootstrapRecoverySession() {
+  const key = recoveryBootstrapKey(window.location.href);
+  if (!recoveryBootstrap || recoveryBootstrap.key !== key) {
+    recoveryBootstrap = { key, promise: establishRecoverySession() };
+  }
+  return recoveryBootstrap.promise;
+}
+
 export default function ResetPasswordPage() {
   const [ready, setReady] = useState<ReadyState>("loading");
   const [password, setPassword] = useState("");
@@ -87,15 +147,11 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const inFlight = useRef(false);
-  const bootstrapped = useRef(false);
 
   useEffect(() => {
-    if (bootstrapped.current) return;
-    bootstrapped.current = true;
-
     void (async () => {
       try {
-        const result = await establishRecoverySession();
+        const result = await bootstrapRecoverySession();
         if (!result.ok) {
           setReady("invalid");
           return;
@@ -149,6 +205,8 @@ export default function ResetPasswordPage() {
 
       // Sign out the recovery session so login is a clean password check.
       await supabase.auth.signOut();
+      // Allow a later visit with a fresh ?code= to bootstrap again.
+      recoveryBootstrap = null;
       window.location.assign("/login?reset=1");
     } catch {
       setError("Could not update password. Please try again.");

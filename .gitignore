@@ -43,4 +43,6 @@ dist
 .npm-prefix/
 .npm-tmp/
 
+#playwright
+.playwright-mcp
 
