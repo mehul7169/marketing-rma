@@ -11,6 +11,7 @@ import {
   leadCardFieldValue,
   renderLeadColumnCell
 } from "@/components/table-views/leadColumnCells";
+import CreateLeadButton from "@/components/leads/CreateLeadButton";
 import WorkQueueCard from "@/components/leads/WorkQueueCard";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
 import WorkQueueToast from "@/components/leads/WorkQueueToast";
@@ -59,6 +60,7 @@ export default function WorkQueueView({
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [localRows, setLocalRows] = useState(rows);
   const [toast, setToast] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   /** Per-lead async confirm status for optimistic saves. */
   const [rowStatus, setRowStatus] = useState<
     Record<string, "saving" | "saved">
@@ -280,6 +282,21 @@ export default function WorkQueueView({
     setViewMode(mode);
   }, []);
 
+  const onLeadCreated = useCallback(
+    (lead: LeadRow) => {
+      if (leadBelongsInView(lead, activeTabId, statusFilterId)) {
+        setLocalRows((prev) => [lead, ...prev.filter((l) => l.id !== lead.id)]);
+        setNotice(`Created ${lead.name ?? "lead"}`);
+      } else {
+        setNotice(
+          `Created ${lead.name ?? "lead"} — it's in the default Work Queue view (Untouched), not this tab.`
+        );
+      }
+      router.refresh();
+    },
+    [activeTabId, statusFilterId, router]
+  );
+
   const tableColumns = ensureActionsColumn(view.visibleColumns);
   const hasSearch = initialSearch.trim().length > 0;
   const editDisabled = preview.active;
@@ -360,6 +377,7 @@ export default function WorkQueueView({
           </button>
         </div>
         <ColumnPicker view={view} />
+        <CreateLeadButton disabled={preview.active} onCreated={onLeadCreated} />
       </div>
     </div>
   );
@@ -369,7 +387,14 @@ export default function WorkQueueView({
     : "Nothing in this queue view.";
 
   const toastEl = (
-    <WorkQueueToast message={toast} onDismiss={() => setToast(null)} />
+    <>
+      <WorkQueueToast message={toast} onDismiss={() => setToast(null)} />
+      <WorkQueueToast
+        message={toast ? null : notice}
+        onDismiss={() => setNotice(null)}
+        tone="success"
+      />
+    </>
   );
 
   if (filteredRows.length === 0) {

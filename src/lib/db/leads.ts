@@ -201,21 +201,29 @@ export async function getLeadByPhone(
   const digits = trimmed.replace(/\D/g, "");
   if (digits.length < 7) return null;
 
-  const { data: rows, error } = await db
-    .from("leads")
-    .select("*")
-    .eq("org_id", orgId)
-    .not("phone", "is", null)
-    .limit(200);
-  if (error) throw error;
-  const match = (rows ?? []).find((row) => {
-    const p = String((row as { phone?: string | null }).phone ?? "").replace(
-      /\D/g,
-      ""
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data: rows, error } = await db
+      .from("leads")
+      .select("id,phone")
+      .eq("org_id", orgId)
+      .not("phone", "is", null)
+      .order("created_at", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const match = (rows ?? []).find((row) =>
+      phoneDigitsMatch(String((row as { phone?: string | null }).phone ?? ""), digits)
     );
-    return p === digits || p.endsWith(digits) || digits.endsWith(p);
-  });
-  return match ? asLead(match) : null;
+    if (match) return getLeadById((match as { id: string }).id, orgId);
+    if (!rows || rows.length < pageSize) return null;
+  }
+}
+
+/** Digits-only compare tolerant of country-code prefixes (+91…). */
+export function phoneDigitsMatch(stored: string, digits: string): boolean {
+  const p = stored.replace(/\D/g, "");
+  if (p.length < 7) return false;
+  return p === digits || p.endsWith(digits) || digits.endsWith(p);
 }
 
 export async function getLeadById(id: string, orgId: string): Promise<LeadRow | null> {

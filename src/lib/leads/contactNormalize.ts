@@ -12,12 +12,20 @@ export function normalizePhoneInput(
   return trimmed.replace(/^p:/i, "");
 }
 
-/** Phone-only Quickform leads get a placeholder email — not a real address. */
+/**
+ * Phone-only leads (Quickform ingest or manual Create Lead) get a placeholder
+ * email — not a real address. (org_id, email) is unique and email is NOT NULL.
+ */
 export function isSyntheticQuickformEmail(
   email: string | null | undefined
 ): boolean {
   if (!email) return false;
-  return /@quickform\.invalid$/i.test(email.trim());
+  return /@(quickform|manual)\.invalid$/i.test(email.trim());
+}
+
+export function manualPlaceholderEmail(phone: string): string {
+  const digits = phone.replace(/\D/g, "") || "unknown";
+  return `manual-phone-${digits}@manual.invalid`;
 }
 
 /** Display label for lead email cells (suppress synthetic placeholders). */

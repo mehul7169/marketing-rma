@@ -60,6 +60,13 @@ The marketing site never talks to Supabase. It POSTs to this app with `Authoriza
 
 These routes are excluded from login middleware (same as cron).
 
+## Manual leads (Work Queue → Create Lead)
+Referrals and hand-entered leads are created from the Work Queue (blocked during org preview).
+- `lead_source` is one of `referral`, `manual`, `other` — never an ingest value, so they are not ad-attributed.
+- Email is optional; blank uses a `manual-phone-<digits>@manual.invalid` placeholder (shown as "No email").
+- Duplicates are rejected by org email and phone digits (same keys as ingest).
+- The creator is recorded as a `lead_activities` row (`type = lead_created`, `created_by` → `profiles.id`).
+
 ## Backfilling historical data
 The hourly cron routes only pull the last 2 days. For a one-time all-time backfill, use the manual script:
 

@@ -20,13 +20,13 @@ This document describes **what the app actually does today**, not historical pla
 
 ## Auth & shell (live)
 
-| Capability | Who | Behavior observed |
-|---|---|---|
-| Org nav: Home, Leads, Work Queue, Insights, Meta Ads, Website | Member **or** admin with active preview | Present for RMA member; present for admin |
-| Client Ads | Platform admin only | Hidden from RMA member; redirects member away from `/clients-ads` → Home |
-| Organizations | Platform admin only | Same |
-| Org preview switcher | Platform admin only | Lists all orgs; “Exit preview” clears cookie |
-| Login | Supabase email/password | Legacy `.env` `ADMIN_*` / `VIEWER_*` **do not work** against production Auth |
+| Capability                                                    | Who                                     | Behavior observed                                                            |
+| ------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------- |
+| Org nav: Home, Leads, Work Queue, Insights, Meta Ads, Website | Member **or** admin with active preview | Present for RMA member; present for admin                                    |
+| Client Ads                                                    | Platform admin only                     | Hidden from RMA member; redirects member away from `/clients-ads` → Home     |
+| Organizations                                                 | Platform admin only                     | Same                                                                         |
+| Org preview switcher                                          | Platform admin only                     | Lists all orgs; “Exit preview” clears cookie                                 |
+| Login                                                         | Supabase email/password                 | Legacy `.env` `ADMIN_*` / `VIEWER_*` **do not work** against production Auth |
 
 **Orgs in production (sample):** RMA (`rma`), Experto Labs, Moksh, plus many client orgs created for Client Ads (most have **0 members**).
 
@@ -59,7 +59,8 @@ This document describes **what the app actually does today**, not historical pla
   - Status filter select: All active / Untouched / Personally Contacted / Upcoming — intended to be disabled while a tab is active.
   - View toggle: Cards | Table (`?view=cards|table`).
   - Search (name/email/phone); Column picker; pagination.
-- **Row / card actions (stage-driven):** Note; Log Call (outcomes: no answer / follow-up needed / qualified + schedule); Qualify Call; Log Outcome (show); Reschedule; WhatsApp nudge (logs activity only — **no WhatsApp API**); View history; inline edit of name/email/phone/notes/schedule/custom fields (when writable).
+- **Row / card actions (stage-driven):** Note; Log Call (outcomes: no answer / follow-up needed / qualified + schedule); Qualify Call; Log Outcome (show); Reschedule;
+  inline edit of name/email/phone/notes/schedule/custom fields (when writable).
 - **Data:** **R** `leads`, `lead_activities`, `organizations`, `table_views`. **W** `leads`, `lead_activities`, `lead_reminders` via `src/app/leads/actions.ts`.
 - **Live notes (RMA):** Meetings Booked = 1; Follow-ups Due = 33. Experto preview: Meetings Booked = 3; Follow-ups Due = 14; actions replaced by read-only message.
 
@@ -146,67 +147,67 @@ This document describes **what the app actually does today**, not historical pla
 
 ### 1. Quickform (Google Sheets Apps Script) → `POST /api/ingest/quickform-lead` → `leads` / `custom_fields` → Leads / Work Queue
 
-| Step | Behavior |
-|---|---|
-| Auth | Quickform ingest secret |
-| Org | `org_slug` → org id; unknown → soft skip |
-| Match | Email upsert; else phone match; phone-only insert uses `qf-phone-…@quickform.invalid` |
-| Structural | name/phone/UTMs (with Meta name aliases), `ad_set_id`, `ghl_contact_id`←sheet `id`, `lead_source`←`quickform`/`quickform_<platform>`, `form_filled_at`←`created_time` |
-| Custom | All non-structural keys as-is (expects long-form question keys) |
-| Status seed | reject → `qualified=false`; “call booked” → booking fields |
+| Step        | Behavior                                                                                                                                                              |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth        | Quickform ingest secret                                                                                                                                               |
+| Org         | `org_slug` → org id; unknown → soft skip                                                                                                                              |
+| Match       | Email upsert; else phone match; phone-only insert uses `qf-phone-…@quickform.invalid`                                                                                 |
+| Structural  | name/phone/UTMs (with Meta name aliases), `ad_set_id`, `ghl_contact_id`←sheet `id`, `lead_source`←`quickform`/`quickform_<platform>`, `form_filled_at`←`created_time` |
+| Custom      | All non-structural keys as-is (expects long-form question keys)                                                                                                       |
+| Status seed | reject → `qualified=false`; “call booked” → booking fields                                                                                                            |
 
 **UI:** Leads + Work Queue + Home funnel (Experto heavily; RMA also receives Quickform IG/FB).
 
 ### 2. RMA website form → `POST /api/ingest/lead-form` → `leads` → same UI
 
-| Step | Behavior |
-|---|---|
-| Auth | Website ingest secret |
-| Org | **Hard-coded** `rma` |
-| Match | Email only |
+| Step          | Behavior                                                                                                                          |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Auth          | Website ingest secret                                                                                                             |
+| Org           | **Hard-coded** `rma`                                                                                                              |
+| Match         | Email only                                                                                                                        |
 | Custom fields | Legacy short aliases mapped to **same four long Quickform keys** (`src/lib/leads/customFields.ts`) — **aligned after recent fix** |
-| Qualified | Explicit bool; `qualified_by="form"` |
+| Qualified     | Explicit bool; `qualified_by="form"`                                                                                              |
 
 **Related:** `POST /api/ingest/booking` (+ cancelled) — cal.com → booking columns on RMA leads (hard-coded `rma`).
 
 ### 3. Meta Ads cron → `meta_ads_daily` → `/meta-ads`, Insights, Client Ads
 
-| Step | Behavior |
-|---|---|
-| Entrypoint | `GET /api/cron/meta-ads` (hourly) |
-| Scope | All **active** `ad_accounts` |
-| Transform | `transformMetaInsightsRows` (`src/lib/ingest/meta.ts`) → spend/impressions/clicks + Meta lead/result action counts |
-| UI join | Funnel cols match **`leads.utm_content` to `meta_ads_daily.ad_name`** (fragile; drives “Unmatched leads” count) |
-| Split | `is_lead_source=true` → org `/meta-ads`; `false` → `/clients-ads` |
+| Step       | Behavior                                                                                                           |
+| ---------- | ------------------------------------------------------------------------------------------------------------------ |
+| Entrypoint | `GET /api/cron/meta-ads` (hourly)                                                                                  |
+| Scope      | All **active** `ad_accounts`                                                                                       |
+| Transform  | `transformMetaInsightsRows` (`src/lib/ingest/meta.ts`) → spend/impressions/clicks + Meta lead/result action counts |
+| UI join    | Funnel cols match **`leads.utm_content` to `meta_ads_daily.ad_name`** (fragile; drives “Unmatched leads” count)    |
+| Split      | `is_lead_source=true` → org `/meta-ads`; `false` → `/clients-ads`                                                  |
 
 ### 4. Website analytics cron → `website_daily` → `/website`
 
-| Step | Behavior |
-|---|---|
-| GA4 | Hourly → sessions/users → `landing_page_visits` / `unique_visitors` (RMA) |
-| Wistia | Hourly → plays / watch % / form proxies (RMA) |
-| Merge | `mergeAndUpsertWebsiteDaily` with `lead_source=null`, `utm_campaign=null` |
+| Step            | Behavior                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------- |
+| GA4             | Hourly → sessions/users → `landing_page_visits` / `unique_visitors` (RMA)                               |
+| Wistia          | Hourly → plays / watch % / form proxies (RMA)                                                           |
+| Merge           | `mergeAndUpsertWebsiteDaily` with `lead_source=null`, `utm_campaign=null`                               |
 | Upsert conflict | `date,lead_source,utm_campaign` — **Postgres NULLs do not uniquify**, so duplicates accumulate (see QA) |
 
 ### 5. Call-logging / lifecycle → `lead_activities` + lead columns → badges / funnel
 
-| Step | Behavior |
-|---|---|
-| Writes | `src/app/leads/actions.ts` → `lifecycleCadence` / `updateLead` |
-| Side effects | Every update stamps `stage`, `lifecycle_status`, `action_status`, `updated_at` |
-| Activities | `call_attempt`, `whatsapp_sent`, `reschedule`, `revive`, `note`, `show_outcome`, … |
-| Slack | Form notify + minute cron `slack-follow-up` for qualified-unbooked (`slack_no_booking_notified`) |
+| Step         | Behavior                                                                                         |
+| ------------ | ------------------------------------------------------------------------------------------------ |
+| Writes       | `src/app/leads/actions.ts` → `lifecycleCadence` / `updateLead`                                   |
+| Side effects | Every update stamps `stage`, `lifecycle_status`, `action_status`, `updated_at`                   |
+| Activities   | `call_attempt`, `reschedule`, `revive`, `note`, `show_outcome`, …                                |
+| Slack        | Form notify + minute cron `slack-follow-up` for qualified-unbooked (`slack_no_booking_notified`) |
 
 ### Field-shape consistency check
 
-| Area | Status |
-|---|---|
-| Website ↔ Quickform **custom_fields** qual keys | **Aligned** (canonical long keys + website aliases) |
-| UTM aliases | **Still diverge** — Quickform accepts `campaign_name`/`ad_name`/`adset_name`; website only literal `utm_*` |
-| Org resolution | Website/booking hard-code `rma`; Quickform multi-org |
-| Phone matching | Quickform yes; website email-only |
-| Qualified seeding | Different semantics (form bool vs Quickform reject→false only) |
-| Extra Quickform keys in `custom_fields` | `Booking details`, `platform`, etc. can land in JSON |
+| Area                                            | Status                                                                                                     |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Website ↔ Quickform **custom_fields** qual keys | **Aligned** (canonical long keys + website aliases)                                                        |
+| UTM aliases                                     | **Still diverge** — Quickform accepts `campaign_name`/`ad_name`/`adset_name`; website only literal `utm_*` |
+| Org resolution                                  | Website/booking hard-code `rma`; Quickform multi-org                                                       |
+| Phone matching                                  | Quickform yes; website email-only                                                                          |
+| Qualified seeding                               | Different semantics (form bool vs Quickform reject→false only)                                             |
+| Extra Quickform keys in `custom_fields`         | `Booking details`, `platform`, etc. can land in JSON                                                       |
 
 ---
 
@@ -218,7 +219,7 @@ This document describes **what the app actually does today**, not historical pla
 
 ## QA findings
 
-*(Caught while clicking through — not a full test suite.)*
+_(Caught while clicking through — not a full test suite.)_
 
 ### Broken / incorrect data
 
@@ -235,10 +236,9 @@ This document describes **what the app actually does today**, not historical pla
 ### UX / consistency
 
 7. **Moksh org** — Meta Ads populated; CRM empty; Website empty. Preview banner correct. Funnel columns on `/meta-ads` all zero while Meta “Leads” metric is non-zero — expected given join to CRM, but easy to misread.
-8. **WhatsApp** — Button logs `whatsapp_sent` activity only; copy in UI admits no WhatsApp API.
-9. **“Break down by source”** on Website — permanently disabled placeholder.
-10. **Member hitting `/clients-ads` or `/admin/organizations`** — soft-redirects to Home (200) rather than an explicit 403 page.
-11. **Follow-ups Due tab** — can appear empty if the page is snapshotted before SSR/hydration finishes; after a longer wait it populated correctly (33 rows on RMA).
+8. **“Break down by source”** on Website — permanently disabled placeholder.
+9. **Member hitting `/clients-ads` or `/admin/organizations`** — soft-redirects to Home (200) rather than an explicit 403 page.
+10. **Follow-ups Due tab** — can appear empty if the page is snapshotted before SSR/hydration finishes; after a longer wait it populated correctly (33 rows on RMA).
 
 ### Local vs deployed
 
@@ -265,14 +265,13 @@ This document describes **what the app actually does today**, not historical pla
 
 1. **Lead lifecycle state machine** — `stage`, `lifecycle_status`, `action_status`, `qualified*`, booking fields, dead flags, verification fields, post_call, reminders. Multiple parallel representations of “where is this lead.”
 2. **Dual ingest pipelines** — website hard-coded RMA vs Quickform multi-org; different match keys and qualified seeding.
-3. **Attribution by ad *name*** — drives unmatched counts and Insights complexity; ID-based join would simplify.
+3. **Attribution by ad _name_** — drives unmatched counts and Insights complexity; ID-based join would simplify.
 4. **Org preview + membership + Client Ads org shells** — many orgs with 0 members exist only as Meta containers.
 5. **`website_daily` upsert / null uniqueness** — cron + UI need one row per `(org_id, date)` for site-wide metrics.
 
 ### Dead / unused / low-value
 
 - Disabled Website “break down by source.”
-- WhatsApp “nudge” without messaging API (activity-only).
 - Legacy env auth vars / README viewer gating story.
 - `profiles.role` for page access (unused).
 - Possibly unused inactive `ad_accounts` rows (e.g. duplicate RMA account with `active=false`).
@@ -302,18 +301,18 @@ This document describes **what the app actually does today**, not historical pla
 
 ## Walk coverage checklist
 
-| Surface | RMA member | Platform admin | Moksh preview | Experto preview |
-|---|---|---|---|---|
-| Home | ✓ | ✓ | ✓ (0 leads) | ✓ |
-| Leads | ✓ | ✓ | ✓ empty | ✓ Quickform |
-| Work Queue | ✓ tabs/cards | ✓ | ✓ empty | ✓ read-only |
-| Lead detail | ✓ | — | — | — |
-| Insights | ✓ | ✓ | ✓ | — |
-| Meta Ads | ✓ | ✓ | ✓ spend | ✓ |
-| Website | ✓ | ✓ | ✓ empty | — |
-| Client Ads + detail | blocked | ✓ | — | — |
-| Organizations + detail | blocked | ✓ | — | — |
+| Surface                | RMA member   | Platform admin | Moksh preview | Experto preview |
+| ---------------------- | ------------ | -------------- | ------------- | --------------- |
+| Home                   | ✓            | ✓              | ✓ (0 leads)   | ✓               |
+| Leads                  | ✓            | ✓              | ✓ empty       | ✓ Quickform     |
+| Work Queue             | ✓ tabs/cards | ✓              | ✓ empty       | ✓ read-only     |
+| Lead detail            | ✓            | —              | —             | —               |
+| Insights               | ✓            | ✓              | ✓             | —               |
+| Meta Ads               | ✓            | ✓              | ✓ spend       | ✓               |
+| Website                | ✓            | ✓              | ✓ empty       | —               |
+| Client Ads + detail    | blocked      | ✓              | —             | —               |
+| Organizations + detail | blocked      | ✓              | —             | —               |
 
 ---
 
-*End of audit. Next simplification work should treat this file as the product baseline unless a newer dated audit supersedes it.*
+_End of audit. Next simplification work should treat this file as the product baseline unless a newer dated audit supersedes it._

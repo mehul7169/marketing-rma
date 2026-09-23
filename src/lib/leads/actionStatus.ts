@@ -3,7 +3,7 @@ import {
   toISTDateString,
   todayISTDateString,
   utcToZonedTime,
-  zonedTimeToUtc
+  zonedTimeToUtc,
 } from "@/lib/timezone";
 
 /** Stored + displayed action_status values. Null on leads means Untouched. */
@@ -15,7 +15,7 @@ export const ACTION_STATUSES = [
   "Personally Contacted",
   "Qualified Call Booked",
   "Call Booked",
-  "Untouched"
+  "Untouched",
 ] as const;
 
 export type ActionStatus = (typeof ACTION_STATUSES)[number];
@@ -32,7 +32,6 @@ export type ShowOutcome = "showed" | "no_show";
 
 export type LeadActivityType =
   | "call_attempt"
-  | "whatsapp_sent"
   | "reschedule"
   | "revive"
   | "note"
@@ -40,13 +39,14 @@ export type LeadActivityType =
   | "qualification"
   | "setter_verification"
   | "deal_outcome"
-  | "schedule";
+  | "schedule"
+  | "lead_created";
 
 /** Default calling windows (IST): Morning / Afternoon / Evening. */
 export const TOUCHPOINT_HOURS_IST = [10, 13, 16] as const;
 
 export function displayActionStatus(
-  actionStatus: string | null | undefined
+  actionStatus: string | null | undefined,
 ): ActionStatus {
   if (!actionStatus) return "Untouched";
   if ((ACTION_STATUSES as readonly string[]).includes(actionStatus)) {
@@ -56,7 +56,7 @@ export function displayActionStatus(
 }
 
 export function inferLastCallOutcome(
-  lastAction: string | null | undefined
+  lastAction: string | null | undefined,
 ): CallAttemptOutcome | null {
   if (!lastAction) return null;
   if (/no answer/i.test(lastAction)) return "no_answer";
@@ -93,7 +93,7 @@ function istWallToUtcIso(
   year: number,
   monthIndex: number,
   day: number,
-  hour: number
+  hour: number,
 ): string {
   const wall = `${year}-${pad2(monthIndex + 1)}-${pad2(day)}T${pad2(hour)}:00:00`;
   return zonedTimeToUtc(wall, IST_TIMEZONE).toISOString();
@@ -121,7 +121,7 @@ export function nextTouchpointAt(from: Date = new Date()): string {
     tomorrow.getFullYear(),
     tomorrow.getMonth(),
     tomorrow.getDate(),
-    TOUCHPOINT_HOURS_IST[0]
+    TOUCHPOINT_HOURS_IST[0],
   );
 }
 
@@ -147,7 +147,7 @@ export type ActionStatusInput = {
 export function computeActionStatus(
   lead: ActionStatusInput,
   _lastCallOutcome?: CallAttemptOutcome | null,
-  _now: Date = new Date()
+  _now: Date = new Date(),
 ): ActionStatus {
   if (lead.deal_closed === true) return "Closed";
   if (lead.is_dead) return "Dead";
@@ -176,7 +176,9 @@ export function computeActionStatus(
   return "Untouched";
 }
 
-export function isQuickformSource(leadSource: string | null | undefined): boolean {
+export function isQuickformSource(
+  leadSource: string | null | undefined,
+): boolean {
   if (!leadSource) return false;
   return leadSource === "quickform" || leadSource.startsWith("quickform_");
 }

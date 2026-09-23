@@ -5,8 +5,21 @@ import { requireWritableOrgId } from "@/lib/auth/getCurrentOrgId";
 import { getActorEmail, getActorUserId } from "@/lib/auth/session";
 import { insertLeadActivity } from "@/lib/db/lead_activities";
 import { insertLeadReminder, resolveLeadReminder } from "@/lib/db/lead_reminders";
-import { getLeadById, scheduleLeadCall, updateLead } from "@/lib/db/leads";
+import {
+  getLeadByEmail,
+  getLeadById,
+  getLeadByPhone,
+  insertLead,
+  scheduleLeadCall,
+  updateLead
+} from "@/lib/db/leads";
+import { isSyntheticQuickformEmail } from "@/lib/leads/contactNormalize";
 import { detailMilestones } from "@/lib/leads/detailMilestones";
+import {
+  validateManualLead,
+  type ManualLeadFieldErrors,
+  type ManualLeadInput
+} from "@/lib/leads/manualLead";
 import type { CallAttemptOutcome, ShowOutcome } from "@/lib/leads/actionStatus";
 import type { PostCallStatus, RequalificationResult } from "@/lib/leads/computeStage";
 import {
@@ -16,7 +29,7 @@ import {
   rescheduleCall,
   reviveDeadLead
 } from "@/lib/leads/lifecycleCadence";
-import type { VerificationCallStatus } from "@/lib/leads/types";
+import type { LeadRow, VerificationCallStatus } from "@/lib/leads/types";
 import { fromDatetimeLocalIST } from "@/lib/timezone";
 
 export type LeadActionInput = {
@@ -383,6 +396,88 @@ export async function addLeadNoteAction(leadId: string, note: string) {
   });
   revalidateLead(leadId);
   return { id: updated.id, last_action: updated.last_action };
+}
+
+export type CreateManualLeadResult =
+  | { ok: true; lead: LeadRow }
+  | {
+      ok: false;
+      error: string;
+      fieldErrors?: ManualLeadFieldErrors;
+      existingLeadId?: string;
+    };
+
+/**
+ * Work Queue "Create Lead". Returns a result instead of throwing so the form can
+ * show specific messages (thrown server-action errors are masked in production).
+ */
+export async function createManualLeadAction(
+  input: ManualLeadInput
+): Promise<CreateManualLeadResult> {
+  let orgId: string;
+  try {
+    orgId = await requireWritableOrgId();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Unauthorized" };
+  }
+
+  const parsed = validateManualLead(input);
+  if (!parsed.ok) {
+    return { ok: false, error: "Fix the highlighted fields.", fieldErrors: parsed.errors };
+  }
+  const { name, phone, email, lead_source, notes } = parsed.lead;
+
+  // Same match keys as ingest: (org_id, email) unique, then phone digits.
+  if (!isSyntheticQuickformEmail(email)) {
+    const byEmail = await getLeadByEmail(email, orgId);
+    if (byEmail) {
+      return {
+        ok: false,
+        error: `A lead with this email already exists${byEmail.name ? ` (${byEmail.name})` : ""}.`,
+        fieldErrors: { email: "Already used by another lead in this org." },
+        existingLeadId: byEmail.id
+      };
+    }
+  }
+  const byPhone = await getLeadByPhone(phone, orgId);
+  if (byPhone) {
+    return {
+      ok: false,
+      error: `A lead with this phone number already exists${byPhone.name ? ` (${byPhone.name})` : ""}.`,
+      fieldErrors: { phone: "Already used by another lead in this org." },
+      existingLeadId: byPhone.id
+    };
+  }
+
+  const created_by = await actorId();
+  let lead: LeadRow;
+  try {
+    lead = await insertLead({ org_id: orgId, email, name, phone, lead_source, notes });
+  } catch (e) {
+    if ((e as { code?: string })?.code === "23505") {
+      return { ok: false, error: "A lead with this email already exists in this org." };
+    }
+    console.error("[createManualLeadAction]", e);
+    return { ok: false, error: "Could not create the lead. Please try again." };
+  }
+
+  // Creator is recorded in the activity log (UUID → profiles), not on leads.
+  try {
+    await insertLeadActivity({
+      org_id: orgId,
+      lead_id: lead.id,
+      type: "lead_created",
+      outcome: lead_source,
+      note: "Lead created manually",
+      created_by
+    });
+  } catch (e) {
+    // Lead already exists — don't report failure and invite a duplicate retry.
+    console.error("[createManualLeadAction] activity log failed", lead.id, e);
+  }
+
+  revalidateLead(lead.id);
+  return { ok: true, lead };
 }
 
 export async function logLeadShowOutcomeAction(
