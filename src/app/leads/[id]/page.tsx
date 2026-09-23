@@ -6,11 +6,11 @@ import CustomFieldsPanel from "@/components/leads/CustomFieldsPanel";
 import LeadActions from "@/components/leads/LeadActions";
 import LeadFollowUps from "@/components/leads/LeadFollowUps";
 import ReviveLeadButton from "@/components/leads/ReviveLeadButton";
-import WhatsAppNudgeButton from "@/components/leads/WhatsAppNudgeButton";
 import StageBadge, { stageLabel } from "@/components/leads/StageBadge";
 import { listLeadActivities } from "@/lib/db/lead_activities";
 import { listRemindersForLead } from "@/lib/db/lead_reminders";
 import { getLeadById } from "@/lib/db/leads";
+import { displayLeadEmail } from "@/lib/leads/contactNormalize";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatCurrencyNullable } from "@/lib/format";
 import { formatDueFriendly, formatISTDateTime } from "@/lib/timezone";
@@ -84,9 +84,6 @@ export default async function LeadDetailPage({
           <ActionStatusBadge actionStatus={lead.action_status} />
           <StageBadge stage={lead.stage} />
           {lead.is_dead ? <ReviveLeadButton leadId={lead.id} /> : null}
-          {lead.contact_attempts === 1 || lead.contact_attempts === 3 ? (
-            <WhatsAppNudgeButton leadId={lead.id} />
-          ) : null}
         </div>
         <p className="mt-1 text-sm text-slate-500">
           Last updated {fmtWhen(lead.updated_at)}
@@ -193,7 +190,15 @@ export default async function LeadDetailPage({
               Campaign & technical details
             </summary>
             <div className="mt-4 grid grid-cols-2 gap-4">
-              <Field label="Email" value={lead.email} copyable />
+              <Field
+                label="Email"
+                value={
+                  displayLeadEmail(lead.email) === "No email"
+                    ? "No email (phone-only lead)"
+                    : lead.email
+                }
+                copyable={displayLeadEmail(lead.email) !== "No email"}
+              />
               <Field label="Phone" value={lead.phone} copyable />
               <Field label="Source" value={lead.lead_source} />
               <Field label="Ad set ID" value={lead.ad_set_id} />

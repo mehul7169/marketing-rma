@@ -23,7 +23,7 @@ export const INSIGHTS_TOOLTIPS = {
   creativeCostPerDeal:
     "Period spend ÷ cohort Deals Closed for this creative. Blank/dash if zero deals closed.",
   creativeUnmatched:
-    "Cohort leads (created in this range) whose UTM Content didn't match any known ad creative name from Meta. If this number is high, UTM Content values may not be matching your actual ad names — worth checking.",
+    "Cohort leads (created in this range) whose UTM Content didn't match a Meta ad id or ad name. Remaining unmatched are often non-Meta traffic, or ads whose tracking template still has an unsubstituted {{ad.name}} / {{ad.id}} — fix those in Ads Manager.",
   sourceBooked:
     "Of leads created in this range who have call_booked_at set, grouped by lead source (e.g. Meta, YouTube) as recorded when the lead filled the form — regardless of when they booked.",
   dailyTrend:

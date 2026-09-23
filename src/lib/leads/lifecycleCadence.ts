@@ -128,32 +128,6 @@ export async function logCallAttempt(
   return updateLead(lead, withActionStatus(lead, patch, outcome));
 }
 
-/** Log-only WhatsApp nudge (no external API yet). */
-export async function sendWhatsAppNudge(
-  leadId: string,
-  orgId: string,
-  opts: { note?: string | null; actor?: string | null } = {}
-): Promise<LeadRow> {
-  const lead = await loadLead(leadId, orgId);
-  const now = new Date().toISOString();
-  const note = opts.note?.trim() || null;
-
-  await insertLeadActivity({
-    org_id: orgId,
-    lead_id: leadId,
-    type: "whatsapp_sent",
-    outcome: null,
-    note,
-    created_by: opts.actor ?? null
-  });
-
-  const patch: Partial<LeadRow> = {
-    last_action: "WhatsApp nudge sent",
-    last_action_at: now
-  };
-  return updateLead(lead, withActionStatus(lead, patch));
-}
-
 export async function rescheduleCall(
   leadId: string,
   orgId: string,

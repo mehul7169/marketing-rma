@@ -12,8 +12,7 @@ import {
   logCallAttempt,
   logShowOutcome,
   rescheduleCall,
-  reviveDeadLead,
-  sendWhatsAppNudge
+  reviveDeadLead
 } from "@/lib/leads/lifecycleCadence";
 import type { VerificationCallStatus } from "@/lib/leads/types";
 import { fromDatetimeLocalIST } from "@/lib/timezone";
@@ -313,19 +312,6 @@ export async function logLeadCallAttemptAction(
     call_confirmed: updated.call_confirmed,
     stage: updated.stage
   };
-}
-
-export async function sendLeadWhatsAppNudgeAction(
-  leadId: string,
-  note?: string | null
-) {
-  const orgId = await requireWritableOrgId();
-  const updated = await sendWhatsAppNudge(leadId, orgId, {
-    note,
-    actor: await actorId()
-  });
-  revalidateLead(leadId);
-  return { id: updated.id, action_status: updated.action_status };
 }
 
 export async function rescheduleLeadCallAction(

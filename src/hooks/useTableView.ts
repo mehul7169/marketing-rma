@@ -99,6 +99,12 @@ export function useTableView(
   const [error, setError] = useState<string | null>(null);
   const skipNextSave = useRef(true);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRequestId = useRef(0);
+  const lastSavedJson = useRef<string | null>(
+    hasBootstrap && opts.bootstrap
+      ? JSON.stringify(opts.bootstrap.columns)
+      : null
+  );
   const defaultsRef = useRef(defaults);
   defaultsRef.current = defaults;
   const bootstrappedPageKey = useRef(
@@ -148,12 +154,18 @@ export function useTableView(
         for (const d of defaultsRef.current) {
           if (!availableIds.includes(d.id)) availableIds.push(d.id);
         }
-        setColumns(
-          mergeColumnsWithDefaults(saved, defaultsRef.current, availableIds)
+        const merged = mergeColumnsWithDefaults(
+          saved,
+          defaultsRef.current,
+          availableIds
         );
+        setColumns(merged);
         setReady(true);
         queueMicrotask(() => {
-          if (!cancelled) skipNextSave.current = false;
+          if (!cancelled) {
+            lastSavedJson.current = JSON.stringify(merged);
+            skipNextSave.current = false;
+          }
         });
       } catch (err) {
         if (cancelled) return;
@@ -175,7 +187,12 @@ export function useTableView(
   useEffect(() => {
     if (!ready || skipNextSave.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
+
+    const snapshot = JSON.stringify(columns);
+    if (snapshot === lastSavedJson.current) return;
+
     saveTimer.current = setTimeout(() => {
+      const requestId = ++saveRequestId.current;
       setSaving(true);
       setError(null);
       void fetchJson<TableViewConfig>(
@@ -185,11 +202,25 @@ export function useTableView(
           body: JSON.stringify({ columns })
         }
       )
-        .catch((err) => {
-          setError(err instanceof Error ? err.message : "Failed to save view");
+        .then(() => {
+          if (saveRequestId.current === requestId) {
+            lastSavedJson.current = snapshot;
+          }
         })
-        .finally(() => setSaving(false));
+        .catch((err) => {
+          if (saveRequestId.current === requestId) {
+            setError(err instanceof Error ? err.message : "Failed to save view");
+          }
+        })
+        .finally(() => {
+          // Only clear spinner for the latest in-flight save (overlaps from
+          // rapid column toggles previously left "saving…" stuck).
+          if (saveRequestId.current === requestId) {
+            setSaving(false);
+          }
+        });
     }, SAVE_DEBOUNCE_MS);
+
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };

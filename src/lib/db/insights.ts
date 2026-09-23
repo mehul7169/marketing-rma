@@ -4,7 +4,8 @@ import { listAllLeads, listDistinctLeadSources } from "@/lib/db/leads";
 import {
   computeInsights,
   normalizeCreativeKey,
-  type InsightsMetrics
+  type InsightsMetrics,
+  type KnownAdsIndex
 } from "@/lib/insights/metrics";
 
 function num(v: unknown): number {
@@ -30,22 +31,25 @@ async function paginate<T>(
   return all;
 }
 
-/** Spend for Insights creative table — all active org ad accounts. */
-export async function getMetaSpendByAdName(
+/** Spend for Insights creative table — keyed by `ad:<ad_id>` (and name fallback keys). */
+export async function getMetaSpendByCreative(
   fromISO: string,
   toISO: string,
   orgId: string
-): Promise<Map<string, { displayName: string; spend: number }>> {
-  const map = new Map<string, { displayName: string; spend: number }>();
+): Promise<Map<string, { displayName: string; spend: number; adId?: string }>> {
+  const map = new Map<string, { displayName: string; spend: number; adId?: string }>();
   if (!supabaseAdmin) return map;
   const accountIds = await getOrgMetaAdAccountIds(orgId);
   if (accountIds.length === 0) return map;
 
-  // Filter by ad_account_id only — historical rows may carry a stale org_id.
-  const rows = await paginate<{ ad_name: string | null; spend: unknown }>((from, to) =>
+  const rows = await paginate<{
+    ad_id: string | null;
+    ad_name: string | null;
+    spend: unknown;
+  }>((from, to) =>
     supabaseAdmin!
       .from("meta_ads_daily")
-      .select("ad_name, spend")
+      .select("ad_id, ad_name, spend")
       .in("ad_account_id", accountIds)
       .gte("date", fromISO)
       .lte("date", toISO)
@@ -53,41 +57,73 @@ export async function getMetaSpendByAdName(
   );
 
   for (const row of rows) {
-    const key = normalizeCreativeKey(row.ad_name);
-    if (!key) continue;
-    const existing = map.get(key);
     const spend = num(row.spend);
-    if (existing) {
-      existing.spend += spend;
-    } else {
-      map.set(key, { displayName: row.ad_name!.trim(), spend });
+    const displayName = (row.ad_name ?? row.ad_id ?? "Unknown").trim();
+    if (row.ad_id) {
+      const key = `ad:${row.ad_id}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.spend += spend;
+        if (!existing.displayName && displayName) existing.displayName = displayName;
+      } else {
+        map.set(key, { displayName, spend, adId: row.ad_id });
+      }
+    }
+    const nameKey = normalizeCreativeKey(row.ad_name);
+    if (nameKey) {
+      const existing = map.get(nameKey);
+      if (existing) {
+        existing.spend += spend;
+      } else {
+        map.set(nameKey, {
+          displayName,
+          spend,
+          adId: row.ad_id ?? undefined
+        });
+      }
     }
   }
   return map;
 }
 
+/** @deprecated Prefer listKnownAdsIndex — kept for any name-only callers. */
 export async function listKnownAdNames(orgId: string): Promise<Map<string, string>> {
+  const index = await listKnownAdsIndex(orgId);
   const map = new Map<string, string>();
-  if (!supabaseAdmin) return map;
-  const accountIds = await getOrgMetaAdAccountIds(orgId);
-  if (accountIds.length === 0) return map;
+  for (const [key, ref] of index.byAdName) {
+    map.set(key, ref.adName);
+  }
+  return map;
+}
 
-  // Filter by ad_account_id only — historical rows may carry a stale org_id.
-  const rows = await paginate<{ ad_name: string | null }>((from, to) =>
-    supabaseAdmin!
-      .from("meta_ads_daily")
-      .select("ad_name")
-      .in("ad_account_id", accountIds)
-      .not("ad_name", "is", null)
-      .range(from, to)
+export async function listKnownAdsIndex(orgId: string): Promise<KnownAdsIndex> {
+  const byAdId = new Map<string, string>();
+  const byAdName = new Map<string, { adId: string; adName: string }>();
+  if (!supabaseAdmin) return { byAdId, byAdName };
+  const accountIds = await getOrgMetaAdAccountIds(orgId);
+  if (accountIds.length === 0) return { byAdId, byAdName };
+
+  const rows = await paginate<{ ad_id: string | null; ad_name: string | null }>(
+    (from, to) =>
+      supabaseAdmin!
+        .from("meta_ads_daily")
+        .select("ad_id, ad_name")
+        .in("ad_account_id", accountIds)
+        .range(from, to)
   );
 
   for (const row of rows) {
-    const key = normalizeCreativeKey(row.ad_name);
-    if (!key || map.has(key)) continue;
-    map.set(key, row.ad_name!.trim());
+    const adId = row.ad_id?.trim();
+    const adName = row.ad_name?.trim() || "";
+    if (adId && !byAdId.has(adId)) {
+      byAdId.set(adId, adName || adId);
+    }
+    const nameKey = normalizeCreativeKey(adName);
+    if (nameKey && adId && !byAdName.has(nameKey)) {
+      byAdName.set(nameKey, { adId, adName: adName || adId });
+    }
   }
-  return map;
+  return { byAdId, byAdName };
 }
 
 export async function getInsightsData(
@@ -96,15 +132,15 @@ export async function getInsightsData(
   orgId: string,
   sources?: string[]
 ): Promise<{ metrics: InsightsMetrics; sources: string[] }> {
-  const [leads, spendByAdName, knownAdNames, allSources] = await Promise.all([
+  const [leads, spendByCreative, knownAds, allSources] = await Promise.all([
     listAllLeads(orgId, sources),
-    getMetaSpendByAdName(fromISO, toISO, orgId),
-    listKnownAdNames(orgId),
+    getMetaSpendByCreative(fromISO, toISO, orgId),
+    listKnownAdsIndex(orgId),
     listDistinctLeadSources(orgId)
   ]);
 
   return {
-    metrics: computeInsights(leads, spendByAdName, knownAdNames, fromISO, toISO),
+    metrics: computeInsights(leads, spendByCreative, knownAds, fromISO, toISO),
     sources: allSources
   };
 }

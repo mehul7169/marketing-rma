@@ -9,6 +9,10 @@ import RecordingLinkBadge from "@/components/leads/RecordingLinkBadge";
 import ReviveLeadButton from "@/components/leads/ReviveLeadButton";
 import StageBadge from "@/components/leads/StageBadge";
 import { formatCurrencyNullable } from "@/lib/format";
+import {
+  displayLeadEmail,
+  isSyntheticQuickformEmail
+} from "@/lib/leads/contactNormalize";
 import type { LeadReminder } from "@/lib/leads/types";
 import type { LeadRow as Lead } from "@/lib/leads/types";
 import {
@@ -124,16 +128,31 @@ export function renderLeadColumnCell(
       return (
         <td className="px-4 py-3 text-slate-700">
           <span className="inline-flex w-full items-center gap-1">
-            {canEdit ? (
+            {canEdit && !isSyntheticQuickformEmail(lead.email) ? (
               <InlineEditableValue
                 value={lead.email}
                 inputType="email"
                 onCommit={(next) => edit?.onPlainField?.("email", next)}
               />
             ) : (
-              lead.email
+              <span
+                className={
+                  isSyntheticQuickformEmail(lead.email)
+                    ? "italic text-slate-400"
+                    : undefined
+                }
+                title={
+                  isSyntheticQuickformEmail(lead.email)
+                    ? "Phone-only Quickform lead — no real email"
+                    : undefined
+                }
+              >
+                {displayLeadEmail(lead.email)}
+              </span>
             )}
-            <CopyValue value={lead.email} hoverReveal />
+            {!isSyntheticQuickformEmail(lead.email) ? (
+              <CopyValue value={lead.email} hoverReveal />
+            ) : null}
           </span>
         </td>
       );
@@ -372,7 +391,7 @@ export function leadCardFieldValue(
   }
   switch (columnId) {
     case "email":
-      return lead.email;
+      return displayLeadEmail(lead.email);
     case "phone":
       return lead.phone || "—";
     case "lead_source":

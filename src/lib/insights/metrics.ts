@@ -75,15 +75,56 @@ function rate(numerator: number, denominator: number): RateStat {
 }
 
 /**
- * Name-based match: leads.utm_content ↔ meta_ads_daily.ad_name.
- * Not an ID match. If utm_content values ever drift from actual ad names in
- * Meta, this join silently stops matching — unmatchedLeadCount on the Ad
- * Creative breakdown is how that drop becomes visible.
+ * Creative key for name-based fallback (utm_content ↔ ad_name).
+ * Prefer resolveCreativeMatch (ad_id first) for attribution.
  */
 export function normalizeCreativeKey(name: string | null | undefined): string | null {
   if (!name) return null;
   const t = name.trim().toLowerCase();
   return t.length ? t : null;
+}
+
+export type KnownAdRef = {
+  adId: string;
+  adName: string;
+};
+
+export type KnownAdsIndex = {
+  /** Meta ad_id → display name */
+  byAdId: Map<string, string>;
+  /** normalizeCreativeKey(ad_name) → { adId, adName } */
+  byAdName: Map<string, KnownAdRef>;
+};
+
+export type CreativeMatch = KnownAdRef & {
+  matchedBy: "ad_id" | "ad_name";
+};
+
+/**
+ * Match lead utm_content to a Meta ad: try stable ad_id first, then ad_name.
+ */
+export function resolveCreativeMatch(
+  utmContent: string | null | undefined,
+  known: KnownAdsIndex
+): CreativeMatch | null {
+  const raw = utmContent?.trim();
+  if (!raw) return null;
+
+  if (known.byAdId.has(raw)) {
+    return {
+      adId: raw,
+      adName: known.byAdId.get(raw)!,
+      matchedBy: "ad_id"
+    };
+  }
+
+  const nameKey = normalizeCreativeKey(raw);
+  if (nameKey && known.byAdName.has(nameKey)) {
+    const ref = known.byAdName.get(nameKey)!;
+    return { ...ref, matchedBy: "ad_name" };
+  }
+
+  return null;
 }
 
 function cost(spend: number, count: number): number | null {
@@ -108,16 +149,14 @@ function emptyDaily(fromISO: string, toISO: string): InsightsDailyPoint[] {
 
 export function computeInsights(
   leads: LeadRow[],
-  spendByAdName: Map<string, { displayName: string; spend: number }>,
-  knownAdNames: Map<string, string>,
+  /**
+   * Spend keyed by creative bucket key (`ad:<ad_id>` preferred, else name key).
+   */
+  spendByCreative: Map<string, { displayName: string; spend: number; adId?: string }>,
+  knownAds: KnownAdsIndex,
   fromISO: string,
   toISO: string
 ): InsightsMetrics {
-  const known = new Map(knownAdNames);
-  for (const [key, v] of spendByAdName) {
-    if (!known.has(key)) known.set(key, v.displayName);
-  }
-
   const cohort = leads.filter((l) => inRange(l.created_at, fromISO, toISO));
 
   const formFilled = cohort.filter((l) => Boolean(l.form_filled_at));
@@ -145,7 +184,9 @@ export function computeInsights(
   };
 
   const byCreative = new Map<string, Acc>();
-  for (const [key, spend] of spendByAdName) {
+  for (const [key, spend] of spendByCreative) {
+    // Name-only keys are lookup aliases; display rows are keyed by ad:<id>.
+    if (!key.startsWith("ad:")) continue;
     byCreative.set(key, {
       name: spend.displayName,
       spend: spend.spend,
@@ -169,25 +210,37 @@ export function computeInsights(
     leadIds: new Set()
   };
 
+  function bucketKeyForMatch(match: CreativeMatch): string {
+    return `ad:${match.adId}`;
+  }
+
   function bucketFor(lead: LeadRow): Acc {
-    const key = normalizeCreativeKey(lead.utm_content);
-    if (key && known.has(key)) {
-      const existing = byCreative.get(key);
-      if (existing) return existing;
-      const created: Acc = {
-        name: known.get(key) ?? lead.utm_content ?? key,
-        spend: spendByAdName.get(key)?.spend ?? 0,
-        callsBooked: 0,
-        qualified: 0,
-        showed: 0,
-        dealsClosed: 0,
-        revenue: 0,
-        leadIds: new Set()
-      };
-      byCreative.set(key, created);
-      return created;
-    }
-    return unmatched;
+    const match = resolveCreativeMatch(lead.utm_content, knownAds);
+    if (!match) return unmatched;
+
+    const key = bucketKeyForMatch(match);
+    const existing = byCreative.get(key);
+    if (existing) return existing;
+
+    const spendEntry =
+      spendByCreative.get(key) ??
+      (normalizeCreativeKey(match.adName)
+        ? spendByCreative.get(normalizeCreativeKey(match.adName)!)
+        : undefined);
+
+    // Prefer folding name-key spend into the ad: row when both exist.
+    const created: Acc = {
+      name: match.adName || lead.utm_content || key,
+      spend: spendByCreative.get(key)?.spend ?? spendEntry?.spend ?? 0,
+      callsBooked: 0,
+      qualified: 0,
+      showed: 0,
+      dealsClosed: 0,
+      revenue: 0,
+      leadIds: new Set()
+    };
+    byCreative.set(key, created);
+    return created;
   }
 
   for (const lead of cohort) {

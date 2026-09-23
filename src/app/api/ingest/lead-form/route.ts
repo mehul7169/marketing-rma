@@ -6,6 +6,7 @@ import {
   resolveWebsiteFieldValue,
   WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS
 } from "@/lib/leads/customFields";
+import { normalizePhoneInput } from "@/lib/leads/contactNormalize";
 import { getOrgIdBySlug } from "@/lib/orgs/getOrgIdBySlug";
 import { notifySlackNewLead } from "@/lib/slack/messages";
 import { assertWebsiteIngestSecret } from "@/lib/utils/ingestAuth";
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest) {
 
   const patch: Partial<LeadRow> = {
     name: str(body.name),
-    phone: str(body.phone),
+    phone: normalizePhoneInput(str(body.phone)),
     utm_source: str(body.utm_source),
     utm_medium: str(body.utm_medium),
     utm_campaign: str(body.utm_campaign),

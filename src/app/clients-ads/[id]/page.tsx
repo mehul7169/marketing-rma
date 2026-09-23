@@ -21,9 +21,7 @@ import {
   getLatestCronRunForJob
 } from "@/lib/db/cron_runs";
 import DateRangePicker from "@/components/DateRangePicker";
-import MetaAdsTable from "@/components/meta/MetaAdsTable";
-import MetaSummaryCards from "@/components/meta/MetaSummaryCards";
-import MetaTrendSection from "@/components/meta/MetaTrendSection";
+import MetaPerformanceDashboard from "@/components/meta/MetaPerformanceDashboard";
 import { ClientBackfillBanner } from "@/components/clients/AddClientAdAccountForm";
 import {
   ClientNameEditor,
@@ -178,33 +176,16 @@ export default async function ClientAdsDetailPage({
           No data in this date range yet for {account.client_name}.
         </div>
       ) : (
-        <>
-          <MetaSummaryCards
-            totals={totals}
-            priorTotals={priorHasData ? priorTotals : null}
-            periodDays={priorPeriod.periodDays}
-          />
-
-          <section className="space-y-3">
-            <h2 className="text-sm font-medium text-slate-900">Trends</h2>
-            <div className="rounded border border-slate-200 p-4">
-              <MetaTrendSection trend={trendForChart} rangeDays={rangeDays} />
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-sm font-medium text-slate-900">Campaigns</h2>
-            <MetaAdsTable
-              rows={hierarchy}
-              includeFunnelColumns={false}
-              presetStorageKey="clients-ads-column-preset"
-            />
-            <div className="text-xs text-slate-500">
-              Click a row to expand ad sets, then ads. Sort applies at every
-              level. Client accounts have no lead funnel columns.
-            </div>
-          </section>
-        </>
+        <MetaPerformanceDashboard
+          mode="client"
+          totals={totals}
+          priorTotals={priorHasData ? priorTotals : null}
+          periodDays={priorPeriod.periodDays}
+          trend={trendForChart}
+          rangeDays={rangeDays}
+          campaigns={hierarchy}
+          presetStorageKey="clients-ads-column-preset"
+        />
       )}
     </div>
   );

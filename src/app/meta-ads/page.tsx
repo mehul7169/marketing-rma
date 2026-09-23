@@ -14,14 +14,11 @@ import {
   getMetaAdsTotals,
   getMetaAdsTrend
 } from "@/lib/db/meta_ads_daily";
-import { listKnownAdNames } from "@/lib/db/insights";
+import { listKnownAdsIndex } from "@/lib/db/insights";
 import { listLeadsInRange } from "@/lib/db/leads";
 import { attachMetaFunnelOutcomes } from "@/lib/meta/funnelOutcomes";
-import CohortMaturityNote from "@/components/CohortMaturityNote";
 import DateRangePicker from "@/components/DateRangePicker";
-import MetaAdsTable from "@/components/meta/MetaAdsTable";
-import MetaSummaryCards from "@/components/meta/MetaSummaryCards";
-import MetaTrendSection from "@/components/meta/MetaTrendSection";
+import MetaPerformanceDashboard from "@/components/meta/MetaPerformanceDashboard";
 
 export default async function MetaAdsPage({
   searchParams
@@ -54,7 +51,7 @@ export default async function MetaAdsPage({
   const accountIds = await getOrgMetaAdAccountIds(orgId);
   const hasAccounts = accountIds.length > 0;
 
-  const [totals, priorTotals, trendRaw, hierarchy, cohortLeads, knownAdNames] =
+  const [totals, priorTotals, trendRaw, hierarchy, cohortLeads, knownAds] =
     hasAccounts
       ? await Promise.all([
           getMetaAdsTotals(fromISO, toISO, orgId, accountIds),
@@ -62,7 +59,7 @@ export default async function MetaAdsPage({
           getMetaAdsTrend(fromISO, toISO, orgId, accountIds),
           getMetaAdsHierarchy(fromISO, toISO, orgId, accountIds),
           listLeadsInRange(fromISO, toISO, orgId),
-          listKnownAdNames(orgId)
+          listKnownAdsIndex(orgId)
         ])
       : [
           {
@@ -80,13 +77,13 @@ export default async function MetaAdsPage({
           [] as Awaited<ReturnType<typeof getMetaAdsTrend>>,
           [] as Awaited<ReturnType<typeof getMetaAdsHierarchy>>,
           [] as Awaited<ReturnType<typeof listLeadsInRange>>,
-          new Map<string, string>()
+          { byAdId: new Map(), byAdName: new Map() }
         ];
 
   const { campaigns: table, unmatchedLeadCount } = attachMetaFunnelOutcomes(
     hierarchy,
     cohortLeads,
-    knownAdNames,
+    knownAds,
     fromISO,
     toISO
   );
@@ -131,31 +128,17 @@ export default async function MetaAdsPage({
           No data in this date range yet.
         </div>
       ) : (
-        <>
-          <MetaSummaryCards
-            totals={totals}
-            priorTotals={priorHasData ? priorTotals : null}
-            periodDays={priorPeriod.periodDays}
-          />
-
-          <section className="space-y-3">
-            <h2 className="text-sm font-medium text-slate-900">Trends</h2>
-            <div className="rounded border border-slate-200 p-4">
-              <MetaTrendSection trend={trendForChart} rangeDays={rangeDays} />
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-sm font-medium text-slate-900">Campaigns</h2>
-            {immature ? <CohortMaturityNote /> : null}
-            <MetaAdsTable rows={table} unmatchedLeadCount={unmatchedLeadCount} />
-            <div className="text-xs text-slate-500">
-              Click a row to expand ad sets, then ads. Sort applies at every level.
-              Funnel columns are cohort-based (leads created in this range, matched by
-              utm_content → ad name).
-            </div>
-          </section>
-        </>
+        <MetaPerformanceDashboard
+          mode="lead-source"
+          totals={totals}
+          priorTotals={priorHasData ? priorTotals : null}
+          periodDays={priorPeriod.periodDays}
+          trend={trendForChart}
+          rangeDays={rangeDays}
+          campaigns={table}
+          unmatchedLeadCount={unmatchedLeadCount}
+          immature={immature}
+        />
       )}
     </div>
   );

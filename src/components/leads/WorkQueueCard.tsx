@@ -6,6 +6,10 @@ import InlineEditableValue from "@/components/leads/InlineEditableValue";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
 import AsyncStatusIndicator from "@/components/ui/AsyncStatusIndicator";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
+import {
+  displayLeadEmail,
+  isSyntheticQuickformEmail
+} from "@/lib/leads/contactNormalize";
 import type { LeadRow } from "@/lib/leads/types";
 import { formatDueFriendly, formatISTDateTime, toDatetimeLocalIST } from "@/lib/timezone";
 import {
@@ -83,12 +87,21 @@ export default function WorkQueueCard({
               onCommit={(next) => onPlainField?.("phone", next)}
             />
             <span>·</span>
-            <InlineEditableValue
-              value={lead.email}
-              inputType="email"
-              disabled={editDisabled || !onPlainField}
-              onCommit={(next) => onPlainField?.("email", next)}
-            />
+            {isSyntheticQuickformEmail(lead.email) ? (
+              <span
+                className="italic text-slate-400"
+                title="Phone-only Quickform lead — no real email"
+              >
+                {displayLeadEmail(lead.email)}
+              </span>
+            ) : (
+              <InlineEditableValue
+                value={lead.email}
+                inputType="email"
+                disabled={editDisabled || !onPlainField}
+                onCommit={(next) => onPlainField?.("email", next)}
+              />
+            )}
           </div>
         </div>
         <ActionStatusBadge actionStatus={lead.action_status} />
@@ -206,6 +219,16 @@ function renderEditableExtra(
   }
 
   if (f.id === "email" && onPlainField) {
+    if (isSyntheticQuickformEmail(lead.email)) {
+      return (
+        <span
+          className="italic text-slate-400"
+          title="Phone-only Quickform lead — no real email"
+        >
+          {displayLeadEmail(lead.email)}
+        </span>
+      );
+    }
     return (
       <InlineEditableValue
         value={lead.email}

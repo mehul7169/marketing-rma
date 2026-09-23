@@ -465,7 +465,7 @@ export default function MetaAdsTable({
           <span>Unmatched leads: {formatInteger(unmatchedLeadCount)}</span>
           <InfoTip text={INSIGHTS_TOOLTIPS.creativeUnmatched} />
           <span className="text-slate-400">
-            (utm_content vs Meta ad name — not an ID match)
+            (utm_content vs Meta ad id, then ad name)
           </span>
         </p>
       ) : null}

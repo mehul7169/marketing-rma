@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/leads";
 import type { LeadRow } from "@/lib/leads/types";
 import { findOrgIdBySlug } from "@/lib/orgs/getOrgIdBySlug";
+import { normalizePhoneInput } from "@/lib/leads/contactNormalize";
 import { formatUnknownError } from "@/lib/utils/formatUnknownError";
 import { assertQuickformIngestSecret } from "@/lib/utils/ingestAuth";
 
@@ -182,7 +183,7 @@ export async function POST(req: NextRequest) {
 
   const fields = body.fields as Record<string, unknown>;
   const email = fieldStr(fields, "email")?.toLowerCase() ?? null;
-  const phone = fieldStr(fields, "phone_number", "phone");
+  const phone = normalizePhoneInput(fieldStr(fields, "phone_number", "phone"));
   const name = fieldStr(fields, "full_name", "name");
   const metaLeadId = fieldStr(fields, "id");
   const adSetId = fieldStr(fields, "adset_id", "ad_set_id");

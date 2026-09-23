@@ -6,8 +6,7 @@ import {
   addLeadNoteAction,
   logLeadCallAttemptAction,
   logLeadShowOutcomeAction,
-  rescheduleLeadCallAction,
-  sendLeadWhatsAppNudgeAction
+  rescheduleLeadCallAction
 } from "@/app/leads/actions";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
@@ -30,7 +29,6 @@ type PopoverKind =
   | "show_outcome"
   | "reschedule"
   | "note"
-  | "whatsapp"
   | null;
 
 function callPastDue(lead: LeadRow): boolean {
@@ -66,18 +64,6 @@ export function primaryWorkQueueActions(
   }
 
   return actions.slice(0, 2);
-}
-
-function shouldOfferWhatsApp(lead: LeadRow): boolean {
-  const attempts = lead.contact_attempts ?? 0;
-  const status = displayActionStatus(lead.action_status);
-  return (
-    (attempts === 1 || attempts === 3) &&
-    (status === "Personally Contacted" ||
-      status === "Dead" ||
-      status === "Follow-up Due" ||
-      status === "Follow-up Overdue")
-  );
 }
 
 /**
@@ -319,15 +305,6 @@ export default function WorkQueueLeadActions({
             Reschedule
           </button>
         ) : null}
-        {shouldOfferWhatsApp(lead) ? (
-          <button
-            type="button"
-            className={`${btn} border-emerald-200 bg-emerald-50 text-emerald-900`}
-            onClick={() => setPopover(popover === "whatsapp" ? null : "whatsapp")}
-          >
-            WhatsApp
-          </button>
-        ) : null}
         {showHistoryToggle ? (
           <button
             type="button"
@@ -532,47 +509,6 @@ export default function WorkQueueLeadActions({
                       }
                     >
                       Save note
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {popover === "whatsapp" ? (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold">WhatsApp nudge</h3>
-                  <p className="text-xs text-slate-600">
-                    Logs a whatsapp_sent activity only — no WhatsApp API yet.
-                  </p>
-                  <textarea
-                    className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                    rows={2}
-                    placeholder="Optional note"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      className="rounded border px-2.5 py-1 text-sm"
-                      onClick={() => setPopover(null)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded bg-emerald-700 px-2.5 py-1 text-sm text-white"
-                      onClick={() =>
-                        runBackground(
-                          () =>
-                            sendLeadWhatsAppNudgeAction(lead.id, note || null),
-                          {
-                            last_action: "WhatsApp nudge sent",
-                            last_action_at: new Date().toISOString()
-                          }
-                        )
-                      }
-                    >
-                      Mark sent
                     </button>
                   </div>
                 </div>

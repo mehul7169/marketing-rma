@@ -19,6 +19,7 @@ import Pagination from "@/components/ui/Pagination";
 import { useTableView } from "@/hooks/useTableView";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
 import { displayActionStatus } from "@/lib/leads/actionStatus";
+import { normalizePhoneInput } from "@/lib/leads/contactNormalize";
 import { DEFAULT_COLUMNS } from "@/lib/table-views/registry";
 import type { TableColumnConfig, TableViewBootstrap } from "@/lib/table-views/types";
 import type { LeadRow } from "@/lib/leads/types";
@@ -223,7 +224,7 @@ export default function WorkQueueView({
         patch = { name: v };
         serverInput = { name: v };
       } else if (field === "phone") {
-        const v = raw.trim() || null;
+        const v = normalizePhoneInput(raw);
         patch = { phone: v };
         serverInput = { phone: v };
       } else {

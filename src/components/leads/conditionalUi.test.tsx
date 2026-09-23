@@ -12,8 +12,7 @@ vi.mock("@/app/leads/actions", () => ({
   addLeadNoteAction: vi.fn(),
   logLeadCallAttemptAction: vi.fn(),
   logLeadShowOutcomeAction: vi.fn(),
-  rescheduleLeadCallAction: vi.fn(),
-  sendLeadWhatsAppNudgeAction: vi.fn()
+  rescheduleLeadCallAction: vi.fn()
 }));
 
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";

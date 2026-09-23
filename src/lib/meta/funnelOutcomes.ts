@@ -1,9 +1,12 @@
 import type {
   MetaAdNode,
-  MetaAdsMetrics,
   MetaCampaignNode
 } from "@/lib/db/meta_ads_daily";
-import { normalizeCreativeKey } from "@/lib/insights/metrics";
+import {
+  normalizeCreativeKey,
+  resolveCreativeMatch,
+  type KnownAdsIndex
+} from "@/lib/insights/metrics";
 import type { LeadRow } from "@/lib/leads/types";
 import { toISTDateString } from "@/lib/timezone";
 
@@ -54,7 +57,13 @@ function sumOutcomes(parts: MetaFunnelOutcomes[]): MetaFunnelOutcomes {
   return out;
 }
 
-function applyOutcomes<T extends MetaAdsMetrics>(node: T, o: MetaFunnelOutcomes): T {
+function applyOutcomes<T extends {
+  formFilled: number;
+  booked: number;
+  showed: number;
+  dealsClosed: number;
+  dealValue: number;
+}>(node: T, o: MetaFunnelOutcomes): T {
   node.formFilled = o.formFilled;
   node.booked = o.booked;
   node.showed = o.showed;
@@ -64,27 +73,34 @@ function applyOutcomes<T extends MetaAdsMetrics>(node: T, o: MetaFunnelOutcomes)
 }
 
 /**
- * Attribute cohort leads (created_at in range) to ads via utm_content ↔ ad_name,
- * then roll Form Filled / Booked / Showed / Closed / Deal Value up the hierarchy.
- * Unmatched = cohort leads whose utm_content matches no known Meta ad_name.
+ * Attribute cohort leads to ads: match utm_content → ad_id first, then ad_name.
+ * Unmatched = cohort leads that match neither known Meta ad id nor ad name.
  */
 export function attachMetaFunnelOutcomes(
   campaigns: MetaCampaignNode[],
   leads: LeadRow[],
-  knownAdNames: Map<string, string>,
+  knownAds: KnownAdsIndex,
   fromISO: string,
   toISO: string
 ): { campaigns: MetaCampaignNode[]; unmatchedLeadCount: number } {
+  const adsById = new Map<string, MetaAdNode[]>();
   const adsByName = new Map<string, MetaAdNode[]>();
+
   for (const campaign of campaigns) {
     for (const adSet of campaign.ad_sets) {
       for (const ad of adSet.ads) {
         applyOutcomes(ad, { ...EMPTY_FUNNEL_OUTCOMES });
-        const key = normalizeCreativeKey(ad.ad_name);
-        if (!key) continue;
-        const list = adsByName.get(key) ?? [];
-        list.push(ad);
-        adsByName.set(key, list);
+        if (ad.ad_id) {
+          const list = adsById.get(ad.ad_id) ?? [];
+          list.push(ad);
+          adsById.set(ad.ad_id, list);
+        }
+        const nameKey = normalizeCreativeKey(ad.ad_name);
+        if (nameKey) {
+          const list = adsByName.get(nameKey) ?? [];
+          list.push(ad);
+          adsByName.set(nameKey, list);
+        }
       }
     }
   }
@@ -93,15 +109,22 @@ export function attachMetaFunnelOutcomes(
   const cohort = leads.filter((l) => inCreatedRange(l, fromISO, toISO));
 
   for (const lead of cohort) {
-    const key = normalizeCreativeKey(lead.utm_content);
-    if (!key || !knownAdNames.has(key)) {
+    const match = resolveCreativeMatch(lead.utm_content, knownAds);
+    if (!match) {
       unmatchedLeadCount += 1;
       continue;
     }
-    const ads = adsByName.get(key);
-    if (!ads || ads.length === 0) continue;
 
-    // One lead → one ad. If duplicate ad_names exist in-range, prefer highest spend.
+    const candidates =
+      (match.matchedBy === "ad_id"
+        ? adsById.get(match.adId)
+        : adsByName.get(normalizeCreativeKey(match.adName) ?? "")) ?? [];
+
+    // Prefer the hierarchy node that matches the resolved ad id when available.
+    const byId = adsById.get(match.adId) ?? [];
+    const ads = byId.length > 0 ? byId : candidates;
+    if (ads.length === 0) continue;
+
     const target = ads.reduce((best, ad) => (ad.spend > best.spend ? ad : best));
     addOutcomes(target, outcomesFromLead(lead));
   }
@@ -110,24 +133,28 @@ export function attachMetaFunnelOutcomes(
     for (const adSet of campaign.ad_sets) {
       applyOutcomes(
         adSet,
-        sumOutcomes(adSet.ads.map((ad) => ({
-          formFilled: ad.formFilled,
-          booked: ad.booked,
-          showed: ad.showed,
-          dealsClosed: ad.dealsClosed,
-          dealValue: ad.dealValue
-        })))
+        sumOutcomes(
+          adSet.ads.map((ad) => ({
+            formFilled: ad.formFilled,
+            booked: ad.booked,
+            showed: ad.showed,
+            dealsClosed: ad.dealsClosed,
+            dealValue: ad.dealValue
+          }))
+        )
       );
     }
     applyOutcomes(
       campaign,
-      sumOutcomes(campaign.ad_sets.map((adSet) => ({
-        formFilled: adSet.formFilled,
-        booked: adSet.booked,
-        showed: adSet.showed,
-        dealsClosed: adSet.dealsClosed,
-        dealValue: adSet.dealValue
-      })))
+      sumOutcomes(
+        campaign.ad_sets.map((adSet) => ({
+          formFilled: adSet.formFilled,
+          booked: adSet.booked,
+          showed: adSet.showed,
+          dealsClosed: adSet.dealsClosed,
+          dealValue: adSet.dealValue
+        }))
+      )
     );
   }
 
