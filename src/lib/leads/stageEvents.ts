@@ -127,11 +127,8 @@ export function leadMatchesFunnelStage(
   switch (stage) {
     case "created":
       return eventInRange(lead.created_at, fromISO, toISO);
-    case "call_booked": {
-      if (!eventInRange(lead.call_booked_at, fromISO, toISO)) return false;
-      if (!lead.call_cancelled_at) return true;
-      return Boolean(lead.call_booked_at && lead.call_booked_at > lead.call_cancelled_at);
-    }
+    case "call_booked":
+      return eventInRange(lead.call_booked_at, fromISO, toISO);
     case "qualified_call_booked":
       // No dedicated confirmed_at; approximate with booking time when confirmed.
       return (

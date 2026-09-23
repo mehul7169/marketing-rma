@@ -69,8 +69,7 @@ export async function POST(req: NextRequest) {
         call_booked_at: now,
         call_scheduled_for: callScheduledFor,
         cal_com_booking_id: calComBookingId,
-        booking_source: "cal_com",
-        call_cancelled_at: null
+        booking_source: "cal_com"
       });
       created = await maybeNotifyBooking(false, false, created);
       return NextResponse.json({
@@ -89,8 +88,7 @@ export async function POST(req: NextRequest) {
       call_booked_at: existing.call_booked_at ?? now,
       call_scheduled_for: callScheduledFor,
       cal_com_booking_id: calComBookingId,
-      booking_source: "cal_com",
-      call_cancelled_at: null
+      booking_source: "cal_com"
     });
 
     updated = await maybeNotifyBooking(hadBooking, hadNotified, updated);

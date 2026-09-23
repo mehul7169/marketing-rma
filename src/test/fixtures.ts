@@ -27,7 +27,6 @@ export function makeLead(overrides: Partial<LeadRow> = {}): LeadRow {
     cal_com_booking_id: null,
     booking_source: null,
     booking_history: [],
-    call_cancelled_at: null,
     setter_verified: null,
     setter_verified_at: null,
     setter_verified_by: null,

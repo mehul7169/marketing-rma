@@ -225,7 +225,6 @@ export default async function LeadDetailPage({
                 }
               />
               <Field label="Cal.com booking" value={lead.cal_com_booking_id} />
-              <Field label="Cancelled" value={fmtWhen(lead.call_cancelled_at)} />
               <Field
                 label="Deal value"
                 value={formatCurrencyNullable(lead.deal_value)}

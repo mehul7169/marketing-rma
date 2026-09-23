@@ -52,7 +52,6 @@ export type LeadRow = {
   cal_com_booking_id: string | null;
   booking_source: BookingSource | null;
   booking_history: BookingHistoryEntry[];
-  call_cancelled_at: string | null;
   setter_verified: boolean | null;
   setter_verified_at: string | null;
   setter_verified_by: string | null;

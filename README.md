@@ -56,7 +56,6 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 The marketing site never talks to Supabase. It POSTs to this app with `Authorization: Bearer $WEBSITE_INGEST_SECRET`:
 - `POST /api/ingest/lead-form` — qualification form submit (optional `qualified: boolean | null`)
 - `POST /api/ingest/booking` — cal.com booking
-- `POST /api/ingest/booking-cancelled` — cal.com cancellation relay
 
 These routes are excluded from login middleware (same as cron).
 
