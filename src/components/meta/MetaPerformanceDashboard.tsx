@@ -3,7 +3,9 @@ import type {
   MetaCampaignNode
 } from "@/lib/db/meta_ads_daily";
 import CohortMaturityNote from "@/components/CohortMaturityNote";
+import MetaAdFunnelTable from "@/components/meta/MetaAdFunnelTable";
 import MetaAdsTable from "@/components/meta/MetaAdsTable";
+import type { AdFunnelCampaignRow } from "@/lib/meta/adFunnelBreakdown";
 import MetaSummaryCards from "@/components/meta/MetaSummaryCards";
 import MetaTrendSection from "@/components/meta/MetaTrendSection";
 
@@ -30,7 +32,8 @@ export default function MetaPerformanceDashboard({
   campaigns,
   unmatchedLeadCount = 0,
   immature = false,
-  presetStorageKey
+  presetStorageKey,
+  funnelBreakdown
 }: {
   mode: MetaPerformanceMode;
   totals: MetaTotals;
@@ -42,6 +45,8 @@ export default function MetaPerformanceDashboard({
   unmatchedLeadCount?: number;
   immature?: boolean;
   presetStorageKey?: string;
+  /** /meta-ads only — per-ad funnel table rendered above the trend charts. */
+  funnelBreakdown?: AdFunnelCampaignRow[];
 }) {
   const includeFunnelColumns = mode === "lead-source";
 
@@ -52,6 +57,22 @@ export default function MetaPerformanceDashboard({
         priorTotals={priorTotals}
         periodDays={periodDays}
       />
+
+      {funnelBreakdown ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium text-slate-900">Funnel by ad</h2>
+          {immature ? <CohortMaturityNote /> : null}
+          <MetaAdFunnelTable rows={funnelBreakdown} />
+          <div className="text-xs text-slate-500">
+            Landing page ads = attributed leads from lead_source facebook; Quickform
+            ads = quickform_fb / quickform_ig. Opt-in, booking, and qualified-call
+            columns are landing-page only; qualified showups cover both. Lead counts
+            are cohort-based (created in this range); qualified call booked matches
+            /leads?cohort=qualified_call_booked. Cost = row adspend ÷ count. — means
+            the metric does not apply to that row&apos;s ad type.
+          </div>
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-slate-900">Trends</h2>

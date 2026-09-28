@@ -190,6 +190,10 @@ function computeTotals(campaigns: MetaCampaignNode[]): MetaAdsMetrics | null {
     (s, r) => s + r.appointments_scheduled,
     0
   );
+  const landing_page_views = campaigns.reduce(
+    (s, r) => s + r.landing_page_views,
+    0
+  );
   const formFilled = campaigns.reduce((s, r) => s + r.formFilled, 0);
   const booked = campaigns.reduce((s, r) => s + r.booked, 0);
   const showed = campaigns.reduce((s, r) => s + r.showed, 0);
@@ -206,6 +210,7 @@ function computeTotals(campaigns: MetaCampaignNode[]): MetaAdsMetrics | null {
     results,
     unique_outbound_clicks,
     appointments_scheduled,
+    landing_page_views,
     actions,
     formFilled,
     booked,

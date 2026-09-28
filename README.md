@@ -66,6 +66,14 @@ Referrals and hand-entered leads are created from the Work Queue (blocked during
 - Duplicates are rejected by org email and phone digits (same keys as ingest).
 - The creator is recorded as a `lead_activities` row (`type = lead_created`, `created_by` → `profiles.id`).
 
+## Meta Ads → Funnel by ad (`/meta-ads`)
+Table above the trend charts, campaign → ad set → ad, same date range as the page.
+- Ads are classified by the `lead_source` of every lead ever attributed to them (same `utm_content` → ad id, then ad name resolver as the Campaigns table): `facebook` = landing page, `quickform_fb`/`quickform_ig` = Quickform. Other sources are ignored.
+- LP visitors = `meta_ads_daily.landing_page_views` (extracted from `actions` at ingest).
+- Landing-page-only metrics (facebook leads created in range): opt-ins = lead exists; qualified opt-ins = `qualified = true` and `qualified_by = 'form'`; calls booked = `call_booked_at` set; qualified calls booked = `call_confirmed` (same as `/leads?cohort=qualified_call_booked`).
+- Qualified showups = `call_confirmed` and `call_showed` for landing-page and Quickform leads.
+- Cost = the row's adspend ÷ count. A dash means the metric doesn't apply to that ad type, or the count is zero (for cost).
+
 ## Backfilling historical data
 The hourly cron routes only pull the last 2 days. For a one-time all-time backfill, use the manual script:
 

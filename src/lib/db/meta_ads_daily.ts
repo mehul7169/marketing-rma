@@ -34,6 +34,7 @@ export type MetaAdsDailyRow = {
   cost_per_unique_outbound_click: number | null;
   appointments_scheduled: number | null;
   cost_per_appointment_scheduled: number | null;
+  landing_page_views: number | null;
   created_at: string | null;
 };
 
@@ -63,6 +64,7 @@ export type MetaAdsMetrics = {
   cost_per_unique_outbound_click: number | null;
   appointments_scheduled: number;
   cost_per_appointment_scheduled: number | null;
+  landing_page_views: number;
   /** Cohort funnel outcomes (created_at in range, utm_content ↔ ad_name). */
   formFilled: number;
   booked: number;
@@ -200,6 +202,7 @@ export async function upsertMetaAdsDaily(
     cost_per_unique_outbound_click: r.cost_per_unique_outbound_click ?? null,
     appointments_scheduled: r.appointments_scheduled ?? null,
     cost_per_appointment_scheduled: r.cost_per_appointment_scheduled ?? null,
+    landing_page_views: r.landing_page_views ?? null,
   }));
 
   const { error } = await supabaseAdmin.from("meta_ads_daily").upsert(payload, {
@@ -396,6 +399,7 @@ type DailyGrain = {
   actions: MetaActionEntry[] | null;
   unique_outbound_clicks: unknown;
   appointments_scheduled: unknown;
+  landing_page_views: unknown;
 };
 
 type MetricAcc = {
@@ -407,6 +411,7 @@ type MetricAcc = {
   results: number;
   unique_outbound_clicks: number;
   appointments_scheduled: number;
+  landing_page_views: number;
   actionMap: Map<string, number>;
 };
 
@@ -420,6 +425,7 @@ function emptyMetrics(): MetricAcc {
     results: 0,
     unique_outbound_clicks: 0,
     appointments_scheduled: 0,
+    landing_page_views: 0,
     actionMap: new Map(),
   };
 }
@@ -433,6 +439,7 @@ function addMetrics(acc: MetricAcc, row: DailyGrain) {
   acc.results += num(row.results);
   acc.unique_outbound_clicks += num(row.unique_outbound_clicks);
   acc.appointments_scheduled += num(row.appointments_scheduled);
+  acc.landing_page_views += num(row.landing_page_views);
   mergeActions(acc.actionMap, row.actions);
 }
 
@@ -467,6 +474,7 @@ export async function getMetaAdsHierarchy(
         "actions",
         "unique_outbound_clicks",
         "appointments_scheduled",
+        "landing_page_views",
       ].join(","),
     )
     .in("ad_account_id", accountIds)
@@ -556,6 +564,7 @@ export async function getMetaAdsHierarchy(
       results: acc.results,
       unique_outbound_clicks: acc.unique_outbound_clicks,
       appointments_scheduled: acc.appointments_scheduled,
+      landing_page_views: acc.landing_page_views,
       actions: actionsFromMap(acc.actionMap),
       formFilled: 0,
       booked: 0,

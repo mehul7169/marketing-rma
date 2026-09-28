@@ -24,7 +24,14 @@
 
 - E2E: `e2e/*.spec.ts` need `PLAYWRIGHT_BROWSERS_PATH=$HOME/Library/Caches/ms-playwright` and E2E_* creds (map from TEST_* in .env). Start dev with `WATCHPACK_POLLING=true` + `ulimit -n 10240`. TEST_ADMIN_EMAIL is NOT a platform admin (preview e2e skips).
 
+- "Qualified Call Booked" everywhere (cohort, Home funnel, /meta-ads funnel) = `call_confirmed === true` (`leadReachedCohortStage`). Never `stage` or `action_status`.
+- Lead → ad attribution: `createLeadAdResolver` in `src/lib/meta/funnelOutcomes.ts`. facebook and quickform leads carry the ad NAME in `utm_content` (0 match by id), and names like "London 1/2/3" repeat across campaigns. Same-named ads resolve to the highest-spend ad in range.
+- `meta_ads_daily.landing_page_views` added and backfilled 2026-09-28 (migration 007, 806 rows, 0 mismatches vs `actions`).
+- `call_showed` is manual only. Recordings are Fathom share links (`fathom.video/share/...`). There's no Fathom or cal.com integration or key in `.env`.
+
 ## Deferred
+- Automatic call-showed detection: the proposal is a Fathom webhook that matches the invitee email and sets `call_showed`/`recording_url`. Blocked on the user providing a Fathom API key/webhook secret.
+- Ask the website to put the ad ID (`{{ad.id}}`) in `utm_content` so attribution isn't name-based.
 - Live sanity check of manual lead creation (row + lead_created activity) not done — no-writes rule.
 - Backfill of historical `last_action` for ~88 leads from milestone timestamps — declined for now (heuristic; `*_at` are first-set times). Vaidik + Shibajyoti `call_confirmed` and Vaidik `last_action` were backfilled 2026-09-23.
 - `logVerificationCallAttempt` (detail page) still doesn't write `last_action`/activity.

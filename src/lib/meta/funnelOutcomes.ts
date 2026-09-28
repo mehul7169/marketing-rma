@@ -72,24 +72,25 @@ function applyOutcomes<T extends {
   return node;
 }
 
+export type LeadAdResolution =
+  | { matched: false }
+  | { matched: true; ad: MetaAdNode | null };
+
 /**
- * Attribute cohort leads to ads: match utm_content → ad_id first, then ad_name.
- * Unmatched = cohort leads that match neither known Meta ad id nor ad name.
+ * Resolve a lead to its hierarchy ad node: utm_content → ad_id first, then
+ * ad_name. `matched: false` = matches no known Meta ad; `ad: null` = known ad
+ * with no row in this hierarchy (date range).
  */
-export function attachMetaFunnelOutcomes(
+export function createLeadAdResolver(
   campaigns: MetaCampaignNode[],
-  leads: LeadRow[],
-  knownAds: KnownAdsIndex,
-  fromISO: string,
-  toISO: string
-): { campaigns: MetaCampaignNode[]; unmatchedLeadCount: number } {
+  knownAds: KnownAdsIndex
+): (lead: LeadRow) => LeadAdResolution {
   const adsById = new Map<string, MetaAdNode[]>();
   const adsByName = new Map<string, MetaAdNode[]>();
 
   for (const campaign of campaigns) {
     for (const adSet of campaign.ad_sets) {
       for (const ad of adSet.ads) {
-        applyOutcomes(ad, { ...EMPTY_FUNNEL_OUTCOMES });
         if (ad.ad_id) {
           const list = adsById.get(ad.ad_id) ?? [];
           list.push(ad);
@@ -105,15 +106,9 @@ export function attachMetaFunnelOutcomes(
     }
   }
 
-  let unmatchedLeadCount = 0;
-  const cohort = leads.filter((l) => inCreatedRange(l, fromISO, toISO));
-
-  for (const lead of cohort) {
+  return (lead) => {
     const match = resolveCreativeMatch(lead.utm_content, knownAds);
-    if (!match) {
-      unmatchedLeadCount += 1;
-      continue;
-    }
+    if (!match) return { matched: false };
 
     const candidates =
       (match.matchedBy === "ad_id"
@@ -123,10 +118,49 @@ export function attachMetaFunnelOutcomes(
     // Prefer the hierarchy node that matches the resolved ad id when available.
     const byId = adsById.get(match.adId) ?? [];
     const ads = byId.length > 0 ? byId : candidates;
-    if (ads.length === 0) continue;
+    if (ads.length === 0) return { matched: true, ad: null };
 
-    const target = ads.reduce((best, ad) => (ad.spend > best.spend ? ad : best));
-    addOutcomes(target, outcomesFromLead(lead));
+    return {
+      matched: true,
+      ad: ads.reduce((best, ad) => (ad.spend > best.spend ? ad : best))
+    };
+  };
+}
+
+export function leadsCreatedInRange(
+  leads: LeadRow[],
+  fromISO: string,
+  toISO: string
+): LeadRow[] {
+  return leads.filter((l) => inCreatedRange(l, fromISO, toISO));
+}
+
+/**
+ * Attribute cohort leads to ads: match utm_content → ad_id first, then ad_name.
+ * Unmatched = cohort leads that match neither known Meta ad id nor ad name.
+ */
+export function attachMetaFunnelOutcomes(
+  campaigns: MetaCampaignNode[],
+  leads: LeadRow[],
+  knownAds: KnownAdsIndex,
+  fromISO: string,
+  toISO: string
+): { campaigns: MetaCampaignNode[]; unmatchedLeadCount: number } {
+  for (const campaign of campaigns) {
+    for (const adSet of campaign.ad_sets) {
+      for (const ad of adSet.ads) applyOutcomes(ad, { ...EMPTY_FUNNEL_OUTCOMES });
+    }
+  }
+  const resolve = createLeadAdResolver(campaigns, knownAds);
+
+  let unmatchedLeadCount = 0;
+  for (const lead of leadsCreatedInRange(leads, fromISO, toISO)) {
+    const res = resolve(lead);
+    if (!res.matched) {
+      unmatchedLeadCount += 1;
+      continue;
+    }
+    if (res.ad) addOutcomes(res.ad, outcomesFromLead(lead));
   }
 
   for (const campaign of campaigns) {

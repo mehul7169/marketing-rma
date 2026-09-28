@@ -15,8 +15,12 @@ import {
   getMetaAdsTrend
 } from "@/lib/db/meta_ads_daily";
 import { listKnownAdsIndex } from "@/lib/db/insights";
-import { listLeadsInRange } from "@/lib/db/leads";
+import { listAllLeads, listLeadsInRange } from "@/lib/db/leads";
 import { attachMetaFunnelOutcomes } from "@/lib/meta/funnelOutcomes";
+import {
+  AD_FUNNEL_LEAD_SOURCES,
+  buildAdFunnelBreakdown
+} from "@/lib/meta/adFunnelBreakdown";
 import DateRangePicker from "@/components/DateRangePicker";
 import MetaPerformanceDashboard from "@/components/meta/MetaPerformanceDashboard";
 
@@ -51,7 +55,7 @@ export default async function MetaAdsPage({
   const accountIds = await getOrgMetaAdAccountIds(orgId);
   const hasAccounts = accountIds.length > 0;
 
-  const [totals, priorTotals, trendRaw, hierarchy, cohortLeads, knownAds] =
+  const [totals, priorTotals, trendRaw, hierarchy, cohortLeads, knownAds, funnelLeads] =
     hasAccounts
       ? await Promise.all([
           getMetaAdsTotals(fromISO, toISO, orgId, accountIds),
@@ -59,7 +63,9 @@ export default async function MetaAdsPage({
           getMetaAdsTrend(fromISO, toISO, orgId, accountIds),
           getMetaAdsHierarchy(fromISO, toISO, orgId, accountIds),
           listLeadsInRange(fromISO, toISO, orgId),
-          listKnownAdsIndex(orgId)
+          listKnownAdsIndex(orgId),
+          // All-time: ad classification uses every lead ever attributed to an ad.
+          listAllLeads(orgId, [...AD_FUNNEL_LEAD_SOURCES])
         ])
       : [
           {
@@ -77,12 +83,21 @@ export default async function MetaAdsPage({
           [] as Awaited<ReturnType<typeof getMetaAdsTrend>>,
           [] as Awaited<ReturnType<typeof getMetaAdsHierarchy>>,
           [] as Awaited<ReturnType<typeof listLeadsInRange>>,
-          { byAdId: new Map(), byAdName: new Map() }
+          { byAdId: new Map(), byAdName: new Map() },
+          [] as Awaited<ReturnType<typeof listAllLeads>>
         ];
 
   const { campaigns: table, unmatchedLeadCount } = attachMetaFunnelOutcomes(
     hierarchy,
     cohortLeads,
+    knownAds,
+    fromISO,
+    toISO
+  );
+
+  const funnelBreakdown = buildAdFunnelBreakdown(
+    hierarchy,
+    funnelLeads,
     knownAds,
     fromISO,
     toISO
@@ -138,6 +153,7 @@ export default async function MetaAdsPage({
           campaigns={table}
           unmatchedLeadCount={unmatchedLeadCount}
           immature={immature}
+          funnelBreakdown={funnelBreakdown}
         />
       )}
     </div>

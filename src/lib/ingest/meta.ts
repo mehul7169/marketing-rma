@@ -49,6 +49,9 @@ export const META_RESULT_ACTION_TYPE = "lead";
  */
 export const META_APPOINTMENT_ACTION_TYPE = "offsite_conversion.fb_pixel_custom";
 
+/** Landing page visitors — exact `landing_page_view` (not omni_landing_page_view). */
+export const META_LANDING_PAGE_VIEW_ACTION_TYPE = "landing_page_view";
+
 export type MetaInsightsRow = {
   date_start: string;
   campaign_id: string | null;
@@ -173,6 +176,10 @@ export function transformMetaInsightsRows(
         r.actions,
         META_APPOINTMENT_ACTION_TYPE
       );
+      const landingPageViews = sumActionType(
+        r.actions,
+        META_LANDING_PAGE_VIEW_ACTION_TYPE
+      );
       const uniqueOutboundClicks = sumActionType(
         r.unique_outbound_clicks,
         "outbound_click"
@@ -223,7 +230,8 @@ export function transformMetaInsightsRows(
         unique_outbound_ctr: uniqueOutboundCtr,
         cost_per_unique_outbound_click: costPerUniqueOutbound,
         appointments_scheduled: appointmentsScheduled,
-        cost_per_appointment_scheduled: costPerAppointment
+        cost_per_appointment_scheduled: costPerAppointment,
+        landing_page_views: landingPageViews
       };
     });
 }
