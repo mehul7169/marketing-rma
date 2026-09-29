@@ -26,6 +26,8 @@ export const INSIGHTS_TOOLTIPS = {
     "Cohort leads (created in this range) whose UTM Content didn't match a Meta ad id or ad name. Remaining unmatched are often non-Meta traffic, or ads whose tracking template still has an unsubstituted {{ad.name}} / {{ad.id}} — fix those in Ads Manager.",
   sourceBooked:
     "Of leads created in this range who have call_booked_at set, grouped by lead source (e.g. Meta, YouTube) as recorded when the lead filled the form — regardless of when they booked.",
+  setterActivity:
+    "Work Queue call logs (lead_activities, type call_attempt), bucketed by the IST day the call was logged and by who logged it. Event-based, not cohort-based. Total Dials counts every logged call, repeats included. Calls Booked counts only bookings made on the call: a Qualified outcome where that call set the lead's booking (call_booked_at within 5 minutes), once per lead. Qualify calls on leads who had already booked on cal.com are not counted. No Answer, Unqualified and Follow-up count call outcomes only.",
   dailyTrend:
     "Each line counts leads by the date the relevant event happened (booking date, show date, or close date respectively), in IST. Not cumulative — each day shows that day's count only. Unlike the tables above, this stays event-based."
 } as const;

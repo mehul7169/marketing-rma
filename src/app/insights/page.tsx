@@ -5,9 +5,11 @@ import InfoTip from "@/components/InfoTip";
 import InsightsCreativeTable from "@/components/insights/InsightsCreativeTable";
 import InsightsFilters from "@/components/insights/InsightsFilters";
 import InsightsRateCards from "@/components/insights/InsightsRateCards";
+import InsightsSetterActivity from "@/components/insights/InsightsSetterActivity";
 import InsightsSourceBooked from "@/components/insights/InsightsSourceBooked";
 import InsightsTrendSection from "@/components/insights/InsightsTrendSection";
 import { getInsightsData } from "@/lib/db/insights";
+import { getSetterActivityReport } from "@/lib/db/setterActivity";
 import { INSIGHTS_TOOLTIPS } from "@/lib/insights/tooltips";
 import {
   clampDateRange,
@@ -46,12 +48,10 @@ export default async function InsightsPage({
   const immature = isCohortImmature(toISO, todayISO);
 
   const orgId = await getCurrentOrgId();
-  const { metrics, sources: allSources } = await getInsightsData(
-    fromISO,
-    toISO,
-    orgId,
-    sources.length ? sources : undefined
-  );
+  const [{ metrics, sources: allSources }, setterActivity] = await Promise.all([
+    getInsightsData(fromISO, toISO, orgId, sources.length ? sources : undefined),
+    getSetterActivityReport(orgId, fromISO, toISO)
+  ]);
 
   return (
     <div className="space-y-8">
@@ -118,6 +118,14 @@ export default async function InsightsPage({
         <div className="overflow-visible rounded border border-slate-200 p-4">
           <InsightsTrendSection trend={metrics.daily} rangeDays={rangeDays} />
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+          Setter activity
+          <InfoTip text={INSIGHTS_TOOLTIPS.setterActivity} />
+        </h2>
+        <InsightsSetterActivity report={setterActivity} />
       </section>
     </div>
   );

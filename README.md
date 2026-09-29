@@ -74,6 +74,11 @@ Table above the trend charts, campaign → ad set → ad, same date range as the
 - Qualified showups = `call_confirmed` and `call_showed` for landing-page and Quickform leads.
 - Cost = the row's adspend ÷ count. A dash means the metric doesn't apply to that ad type, or the count is zero (for cost).
 
+## Insights → Setter activity (`/insights`)
+Org-level daily table plus a per-setter table (their totals must match) from `lead_activities` rows with `type = 'call_attempt'`. Rows are bucketed by the IST day they were logged and grouped by `created_by` → `profiles.email`.
+- Total Dials = every row, repeats included. No Answer / Unqualified / Follow-up = outcome `no_answer` / `not_qualified` / `follow_up_needed`.
+- Calls Booked = bookings made on the call: an outcome `qualified` whose lead's `call_booked_at` is within 5 minutes of the row, counted once per lead. It excludes qualify calls on leads who had already booked on cal.com, and leftover rows from failed saves.
+
 ## Backfilling historical data
 The hourly cron routes only pull the last 2 days. For a one-time all-time backfill, use the manual script:
 

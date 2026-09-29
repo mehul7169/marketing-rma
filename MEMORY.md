@@ -29,7 +29,11 @@
 - `meta_ads_daily.landing_page_views` added and backfilled 2026-09-28 (migration 007, 806 rows, 0 mismatches vs `actions`).
 - `call_showed` is manual only. Recordings are Fathom share links (`fathom.video/share/...`). There's no Fathom or cal.com integration or key in `.env`.
 
+- There's no booking activity type. Work Queue "Qualified" sets `call_booked_at` (it keeps an existing cal.com time) along with `call_confirmed`. Self-serve cal.com bookings never write a `call_attempt`. Setter "Calls Booked" = qualified row within 5 min of `call_booked_at`, once per lead (user decision 2026-09-29).
+- The org table is `organizations` (not `orgs`). `profiles` has id, email, role, is_platform_admin, and no name column.
+
 ## Deferred
+- `logCallAttempt` inserts the `lead_activities` row BEFORE it validates and updates the lead, so failed saves leave leftover rows (e.g. Aishavryaa has 3 extra `qualified` rows on 14 Sep). The user declined the fix for now. This inflates Total Dials slightly.
 - Automatic call-showed detection: the proposal is a Fathom webhook that matches the invitee email and sets `call_showed`/`recording_url`. Blocked on the user providing a Fathom API key/webhook secret.
 - Ask the website to put the ad ID (`{{ad.id}}`) in `utm_content` so attribution isn't name-based.
 - Live sanity check of manual lead creation (row + lead_created activity) not done — no-writes rule.
