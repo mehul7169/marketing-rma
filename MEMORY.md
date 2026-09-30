@@ -31,6 +31,7 @@
 
 - There's no booking activity type. Work Queue "Qualified" sets `call_booked_at` (it keeps an existing cal.com time) along with `call_confirmed`. Self-serve cal.com bookings never write a `call_attempt`. Setter "Calls Booked" = qualified row within 5 min of `call_booked_at`, once per lead (user decision 2026-09-29).
 - Filter persistence lives in `table_views.config.filters[orgId]` (user chose no new table). Named saved views should go in another config key. Don't add a `filters` column. `src/lib/leads/listFilterParams.ts` is the single parse/build path for `/leads` URLs. In-app links must keep at least one filter param (e.g. `lifecycle`, `view`), or the restore redirect fires.
+- Crons: Vercel Cron in `vercel.json` (UTC schedules). Auth is `assertCronSecret`, and Vercel sends `Authorization: Bearer $CRON_SECRET`. Runs are logged via `logCronRun`. The daily digest `30 14 * * *` (8 PM IST) reuses page query functions. Don't write parallel queries. Test with `?dry_run=1` and don't post to the live webhook.
 - The org table is `organizations` (not `orgs`). `profiles` has id, email, role, is_platform_admin, and no name column.
 
 ## Deferred

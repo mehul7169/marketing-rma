@@ -1,3 +1,15 @@
+/** Posts to a specific incoming webhook; throws on failure (for callers that must know). */
+export async function postSlackWebhook(url: string, text: string, blocks?: unknown[]) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(blocks ? { text, blocks } : { text })
+  });
+  if (!res.ok) {
+    throw new Error(`Slack webhook failed: ${res.status} ${await res.text()}`);
+  }
+}
+
 export async function sendSlackMessage(text: string, blocks?: unknown[]) {
   const url = process.env.SLACK_WEBHOOK_URL;
   if (!url) {
@@ -6,14 +18,7 @@ export async function sendSlackMessage(text: string, blocks?: unknown[]) {
   }
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(blocks ? { text, blocks } : { text })
-    });
-    if (!res.ok) {
-      console.error("Slack notify failed", res.status, await res.text());
-    }
+    await postSlackWebhook(url, text, blocks);
   } catch (err) {
     console.error("Slack notify error", err);
   }

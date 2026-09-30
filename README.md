@@ -40,6 +40,7 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 | `CRON_SECRET` | Shared secret to protect cron routes | Choose any strong value |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `VIEWER_*` / `ROLE_SECRET` | Legacy shared-password auth (unused once Supabase Auth is live; keep briefly for rollback) | — |
 | `WEBSITE_INGEST_SECRET` | Shared secret for runmoreads.in ingest APIs | Random hex; same pattern as `CRON_SECRET` |
+| `SLACK_DAILY_SUMMARY_WEBHOOK_URL` | Incoming webhook for the 8 PM IST daily digest | Slack app → Incoming Webhooks |
 
 ### Auth (Supabase Auth)
 - Sign-in uses Supabase email/password (`profiles.role` = `admin` | `viewer`).
@@ -51,6 +52,13 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 - Scheduled pulls are implemented as Next.js Route Handlers under `app/api/cron/*`.
 - Vercel Cron configuration is in `vercel.json` (runs hourly to pull “yesterday + today”).
 - For local testing, you can run the handlers by calling the route URL and sending an `Authorization` header set to `CRON_SECRET`.
+
+### Daily Slack digest (`/api/cron/daily-summary`)
+- Runs at `30 14 * * *`. Vercel cron is UTC, so that's 8:00 PM IST. It posts a Block Kit summary for today in IST, labelled "today so far, as of <time> IST".
+- Setter lines use `getSetterActivityReport`, the same function as `/insights` Setter activity.
+- Ad spend uses `getMetaAdsTotals` (same as `/meta-ads`) and is only as fresh as the last hourly Meta sync (noted in the message).
+- Leads received and calls booked use `countLeads`, the same as `/leads?lifecycle=all` and `/leads?event=call_booked` for today. The message flags when leads booked today differs from setter-call bookings.
+- `?dry_run=1` returns the numbers and payload without posting: `curl -H "Authorization: Bearer $CRON_SECRET" ".../api/cron/daily-summary?dry_run=1"`.
 
 ## Website ingest (runmoreads.in)
 The marketing site never talks to Supabase. It POSTs to this app with `Authorization: Bearer $WEBSITE_INGEST_SECRET`:
