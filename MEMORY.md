@@ -30,9 +30,12 @@
 - `call_showed` is manual only. Recordings are Fathom share links (`fathom.video/share/...`). There's no Fathom or cal.com integration or key in `.env`.
 
 - There's no booking activity type. Work Queue "Qualified" sets `call_booked_at` (it keeps an existing cal.com time) along with `call_confirmed`. Self-serve cal.com bookings never write a `call_attempt`. Setter "Calls Booked" = qualified row within 5 min of `call_booked_at`, once per lead (user decision 2026-09-29).
+- Filter persistence lives in `table_views.config.filters[orgId]` (user chose no new table). Named saved views should go in another config key. Don't add a `filters` column. `src/lib/leads/listFilterParams.ts` is the single parse/build path for `/leads` URLs. In-app links must keep at least one filter param (e.g. `lifecycle`, `view`), or the restore redirect fires.
 - The org table is `organizations` (not `orgs`). `profiles` has id, email, role, is_platform_admin, and no name column.
 
 ## Deferred
+- Leads with null `lead_source` (~77) can't be picked in the Source filter. It needs an `is.null` OR branch in `listLeads`/`countLeads`.
+- Saved named views (filters phase 2).
 - `logCallAttempt` inserts the `lead_activities` row BEFORE it validates and updates the lead, so failed saves leave leftover rows (e.g. Aishavryaa has 3 extra `qualified` rows on 14 Sep). The user declined the fix for now. This inflates Total Dials slightly.
 - Automatic call-showed detection: the proposal is a Fathom webhook that matches the invitee email and sets `call_showed`/`recording_url`. Blocked on the user providing a Fathom API key/webhook secret.
 - Ask the website to put the ad ID (`{{ad.id}}`) in `utm_content` so attribution isn't name-based.

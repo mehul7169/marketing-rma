@@ -1,12 +1,19 @@
 import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import DateRangePicker from "@/components/DateRangePicker";
 import LeadsFilters from "@/components/leads/LeadsFilters";
+import { stageLabel } from "@/components/leads/StageBadge";
 import ConfigurableLeadsTable from "@/components/table-views/ConfigurableLeadsTable";
+import PersistFilterState from "@/components/table-views/PersistFilterState";
 import { DataTablePageShell } from "@/components/table-views/ScrollableDataTable";
 import Pagination from "@/components/ui/Pagination";
 import { listDueFollowUps } from "@/lib/db/lead_reminders";
 import { countLeads, listDistinctLeadSources, listLeads } from "@/lib/db/leads";
 import { getOrganizationById } from "@/lib/db/organizations";
+import {
+  buildLeadsQuery,
+  parseLeadsFilterParams,
+  type LeadsSearchParams
+} from "@/lib/leads/listFilterParams";
 import {
   cohortBannerCopy,
   eventBannerCopy,
@@ -17,63 +24,32 @@ import {
   pageOffset,
   parsePageParam
 } from "@/lib/leads/pagination";
-import { loadTableViewBootstrap } from "@/lib/table-views/loadBootstrap";
-import { clampDateRange, defaultFromISO } from "@/lib/utils/date";
+import {
+  loadTableViewBootstrap,
+  restorePersistedFilters
+} from "@/lib/table-views/loadBootstrap";
 import { todayISTDateString } from "@/lib/timezone";
 import type { LeadListFilters, LeadReminder } from "@/lib/leads/types";
-
-function parseList(value: string | undefined): string[] {
-  if (!value) return [];
-  return value.split(",").map((s) => s.trim()).filter(Boolean);
-}
 
 export default async function LeadsPage({
   searchParams
 }: {
-  searchParams: {
-    from?: string;
-    to?: string;
-    stage?: string;
-    event?: string;
-    cohort?: string;
-    source?: string;
-    q?: string;
-    lifecycle?: string;
-    action_status?: string;
-    is_dead?: string;
-    page?: string;
-  };
+  searchParams: LeadsSearchParams;
 }) {
-  const todayISO = todayISTDateString();
-  let fromISO = defaultFromISO(todayISO);
-  let toISO = todayISO;
-  try {
-    if (searchParams.from && searchParams.to) {
-      const clamped = clampDateRange(searchParams.from, searchParams.to);
-      fromISO = clamped.fromISO;
-      toISO = clamped.toISO;
-    }
-  } catch {
-    // default range
-  }
+  const orgId = await getCurrentOrgId();
+  await restorePersistedFilters("leads", "/leads", searchParams, orgId);
 
-  const stages = parseList(searchParams.stage);
-  const cohort = searchParams.cohort?.trim() || undefined;
-  const event = searchParams.event?.trim() || undefined;
+  const todayISO = todayISTDateString();
+  const filterState = parseLeadsFilterParams(searchParams, todayISO);
+  const { fromISO, toISO, lifecycle, stages, sources, cohort, event } = filterState;
   const cohortStage = parseUrlEvent(cohort);
   const eventStage = cohortStage ? null : parseUrlEvent(event);
   const deepLinkStage = cohortStage ?? eventStage;
-  const sources = parseList(searchParams.source);
-  const search = searchParams.q ?? "";
-  const actionStatusFilter = searchParams.action_status?.trim() || "";
-  const isDeadFilter = searchParams.is_dead?.trim() || "";
-  const lifecycle =
-    searchParams.lifecycle ?? (deepLinkStage ? "all" : "active");
-  const hasCustomRange = Boolean(searchParams.from || searchParams.to);
   const needsVerificationCall = lifecycle === "needs_verification";
   const followUpsDue = lifecycle === "follow_ups_due";
-  const orgId = await getCurrentOrgId();
-  const page = parsePageParam(searchParams.page);
+  const page = parsePageParam(
+    Array.isArray(searchParams.page) ? searchParams.page[0] : searchParams.page
+  );
 
   const scopeFilters: LeadListFilters = {
     orgId,
@@ -83,15 +59,17 @@ export default async function LeadsPage({
     cohort,
     event: cohortStage ? undefined : event,
     sources,
-    search,
+    search: filterState.q,
     lifecycle: followUpsDue || needsVerificationCall ? undefined : lifecycle,
     followUpsDue,
     needsVerificationCall,
-    actionStatuses: actionStatusFilter ? [actionStatusFilter] : undefined,
+    actionStatuses: filterState.actionStatuses.length
+      ? filterState.actionStatuses
+      : undefined,
     isDead:
-      isDeadFilter === "true"
+      filterState.isDead === "true"
         ? true
-        : isDeadFilter === "false"
+        : filterState.isDead === "false"
           ? false
           : undefined
   };
@@ -119,26 +97,14 @@ export default async function LeadsPage({
     dueByLead[r.lead_id] = list;
   }
 
-  function leadsQuery(): Record<string, string> {
-    const q: Record<string, string> = {
-      from: fromISO,
-      to: toISO
-    };
-    if (lifecycle) q.lifecycle = lifecycle;
-    if (!deepLinkStage && stages.length) q.stage = stages.join(",");
-    if (cohort) q.cohort = cohort;
-    if (!cohortStage && event) q.event = event;
-    if (sources.length) q.source = sources.join(",");
-    if (search) q.q = search;
-    if (actionStatusFilter) q.action_status = actionStatusFilter;
-    if (isDeadFilter === "true" || isDeadFilter === "false") {
-      q.is_dead = isDeadFilter;
-    }
-    return q;
-  }
+  const query = buildLeadsQuery(filterState);
+  const dateExtraParams: Record<string, string> = { ...query };
+  delete dateExtraParams.from;
+  delete dateExtraParams.to;
 
   return (
     <DataTablePageShell className="gap-6">
+      <PersistFilterState pageKey="leads" />
       <div className="shrink-0 space-y-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -159,20 +125,12 @@ export default async function LeadsPage({
             </p>
           </div>
           <DateRangePicker
+            key={`${fromISO}:${toISO}`}
             fromISO={fromISO}
             toISO={toISO}
-            hasCustomRange={hasCustomRange}
+            hasCustomRange={!filterState.isDefaultRange}
             pathname="/leads"
-            extraParams={{
-              stage: deepLinkStage ? undefined : stages.join(","),
-              cohort,
-              event: cohortStage ? undefined : event,
-              source: sources.join(","),
-              q: search,
-              lifecycle,
-              action_status: actionStatusFilter || undefined,
-              is_dead: isDeadFilter || undefined
-            }}
+            extraParams={dateExtraParams}
           />
         </div>
 
@@ -188,14 +146,8 @@ export default async function LeadsPage({
 
         <LeadsFilters
           sources={allSources}
-          selectedStages={deepLinkStage ? [] : stages}
-          selectedSources={sources}
-          search={search}
-          fromISO={fromISO}
-          toISO={toISO}
-          lifecycle={lifecycle}
-          actionStatus={actionStatusFilter}
-          isDead={isDeadFilter}
+          state={filterState}
+          deepLinkLabel={deepLinkStage ? stageLabel(deepLinkStage) : undefined}
         />
       </div>
 
@@ -212,7 +164,7 @@ export default async function LeadsPage({
           total={total}
           pageSize={LEAD_LIST_PAGE_SIZE}
           pathname="/leads"
-          query={leadsQuery()}
+          query={query}
         />
       </div>
     </DataTablePageShell>

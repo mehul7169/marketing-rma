@@ -1,9 +1,17 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ACTION_STATUSES } from "@/lib/leads/actionStatus";
 import { LEAD_STAGES } from "@/lib/leads/computeStage";
+import {
+  clearedLeadsFilterState,
+  leadsFilterChips,
+  leadsHref,
+  type LeadsFilterState
+} from "@/lib/leads/listFilterParams";
 import { stageLabel } from "@/components/leads/StageBadge";
+import CheckboxMultiSelect from "@/components/ui/CheckboxMultiSelect";
 
 const LIFECYCLE_TABS: Array<{ id: string; label: string }> = [
   { id: "active", label: "Active" },
@@ -13,59 +21,47 @@ const LIFECYCLE_TABS: Array<{ id: string; label: string }> = [
   { id: "all", label: "All" }
 ];
 
+const STAGE_OPTIONS = LEAD_STAGES.map((s) => ({ value: s, label: stageLabel(s) }));
+const ACTION_STATUS_OPTIONS = ACTION_STATUSES.map((s) => ({ value: s, label: s }));
+
+/** Filter panel + chips — both render the same (optimistic) state. */
 export default function LeadsFilters({
   sources,
-  selectedStages,
-  selectedSources,
-  search,
-  fromISO,
-  toISO,
-  lifecycle,
-  actionStatus,
-  isDead
+  state: serverState,
+  deepLinkLabel
 }: {
   sources: string[];
-  selectedStages: string[];
-  selectedSources: string[];
-  search: string;
-  fromISO: string;
-  toISO: string;
-  lifecycle: string;
-  actionStatus: string;
-  isDead: string;
+  state: LeadsFilterState;
+  deepLinkLabel?: string;
 }) {
   const router = useRouter();
+  const [state, setState] = useState(serverState);
+  const serverKey = leadsHref(serverState);
 
-  function push(next: {
-    stages?: string[];
-    sources?: string[];
-    q?: string;
-    from?: string;
-    to?: string;
-    lifecycle?: string;
-    actionStatus?: string;
-    isDead?: string;
-  }) {
-    const params = new URLSearchParams();
-    params.set("from", next.from ?? fromISO);
-    params.set("to", next.to ?? toISO);
-    const stages = next.stages ?? selectedStages;
-    const srcs = next.sources ?? selectedSources;
-    const q = next.q ?? search;
-    const life = next.lifecycle ?? lifecycle;
-    const as = next.actionStatus ?? actionStatus;
-    const dead = next.isDead ?? isDead;
-    if (life && life !== "active") params.set("lifecycle", life);
-    if (life === "active") params.set("lifecycle", "active");
-    if (stages.length) params.set("stage", stages.join(","));
-    if (srcs.length) params.set("source", srcs.join(","));
-    if (q) params.set("q", q);
-    if (as) params.set("action_status", as);
-    if (dead === "true" || dead === "false") params.set("is_dead", dead);
-    router.push(`/leads?${params.toString()}`);
+  useEffect(() => {
+    setState(serverState);
+    // serverKey captures every field of serverState.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverKey]);
+
+  function apply(next: LeadsFilterState) {
+    setState(next);
+    router.push(leadsHref(next));
   }
 
-  const sourceKey = selectedSources.join(",").toLowerCase();
+  function patch(p: Partial<LeadsFilterState>) {
+    apply({ ...state, ...p });
+  }
+
+  const sourceOptions = Array.from(new Set([...sources, ...state.sources])).map((s) => ({
+    value: s,
+    label: s
+  }));
+  const chips = leadsFilterChips(state, {
+    stage: stageLabel,
+    deepLink: () => deepLinkLabel ?? ""
+  });
+  const deepLink = Boolean(state.cohort || state.event);
 
   return (
     <div className="space-y-4">
@@ -75,11 +71,11 @@ export default function LeadsFilters({
             key={tab.id}
             type="button"
             className={`rounded border px-3 py-1.5 text-sm ${
-              lifecycle === tab.id
+              state.lifecycle === tab.id
                 ? "ui-active"
                 : "border-slate-200 text-slate-700"
             }`}
-            onClick={() => push({ lifecycle: tab.id })}
+            onClick={() => patch({ lifecycle: tab.id })}
           >
             {tab.label}
           </button>
@@ -87,48 +83,24 @@ export default function LeadsFilters({
         <button
           type="button"
           className={`rounded border px-3 py-1.5 text-sm ${
-            lifecycle === "follow_ups_due"
+            state.lifecycle === "follow_ups_due"
               ? "border-red-700 bg-red-700 text-white"
               : "border-red-200 bg-red-50 text-red-900"
           }`}
-          onClick={() => push({ lifecycle: "follow_ups_due" })}
+          onClick={() => patch({ lifecycle: "follow_ups_due" })}
         >
           Follow-ups Due
         </button>
         <button
           type="button"
           className={`rounded border px-3 py-1.5 text-sm ${
-            lifecycle === "needs_verification"
+            state.lifecycle === "needs_verification"
               ? "ui-active"
               : "border-slate-200 text-slate-700"
           }`}
-          onClick={() => push({ lifecycle: "needs_verification" })}
+          onClick={() => patch({ lifecycle: "needs_verification" })}
         >
           Needs Verification Call
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className={`rounded border px-3 py-1.5 text-sm ${sourceKey === "" ? "ui-active" : "border-slate-200 text-slate-700"}`}
-          onClick={() => push({ sources: [] })}
-        >
-          All sources
-        </button>
-        <button
-          type="button"
-          className={`rounded border px-3 py-1.5 text-sm ${sourceKey === "meta" ? "ui-active" : "border-slate-200 text-slate-700"}`}
-          onClick={() => push({ sources: ["meta"] })}
-        >
-          Meta Ads
-        </button>
-        <button
-          type="button"
-          className={`rounded border px-3 py-1.5 text-sm ${sourceKey === "youtube" ? "ui-active" : "border-slate-200 text-slate-700"}`}
-          onClick={() => push({ sources: ["youtube"] })}
-        >
-          YouTube
         </button>
       </div>
 
@@ -136,85 +108,89 @@ export default function LeadsFilters({
         <label className="flex min-w-[220px] flex-1 flex-col text-xs text-slate-600">
           Search name or email
           <input
-            defaultValue={search}
+            key={serverState.q}
+            defaultValue={state.q}
             className="mt-1 rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
             placeholder="Search"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
-                push({ q: (e.target as HTMLInputElement).value });
+                const q = (e.target as HTMLInputElement).value.trim();
+                if (q !== state.q) patch({ q });
               }
             }}
-            onBlur={(e) => push({ q: e.target.value })}
+            onBlur={(e) => {
+              const q = e.target.value.trim();
+              if (q !== state.q) patch({ q });
+            }}
           />
         </label>
 
-        <label className="flex flex-col text-xs text-slate-600">
-          Action status
-          <select
-            className="mt-1 min-w-[180px] rounded border border-slate-200 px-2 py-2 text-sm"
-            value={actionStatus}
-            onChange={(e) => push({ actionStatus: e.target.value })}
-          >
-            <option value="">All</option>
-            {ACTION_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
+        <CheckboxMultiSelect
+          label="Source"
+          options={sourceOptions}
+          selected={state.sources}
+          onChange={(next) => patch({ sources: next })}
+        />
+
+        <CheckboxMultiSelect
+          label="Stage"
+          options={STAGE_OPTIONS}
+          selected={deepLink ? [] : state.stages}
+          // Stage and cohort/event deep links are mutually exclusive.
+          onChange={(next) => patch({ stages: next, cohort: undefined, event: undefined })}
+        />
+
+        <CheckboxMultiSelect
+          label="Action status"
+          options={ACTION_STATUS_OPTIONS}
+          selected={state.actionStatuses}
+          onChange={(next) => patch({ actionStatuses: next })}
+        />
 
         <label className="flex flex-col text-xs text-slate-600">
           Dead?
           <select
             className="mt-1 min-w-[120px] rounded border border-slate-200 px-2 py-2 text-sm"
-            value={isDead}
-            onChange={(e) => push({ isDead: e.target.value })}
+            value={state.isDead}
+            onChange={(e) =>
+              patch({ isDead: e.target.value as LeadsFilterState["isDead"] })
+            }
           >
             <option value="">All</option>
             <option value="true">Dead only</option>
             <option value="false">Not dead</option>
           </select>
         </label>
-
-        <label className="flex flex-col text-xs text-slate-600">
-          Stage
-          <select
-            multiple
-            className="mt-1 h-24 min-w-[180px] rounded border border-slate-200 px-2 py-1 text-sm"
-            value={selectedStages}
-            onChange={(e) => {
-              const values = Array.from(e.target.selectedOptions).map((o) => o.value);
-              push({ stages: values });
-            }}
-          >
-            {LEAD_STAGES.map((s) => (
-              <option key={s} value={s}>
-                {stageLabel(s)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col text-xs text-slate-600">
-          Source
-          <select
-            multiple
-            className="mt-1 h-24 min-w-[160px] rounded border border-slate-200 px-2 py-1 text-sm"
-            value={selectedSources}
-            onChange={(e) => {
-              const values = Array.from(e.target.selectedOptions).map((o) => o.value);
-              push({ sources: values });
-            }}
-          >
-            {sources.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
+
+      {chips.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2" aria-label="Active filters">
+          {chips.map((chip) => (
+            <span
+              key={chip.id}
+              data-testid={`filter-chip-${chip.id}`}
+              className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-3 pr-1 text-xs text-slate-800"
+            >
+              <span className="truncate">{chip.label}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${chip.label}`}
+                className="rounded-full px-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900"
+                onClick={() => apply(chip.without)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            className="text-xs text-slate-500 underline decoration-slate-300 hover:text-slate-900"
+            onClick={() => apply(clearedLeadsFilterState(state))}
+          >
+            Clear all
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

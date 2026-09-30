@@ -13,7 +13,11 @@ import {
   parsePageParam
 } from "@/lib/leads/pagination";
 import type { LeadListFilters } from "@/lib/leads/types";
-import { loadTableViewBootstrap } from "@/lib/table-views/loadBootstrap";
+import PersistFilterState from "@/components/table-views/PersistFilterState";
+import {
+  loadTableViewBootstrap,
+  restorePersistedFilters
+} from "@/lib/table-views/loadBootstrap";
 
 /** Primary tabs — revisited throughout the day. */
 const TABS: Array<{
@@ -99,6 +103,7 @@ export default async function WorkQueuePage({
   };
 }) {
   const orgId = await getCurrentOrgId();
+  await restorePersistedFilters("leads-queue", "/leads/queue", searchParams, orgId);
   const rawTab = searchParams.tab?.trim() || "";
   const tabId =
     rawTab === "meetings_booked" || rawTab === "follow_ups_due" ? rawTab : null;
@@ -156,6 +161,7 @@ export default async function WorkQueuePage({
 
   return (
     <DataTablePageShell className="gap-6">
+      <PersistFilterState pageKey="leads-queue" />
       <div className="shrink-0 space-y-3">
         <div>
           <h1 className="page-title">Work Queue</h1>

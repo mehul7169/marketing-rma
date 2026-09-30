@@ -66,6 +66,12 @@ Referrals and hand-entered leads are created from the Work Queue (blocked during
 - Duplicates are rejected by org email and phone digits (same keys as ingest).
 - The creator is recorded as a `lead_activities` row (`type = lead_created`, `created_by` → `profiles.id`).
 
+## Leads / Work Queue filters
+- Every filter is in the URL. Source, Stage, and Action status are checkbox multi-selects written as comma-separated params (`?source=youtube,youtubemokshvideo`); repeated params are accepted too. OR within a field, AND across fields.
+- Chips above the table mirror the panel. × removes one filter; "Clear all" resets to `/leads?lifecycle=active` (rolling last 30 days).
+- Each user's last-used filters are remembered per page and per org in `table_views.config.filters[orgId]` (alongside `columns`). Opening `/leads` or `/leads/queue` with no filter params redirects to them. Any explicit filter param (shared links, cohort/event links) wins. Cohort/event deep links are never saved.
+- The rolling default date range isn't saved as fixed dates. Resetting columns keeps saved filters.
+
 ## Meta Ads → Funnel by ad (`/meta-ads`)
 Table above the trend charts, campaign → ad set → ad, same date range as the page.
 - Ads are classified by the `lead_source` of every lead ever attributed to them (same `utm_content` → ad id, then ad name resolver as the Campaigns table): `facebook` = landing page, `quickform_fb`/`quickform_ig` = Quickform. Other sources are ignored.

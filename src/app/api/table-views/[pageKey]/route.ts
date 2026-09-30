@@ -3,7 +3,7 @@ import { getCurrentSession } from "@/lib/auth/session";
 import {
   deleteTableViewForUser,
   getTableViewForUser,
-  upsertTableViewForUser
+  saveTableViewColumns
 } from "@/lib/db/table_views";
 import { isTableViewPageKey } from "@/lib/table-views/registry";
 import { parseTableViewConfig } from "@/lib/table-views/types";
@@ -57,7 +57,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   }
 
   try {
-    const row = await upsertTableViewForUser(session.userId, pageKey, config);
+    const row = await saveTableViewColumns(session.userId, pageKey, config.columns);
     return NextResponse.json(row.config);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to save view";

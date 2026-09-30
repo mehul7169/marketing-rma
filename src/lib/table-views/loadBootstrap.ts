@@ -2,7 +2,13 @@ import { requireOrgId } from "@/lib/auth/getCurrentOrgId";
 import { isPlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import { getCurrentSession } from "@/lib/auth/session";
 import { listDistinctCustomFieldKeys } from "@/lib/db/leads";
-import { getTableViewForUser } from "@/lib/db/table_views";
+import { redirect } from "next/navigation";
+import { getTableViewFilters, getTableViewForUser } from "@/lib/db/table_views";
+import {
+  hasExplicitFilterParams,
+  parsePersistedFilterState,
+  restoreHref
+} from "@/lib/table-views/filterState";
 import { humanizeFieldKey } from "@/lib/leads/customFields";
 import {
   defaultColumnsForPage,
@@ -50,6 +56,27 @@ export async function listAvailableColumnsForPage(
   }
 
   return columns;
+}
+
+/**
+ * Redirects to the user's remembered filters when the URL has none.
+ * Explicit params (shared / cohort links, in-app nav) always win.
+ */
+export async function restorePersistedFilters(
+  pageKey: string,
+  pathname: string,
+  searchParams: Record<string, string | string[] | undefined>,
+  orgId: string
+): Promise<void> {
+  if (hasExplicitFilterParams(pageKey, searchParams)) return;
+  const session = await getCurrentSession();
+  if (!session) return;
+  const saved = parsePersistedFilterState(
+    pageKey,
+    await getTableViewFilters(session.userId, pageKey, orgId)
+  );
+  const href = restoreHref(pathname, saved);
+  if (href) redirect(href);
 }
 
 /**

@@ -70,12 +70,57 @@ export async function upsertTableViewForUser(
   return row;
 }
 
-/** Clears saved config so the client falls back to page defaults. */
+/** Saves column layout, keeping any remembered filters on the same row. */
+export async function saveTableViewColumns(
+  userId: string,
+  pageKey: string,
+  columns: TableViewConfig["columns"]
+): Promise<TableViewRow> {
+  const existing = await getTableViewForUser(userId, pageKey);
+  return upsertTableViewForUser(userId, pageKey, {
+    ...existing?.config,
+    columns
+  });
+}
+
+/** Remembers last-used filters for one org, keeping column layout intact. */
+export async function saveTableViewFilters(
+  userId: string,
+  pageKey: string,
+  orgId: string,
+  filters: Record<string, string>
+): Promise<void> {
+  const existing = await getTableViewForUser(userId, pageKey);
+  const config: TableViewConfig = {
+    columns: existing?.config.columns ?? [],
+    filters: { ...existing?.config.filters, [orgId]: filters }
+  };
+  await upsertTableViewForUser(userId, pageKey, config);
+}
+
+export async function getTableViewFilters(
+  userId: string,
+  pageKey: string,
+  orgId: string
+): Promise<Record<string, string> | null> {
+  const row = await getTableViewForUser(userId, pageKey);
+  return row?.config.filters?.[orgId] ?? null;
+}
+
+/** Clears saved columns so the client falls back to page defaults; filters survive. */
 export async function deleteTableViewForUser(
   userId: string,
   pageKey: string
 ): Promise<void> {
   const db = requireDb();
+  const existing = await getTableViewForUser(userId, pageKey);
+  if (existing?.config.filters) {
+    await upsertTableViewForUser(userId, pageKey, {
+      columns: [],
+      filters: existing.config.filters
+    });
+    return;
+  }
   const { error } = await db
     .from("table_views")
     .delete()

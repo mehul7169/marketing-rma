@@ -9,7 +9,13 @@ export type TableColumnConfig = {
 };
 
 export type TableViewConfig = {
+  /** Empty = page default columns (row may exist only to hold filters). */
   columns: TableColumnConfig[];
+  /**
+   * Last-used filter URL params, keyed by org id (filter values are
+   * org-specific). Named saved views can later sit alongside as another key.
+   */
+  filters?: Record<string, Record<string, string>>;
 };
 
 export type AvailableColumn = {
@@ -53,7 +59,10 @@ export function customFieldColumnId(key: string): string {
 export function parseTableViewConfig(raw: unknown): TableViewConfig | null {
   if (!raw || typeof raw !== "object") return null;
   const columns = (raw as { columns?: unknown }).columns;
-  if (!Array.isArray(columns)) return null;
+  const filters = parseFiltersByOrg((raw as { filters?: unknown }).filters);
+  if (!Array.isArray(columns)) {
+    return filters ? { columns: [], filters } : null;
+  }
   const out: TableColumnConfig[] = [];
   for (const item of columns) {
     if (!item || typeof item !== "object") continue;
@@ -68,7 +77,23 @@ export function parseTableViewConfig(raw: unknown): TableViewConfig | null {
           : null
     });
   }
-  return { columns: out };
+  return filters ? { columns: out, filters } : { columns: out };
+}
+
+function parseFiltersByOrg(
+  raw: unknown
+): Record<string, Record<string, string>> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const out: Record<string, Record<string, string>> = {};
+  for (const [orgId, state] of Object.entries(raw as Record<string, unknown>)) {
+    if (!state || typeof state !== "object" || Array.isArray(state)) continue;
+    const params: Record<string, string> = {};
+    for (const [k, v] of Object.entries(state as Record<string, unknown>)) {
+      if (typeof v === "string") params[k] = v;
+    }
+    out[orgId] = params;
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 /**
