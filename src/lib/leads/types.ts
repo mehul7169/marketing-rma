@@ -20,6 +20,34 @@ export type LeadReminder = {
   resolved_at: string | null;
 };
 
+export type PipelineStage = "new" | "contacted" | "qualified" | "call_booked" | "showed_up";
+
+/** dead_reason codes written by the app. Older rows keep free-text reasons. */
+export const DEAD_REASON_CODES = [
+  "not_qualified",
+  "no_show",
+  "no_answer",
+  "not_interested",
+  "other"
+] as const;
+export type DeadReasonCode = (typeof DEAD_REASON_CODES)[number];
+
+const DEAD_REASON_LABELS: Record<string, string> = {
+  not_qualified: "Not qualified",
+  no_show: "No-show",
+  no_answer: "No answer after 3 attempts",
+  not_interested: "Not interested",
+  other: "Other",
+  "no answer after 3 touchpoints": "No answer after 3 attempts",
+  "reached lead, confirmed not qualified": "Not qualified",
+  "booked but not confirmed qualified": "Booked but not confirmed qualified"
+};
+
+export function deadReasonLabel(reason: string | null | undefined): string | null {
+  if (!reason) return null;
+  return DEAD_REASON_LABELS[reason] ?? reason;
+}
+
 export type VerificationCallStatus =
   | "not_contacted"
   | "no_answer"
@@ -46,6 +74,10 @@ export type LeadRow = {
   custom_fields: Record<string, unknown>;
   /** The website form's own verdict (tag only). Never the setter's decision. */
   form_qualified: boolean | null;
+  /** Contacted milestone: first call attempt. Set once, never cleared. */
+  first_contacted_at: string | null;
+  /** Postgres-generated pre-call stage. Read-only: never include it in a write. */
+  pipeline_stage?: PipelineStage | null;
   /** Setter decision. */
   qualified: boolean | null;
   qualified_at: string | null;

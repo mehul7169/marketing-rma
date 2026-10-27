@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { reviveDeadLeadAction } from "@/app/leads/actions";
+import { leadLifecycleAction } from "@/app/leads/actions";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
 
@@ -21,12 +21,9 @@ export default function ReviveLeadButton({ leadId }: { leadId: string }) {
     e.stopPropagation();
     setError(null);
     startTransition(async () => {
-      try {
-        await reviveDeadLeadAction(leadId);
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to revive");
-      }
+      const res = await leadLifecycleAction(leadId, "revive");
+      if (res.ok) router.refresh();
+      else setError(res.error);
     });
   }
 

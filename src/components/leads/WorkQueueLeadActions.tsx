@@ -2,18 +2,12 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  addLeadNoteAction,
-  logLeadCallAttemptAction,
-  logLeadShowOutcomeAction,
-  rescheduleLeadCallAction
-} from "@/app/leads/actions";
+import { addLeadNoteAction, leadLifecycleAction } from "@/app/leads/actions";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
-import {
-  displayActionStatus,
-  type CallAttemptOutcome
-} from "@/lib/leads/actionStatus";
+import { displayActionStatus } from "@/lib/leads/actionStatus";
+import type { LogCallOutcome } from "@/lib/leads/lifecycle";
+import type { LifecycleResult } from "@/lib/leads/updateLeadLifecycle";
 import { predictLogCallAttemptPatch } from "@/lib/leads/predictCallAttempt";
 import type { LeadRow } from "@/lib/leads/types";
 import {
@@ -97,7 +91,7 @@ export default function WorkQueueLeadActions({
 }) {
   const preview = useOrgPreview();
   const [popover, setPopover] = useState<PopoverKind>(null);
-  const [outcome, setOutcome] = useState<CallAttemptOutcome>("no_answer");
+  const [outcome, setOutcome] = useState<LogCallOutcome>("no_answer");
   const [showOutcome, setShowOutcome] = useState<"showed" | "no_show">("showed");
   const [note, setNote] = useState("");
   const [followUpAt, setFollowUpAt] = useState(tomorrowSameTimeLocalIST());
@@ -182,7 +176,6 @@ export default function WorkQueueLeadActions({
       return;
     }
 
-    const snapshot = lead;
     const followUpIso =
       outcome === "follow_up_needed" ? fromDatetimeLocalIST(followUpAt) : null;
     const scheduledIso =
@@ -197,51 +190,37 @@ export default function WorkQueueLeadActions({
       scheduledForIso: scheduledIso
     });
 
-    setPopover(null);
-    setNote("");
-    setError(null);
-    onLeadPatched?.(optimistic);
-    onSaveStart?.();
-
-    void logLeadCallAttemptAction(lead.id, outcome, {
-      note: note || null,
-      followUpAtLocal: outcome === "follow_up_needed" ? followUpAt : null,
-      scheduledForLocal:
-        outcome === "qualified" && !alreadyScheduled ? callAt : null
-    })
-      .then((result) => {
-        onLeadPatched?.(result);
-        onSaveEnd?.(true);
-      })
-      .catch((err) => {
-        onLeadRollback?.(snapshot);
-        onSaveEnd?.(false);
-        fail(err instanceof Error ? err.message : "Action failed");
-      });
+    runBackground(
+      () =>
+        leadLifecycleAction(lead.id, "log_call_attempt", {
+          outcome,
+          note: note || null,
+          followUpAt: followUpIso,
+          scheduledFor: outcome === "qualified" && !alreadyScheduled ? scheduledIso : null
+        }),
+      optimistic ?? undefined
+    );
   }
 
-  function runBackground(
-    fn: () => Promise<Partial<LeadRow> | unknown>,
-    optimistic?: Partial<LeadRow>
-  ) {
+  function runBackground(fn: () => Promise<LifecycleResult>, optimistic?: Partial<LeadRow>) {
     const snapshot = lead;
     setPopover(null);
     setNote("");
     setError(null);
     if (optimistic) onLeadPatched?.(optimistic);
     onSaveStart?.();
+    const rollback = (message: string) => {
+      onLeadRollback?.(snapshot);
+      onSaveEnd?.(false);
+      fail(message);
+    };
     void fn()
       .then((result) => {
-        if (result && typeof result === "object" && "id" in (result as object)) {
-          onLeadPatched?.(result as Partial<LeadRow>);
-        }
+        if (!result.ok) return rollback(result.error);
+        onLeadPatched?.(result.lead);
         onSaveEnd?.(true);
       })
-      .catch((err) => {
-        onLeadRollback?.(snapshot);
-        onSaveEnd?.(false);
-        fail(err instanceof Error ? err.message : "Action failed");
-      });
+      .catch((err) => rollback(err instanceof Error ? err.message : "Action failed"));
   }
 
   return (
@@ -336,7 +315,7 @@ export default function WorkQueueLeadActions({
                       className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
                       value={outcome}
                       onChange={(e) =>
-                        setOutcome(e.target.value as CallAttemptOutcome)
+                        setOutcome(e.target.value as LogCallOutcome)
                       }
                     >
                       <option value="no_answer">No Answer</option>
@@ -429,10 +408,10 @@ export default function WorkQueueLeadActions({
                       onClick={() =>
                         runBackground(
                           () =>
-                            logLeadShowOutcomeAction(
+                            leadLifecycleAction(
                               lead.id,
-                              showOutcome,
-                              note || null
+                              showOutcome === "showed" ? "mark_showed" : "mark_no_show",
+                              { note: note || null }
                             ),
                           { call_showed: showOutcome === "showed" }
                         )
@@ -466,11 +445,10 @@ export default function WorkQueueLeadActions({
                       className="rounded bg-slate-900 px-2.5 py-1 text-sm text-white"
                       onClick={() =>
                         runBackground(() =>
-                          rescheduleLeadCallAction(
-                            lead.id,
-                            rescheduleAt,
-                            note || null
-                          )
+                          leadLifecycleAction(lead.id, "reschedule_call", {
+                            scheduledFor: fromDatetimeLocalIST(rescheduleAt),
+                            note: note || null
+                          })
                         )
                       }
                     >

@@ -6,75 +6,48 @@ import { getActorEmail, getActorUserId } from "@/lib/auth/session";
 import { insertLeadActivity } from "@/lib/db/lead_activities";
 import { insertLeadReminder, resolveLeadReminder } from "@/lib/db/lead_reminders";
 import {
+  commitLeadChange,
   getLeadByEmail,
   getLeadById,
   getLeadByPhone,
   insertLead,
-  scheduleLeadCall,
   updateLead
 } from "@/lib/db/leads";
 import { isSyntheticQuickformEmail } from "@/lib/leads/contactNormalize";
-import { detailMilestones } from "@/lib/leads/detailMilestones";
+import type { LifecycleAction, LifecycleActor, LifecyclePayload } from "@/lib/leads/lifecycle";
 import {
   validateManualLead,
   type ManualLeadFieldErrors,
   type ManualLeadInput
 } from "@/lib/leads/manualLead";
-import type { CallAttemptOutcome, ShowOutcome } from "@/lib/leads/actionStatus";
 import type { PostCallStatus, RequalificationResult } from "@/lib/leads/computeStage";
 import {
-  addLeadNoteActivity,
-  logCallAttempt,
-  logShowOutcome,
-  rescheduleCall,
-  reviveDeadLead
-} from "@/lib/leads/lifecycleCadence";
-import type { LeadRow, VerificationCallStatus } from "@/lib/leads/types";
+  updateLeadFields,
+  updateLeadLifecycle,
+  type LeadFieldsPatch,
+  type LifecycleResult
+} from "@/lib/leads/updateLeadLifecycle";
+import type { LeadRow } from "@/lib/leads/types";
 import { fromDatetimeLocalIST } from "@/lib/timezone";
 
+/** Post-call fields on the detail page. Lifecycle milestones go through leadLifecycleAction. */
 export type LeadActionInput = {
-  qualified?: boolean | null;
-  setter_verified?: boolean | null;
   reminder_sent?: boolean | null;
-  call_showed?: boolean | null;
   deal_closed?: boolean | null;
   deal_value?: number | null;
-  notes?: string | null;
   recording_url?: string | null;
   requalification_result?: RequalificationResult;
   requalification_notes?: string | null;
   post_call_status?: PostCallStatus | null;
 };
 
-/** Scalar / JSON fields safe for Work Queue click-to-edit. */
-export type LeadPlainFieldsPatch = {
-  name?: string | null;
-  phone?: string | null;
-  email?: string;
-  notes?: string | null;
-  deal_value?: number | null;
+/** Work Queue / detail inline edits. call_scheduled_for routes to book/reschedule. */
+export type LeadPlainFieldsPatch = LeadFieldsPatch & {
   /** ISO timestamptz — inline edit of Call scheduled. */
   call_scheduled_for?: string | null;
-  /** Merged into existing custom_fields (shallow). */
-  custom_fields?: Record<string, unknown>;
 };
 
-const VERIFICATION_ATTEMPT_STATUSES: VerificationCallStatus[] = [
-  "no_answer",
-  "follow_up_needed",
-  "reached"
-];
-
-const CALL_OUTCOMES: CallAttemptOutcome[] = [
-  "no_answer",
-  "follow_up_needed",
-  "qualified",
-  "not_qualified",
-  "confirmed",
-  "not_confirmed"
-];
-
-/** UUID for lead_activities.created_by / lead_reminders.created_by / cadence actor. */
+/** UUID for lead_activities.created_by / lead_reminders.created_by. */
 async function actorId(): Promise<string> {
   return getActorUserId();
 }
@@ -84,11 +57,38 @@ async function actorEmail(): Promise<string> {
   return getActorEmail();
 }
 
+async function actor(): Promise<LifecycleActor> {
+  return { userId: await actorId(), email: await actorEmail() };
+}
+
 function revalidateLead(id: string) {
   revalidatePath("/leads");
   revalidatePath("/leads/queue");
   revalidatePath(`/leads/${id}`);
   revalidatePath("/");
+}
+
+/** Thrown server-action messages are masked in production, so return them instead. */
+async function asResult(fn: () => Promise<LifecycleResult>): Promise<LifecycleResult> {
+  try {
+    return await fn();
+  } catch (e) {
+    console.error("[lead action]", e);
+    return { ok: false, error: e instanceof Error ? e.message : "Save failed" };
+  }
+}
+
+/** Every lifecycle milestone from the UI (Work Queue + detail page). */
+export async function leadLifecycleAction(
+  leadId: string,
+  action: LifecycleAction,
+  payload: LifecyclePayload = {}
+): Promise<LifecycleResult> {
+  const result = await asResult(async () =>
+    updateLeadLifecycle(leadId, action, payload, await actor())
+  );
+  if (result.ok) revalidateLead(leadId);
+  return result;
 }
 
 export async function saveLeadActions(id: string, input: LeadActionInput) {
@@ -100,20 +100,8 @@ export async function saveLeadActions(id: string, input: LeadActionInput) {
   const now = new Date().toISOString();
   const patch: Parameters<typeof updateLead>[1] = {};
 
-  if (input.qualified !== undefined) {
-    patch.qualified = input.qualified;
-    if (input.qualified !== null) patch.qualified_by = by;
-  }
-  if (input.setter_verified !== undefined) {
-    patch.setter_verified = input.setter_verified;
-    if (input.setter_verified !== null) patch.setter_verified_by = by;
-  }
   if (input.reminder_sent !== undefined) {
     patch.reminder_sent = input.reminder_sent;
-  }
-  if (input.call_showed !== undefined) {
-    patch.call_showed = input.call_showed;
-    if (input.call_showed !== null) patch.call_showed_by = by;
   }
   if (input.deal_closed !== undefined) {
     patch.deal_closed = input.deal_closed;
@@ -121,9 +109,6 @@ export async function saveLeadActions(id: string, input: LeadActionInput) {
   }
   if (input.deal_value !== undefined) {
     patch.deal_value = input.deal_value;
-  }
-  if (input.notes !== undefined) {
-    patch.notes = input.notes;
   }
   if (input.recording_url !== undefined) {
     const trimmed =
@@ -143,23 +128,22 @@ export async function saveLeadActions(id: string, input: LeadActionInput) {
     patch.post_call_status_updated_by = by;
   }
 
-  const milestones = detailMilestones(existing, input);
-  if (milestones.length > 0) {
-    const created_by = await actorId();
-    for (const m of milestones) {
-      await insertLeadActivity({
-        org_id: orgId,
-        lead_id: id,
-        type: m.type,
-        outcome: m.outcome,
-        created_by
-      });
-    }
-    patch.last_action = milestones[milestones.length - 1].summary;
+  const won =
+    input.deal_closed !== undefined &&
+    input.deal_closed !== null &&
+    input.deal_closed !== existing.deal_closed
+      ? input.deal_closed
+      : null;
+  let updated: LeadRow;
+  if (won !== null) {
+    patch.last_action = won ? "Deal won" : "Deal lost";
     patch.last_action_at = now;
+    updated = await commitLeadChange(existing, patch, [
+      { type: "deal_outcome", outcome: won ? "won" : "lost", created_by: await actorId() }
+    ]);
+  } else {
+    updated = await updateLead(existing, patch);
   }
-
-  const updated = await updateLead(existing, patch);
   revalidateLead(id);
   return {
     id: updated.id,
@@ -169,113 +153,36 @@ export async function saveLeadActions(id: string, input: LeadActionInput) {
   };
 }
 
-/** Work Queue / CRM inline edits — name, phone, email, notes, deal_value, custom_fields. */
+/**
+ * Inline edits — logged as field_edited. "Call scheduled" is a booking change,
+ * so it goes through book_call / reschedule_call instead of a plain write.
+ */
 export async function saveLeadPlainFieldsAction(
   id: string,
   input: LeadPlainFieldsPatch
-) {
-  const orgId = await requireWritableOrgId();
-  const existing = await getLeadById(id, orgId);
-  if (!existing) throw new Error("Lead not found");
-
-  const patch: Parameters<typeof updateLead>[1] = {};
-
-  if (input.name !== undefined) {
-    const trimmed = input.name?.trim() || null;
-    patch.name = trimmed;
-  }
-  if (input.phone !== undefined) {
-    const trimmed = input.phone?.trim() || null;
-    patch.phone = trimmed;
-  }
-  if (input.email !== undefined) {
-    const trimmed = input.email.trim();
-    if (!trimmed) throw new Error("Email is required");
-    patch.email = trimmed;
-  }
-  if (input.notes !== undefined) {
-    patch.notes = input.notes?.trim() || null;
-  }
-  if (input.deal_value !== undefined) {
-    patch.deal_value = input.deal_value;
-  }
-  if (input.call_scheduled_for !== undefined) {
-    patch.call_scheduled_for = input.call_scheduled_for;
-  }
-  if (input.custom_fields !== undefined) {
-    patch.custom_fields = {
-      ...(existing.custom_fields ?? {}),
-      ...input.custom_fields
-    };
-  }
-
-  const updated = await updateLead(existing, patch);
-  revalidateLead(id);
-  return {
-    id: updated.id,
-    name: updated.name,
-    phone: updated.phone,
-    email: updated.email,
-    notes: updated.notes,
-    deal_value: updated.deal_value,
-    call_scheduled_for: updated.call_scheduled_for,
-    custom_fields: updated.custom_fields
-  };
-}
-
-/** Log a verification-call attempt. Does not set setter_verified. */
-export async function logVerificationCallAttempt(
-  id: string,
-  status: Exclude<VerificationCallStatus, "not_contacted">
-) {
-  if (!VERIFICATION_ATTEMPT_STATUSES.includes(status)) {
-    throw new Error("Invalid verification call status");
-  }
-  const orgId = await requireWritableOrgId();
-  const existing = await getLeadById(id, orgId);
-  if (!existing) throw new Error("Lead not found");
-  if (!existing.call_booked_at) {
-    throw new Error("Book a call before logging verification attempts");
-  }
-
-  const now = new Date().toISOString();
-  const updated = await updateLead(existing, {
-    verification_call_status: status,
-    verification_call_attempts: (existing.verification_call_attempts ?? 0) + 1,
-    last_verification_call_at: now
+): Promise<LifecycleResult> {
+  const { call_scheduled_for, ...fields } = input;
+  const result = await asResult(async () => {
+    const who = await actor();
+    if (call_scheduled_for !== undefined) {
+      if (!call_scheduled_for) {
+        return { ok: false, error: "Use Cancel call on the lead page to clear a booking." };
+      }
+      const orgId = await requireWritableOrgId();
+      const lead = await getLeadById(id, orgId);
+      if (!lead) return { ok: false, error: "Lead not found" };
+      const res = await updateLeadLifecycle(
+        id,
+        lead.call_booked_at ? "reschedule_call" : "book_call",
+        { scheduledFor: call_scheduled_for },
+        who
+      );
+      if (!res.ok || Object.keys(fields).length === 0) return res;
+    }
+    return updateLeadFields(id, fields, who);
   });
-  revalidateLead(id);
-  return {
-    id: updated.id,
-    verification_call_status: updated.verification_call_status,
-    verification_call_attempts: updated.verification_call_attempts,
-    last_verification_call_at: updated.last_verification_call_at
-  };
-}
-
-export async function saveLeadSchedule(id: string, scheduledForLocal: string) {
-  const orgId = await requireWritableOrgId();
-  const existing = await getLeadById(id, orgId);
-  if (!existing) throw new Error("Lead not found");
-  const iso = fromDatetimeLocalIST(scheduledForLocal);
-  const actor = await actorId();
-  const isReschedule = Boolean(existing.call_scheduled_for);
-  await insertLeadActivity({
-    org_id: orgId,
-    lead_id: id,
-    type: isReschedule ? "reschedule" : "schedule",
-    created_by: actor
-  });
-  const updated = await scheduleLeadCall(existing, iso, actor, {
-    last_action: isReschedule ? "Call rescheduled" : "Call scheduled",
-    last_action_at: new Date().toISOString()
-  });
-  revalidateLead(id);
-  return {
-    id: updated.id,
-    stage: updated.stage,
-    lifecycle_status: updated.lifecycle_status
-  };
+  if (result.ok) revalidateLead(id);
+  return result;
 }
 
 export async function addLeadFollowUp(
@@ -309,93 +216,22 @@ export async function markLeadFollowUpResolved(
   revalidateLead(leadId);
 }
 
-export async function logLeadCallAttemptAction(
-  leadId: string,
-  outcome: CallAttemptOutcome,
-  opts?: {
-    note?: string | null;
-    followUpAtLocal?: string | null;
-    /** Required for qualified — when the call is scheduled. */
-    scheduledForLocal?: string | null;
-  }
-) {
-  if (!CALL_OUTCOMES.includes(outcome)) {
-    throw new Error("Invalid call outcome");
-  }
-  const orgId = await requireWritableOrgId();
-  const followUpAt =
-    opts?.followUpAtLocal && opts.followUpAtLocal.trim()
-      ? fromDatetimeLocalIST(opts.followUpAtLocal)
-      : null;
-  const scheduledFor =
-    opts?.scheduledForLocal && opts.scheduledForLocal.trim()
-      ? fromDatetimeLocalIST(opts.scheduledForLocal)
-      : null;
-  // Allow qualify without a new time when the lead already has one — validated in logCallAttempt.
-  const updated = await logCallAttempt(leadId, orgId, outcome, {
-    note: opts?.note,
-    followUpAt,
-    scheduledFor,
-    actor: await actorId()
+export async function addLeadNoteAction(leadId: string, note: string): Promise<LifecycleResult> {
+  const result = await asResult(async () => {
+    const trimmed = note.trim();
+    if (!trimmed) return { ok: false, error: "Note is required" };
+    const orgId = await requireWritableOrgId();
+    const lead = await getLeadById(leadId, orgId);
+    if (!lead) return { ok: false, error: "Lead not found" };
+    const updated = await commitLeadChange(
+      lead,
+      { last_action: `Note — ${trimmed.slice(0, 80)}`, last_action_at: new Date().toISOString() },
+      [{ type: "note", note: trimmed, created_by: await actorId() }]
+    );
+    return { ok: true, lead: updated };
   });
-  revalidateLead(leadId);
-  return {
-    id: updated.id,
-    action_status: updated.action_status,
-    is_dead: updated.is_dead,
-    dead_reason: updated.dead_reason,
-    contact_attempts: updated.contact_attempts,
-    next_action_at: updated.next_action_at,
-    last_action: updated.last_action,
-    last_action_at: updated.last_action_at,
-    qualified: updated.qualified,
-    call_booked_at: updated.call_booked_at,
-    call_scheduled_for: updated.call_scheduled_for,
-    call_confirmed: updated.call_confirmed,
-    stage: updated.stage
-  };
-}
-
-export async function rescheduleLeadCallAction(
-  leadId: string,
-  newDateTimeLocal: string,
-  note?: string | null
-) {
-  const orgId = await requireWritableOrgId();
-  const iso = fromDatetimeLocalIST(newDateTimeLocal);
-  const updated = await rescheduleCall(leadId, orgId, iso, {
-    note,
-    actor: await actorId()
-  });
-  revalidateLead(leadId);
-  return { id: updated.id, call_scheduled_for: updated.call_scheduled_for };
-}
-
-export async function reviveDeadLeadAction(
-  leadId: string,
-  note?: string | null
-) {
-  const orgId = await requireWritableOrgId();
-  const updated = await reviveDeadLead(leadId, orgId, {
-    note,
-    actor: await actorId()
-  });
-  revalidateLead(leadId);
-  return {
-    id: updated.id,
-    action_status: updated.action_status,
-    is_dead: updated.is_dead,
-    contact_attempts: updated.contact_attempts
-  };
-}
-
-export async function addLeadNoteAction(leadId: string, note: string) {
-  const orgId = await requireWritableOrgId();
-  const updated = await addLeadNoteActivity(leadId, orgId, note, {
-    actor: await actorId()
-  });
-  revalidateLead(leadId);
-  return { id: updated.id, last_action: updated.last_action };
+  if (result.ok) revalidateLead(leadId);
+  return result;
 }
 
 export type CreateManualLeadResult =
@@ -478,21 +314,4 @@ export async function createManualLeadAction(
 
   revalidateLead(lead.id);
   return { ok: true, lead };
-}
-
-export async function logLeadShowOutcomeAction(
-  leadId: string,
-  outcome: ShowOutcome,
-  note?: string | null
-) {
-  if (outcome !== "showed" && outcome !== "no_show") {
-    throw new Error("Invalid show outcome");
-  }
-  const orgId = await requireWritableOrgId();
-  const updated = await logShowOutcome(leadId, orgId, outcome, {
-    note,
-    actor: await actorId()
-  });
-  revalidateLead(leadId);
-  return { id: updated.id, call_showed: updated.call_showed };
 }

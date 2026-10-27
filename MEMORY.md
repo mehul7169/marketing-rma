@@ -8,8 +8,9 @@
 - DDL / any `SET`: use session-mode pooler port 5432, never session `SET` on 6543 (transaction pooler leaks session state onto shared backends — a `default_transaction_read_only=on` leaked once and had to be reset). zsh: write SQL to a file and use `psql -f`.
 
 ## Conventions
-- `call_confirmed` = "Qualified Call Booked". Set by Work Queue Qualified outcome, or setter verified = Yes on a booked lead (`resolveCallConfirmed`, applied in `stamp()`). One-way.
-- Every operator milestone (qualify, setter verify, schedule/reschedule, show/no-show, won/lost) writes a `lead_activities` row AND `last_action`/`last_action_at`. Field edits (notes, deal value, recording, reminder) do not.
+- `call_confirmed` = "Qualified Call Booked". Set by Work Queue Qualified outcome (historically also setter verified = Yes, via `resolveCallConfirmed` in `stamp()`). One-way; cancel_call does not reset it.
+- Lifecycle writes go only through `updateLeadLifecycle` / `planLifecycle` (README "Lead lifecycle writes"). Lead + activity are atomic via the `apply_lead_change` RPC (migration 009 — must exist in prod before deploying code that calls it). Field edits log `field_edited`; post-call fields (deal, recording, post_call_status, reminder) stay on `saveLeadActions`.
+- `pipeline_stage` is GENERATED: writing it fails with 428C9 (broke all prod updates for ~1h on 2026-10-27). `updateLead` sends only changed columns and strips it.
 
 - Actor UUIDs live in `lead_activities.created_by`; do NOT add `*_by` UUID columns to `leads` (user decision). Legacy `leads.*_by` are text emails.
 - Manual lead sources: `referral` / `manual` / `other` (`MANUAL_LEAD_SOURCES`). Placeholder email `manual-phone-<digits>@manual.invalid`.
@@ -38,14 +39,15 @@
 ## Deferred
 - Leads with null `lead_source` (~77) can't be picked in the Source filter. It needs an `is.null` OR branch in `listLeads`/`countLeads`.
 - Saved named views (filters phase 2).
-- `logCallAttempt` inserts the `lead_activities` row BEFORE it validates and updates the lead, so failed saves leave leftover rows (e.g. Aishavryaa has 3 extra `qualified` rows on 14 Sep). The user declined the fix for now. This inflates Total Dials slightly.
+- Historic leftover `call_attempt` rows from failed saves before 2026-10-27 (e.g. Aishavryaa, 3 extra `qualified` rows on 14 Sep) still inflate old Total Dials slightly. New writes are atomic.
 - Automatic call-showed detection: the proposal is a Fathom webhook that matches the invitee email and sets `call_showed`/`recording_url`. Blocked on the user providing a Fathom API key/webhook secret.
 - Ask the website to put the ad ID (`{{ad.id}}`) in `utm_content` so attribution isn't name-based.
 - Live sanity check of manual lead creation (row + lead_created activity) not done — no-writes rule.
 - Backfill of historical `last_action` for ~88 leads from milestone timestamps — declined for now (heuristic; `*_at` are first-set times). Vaidik + Shibajyoti `call_confirmed` and Vaidik `last_action` were backfilled 2026-09-23.
-- `logVerificationCallAttempt` (detail page) still doesn't write `last_action`/activity.
 - `leads.form_answers` dropped 2026-09-23 (migration 005); backup `~/Desktop/marketing-rma-backups/leads_form_answers_2026-09-23.csv`.
 - `ghl_contact_id` kept (user decision): not a dedup key (Quickform dedups by email → phone → qf-phone placeholder), but it's the only stored Meta lead id.
 - `call_cancelled_at`: code + `/api/ingest/booking-cancelled` removed (never fired, 0 rows). Migration 006 drops the column — apply ONLY after that build is deployed.
 - `requalification_*` orphaned (UI removed 1a3cc4d); `booking_history` not appended by cal.com or Work Queue reschedule; 8 `call_confirmed=true` leads sit at stage `created`.
-- Setter verified "Unqualified" help text says it moves lead to Dead, but `saveLeadActions` doesn't set `is_dead`.
+- Quickform "reject" status still seeds `qualified=false, qualified_by='quickform'` on insert (not a setter decision). Revisit with Prompt 3.
+- `lead_reminders` and `next_action_at` are two follow-up systems; untouched pending a decision.
+- Booking webhook only handles bookings (user decision 2026-10-27): no cal.com cancel/reschedule routes.

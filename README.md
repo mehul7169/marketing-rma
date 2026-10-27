@@ -74,6 +74,17 @@ Referrals and hand-entered leads are created from the Work Queue (blocked during
 - Duplicates are rejected by org email and phone digits (same keys as ingest).
 - The creator is recorded as a `lead_activities` row (`type = lead_created`, `created_by` → `profiles.id`).
 
+## Lead lifecycle writes
+Spec: `docs/lead-lifecycle-spec.md`. Every milestone from the UI goes through `updateLeadLifecycle(leadId, action, payload, actor)` (`src/lib/leads/updateLeadLifecycle.ts`).
+- Order: `requireWritableOrgId`, validate (`planLifecycle` in `src/lib/leads/lifecycle.ts`, pure and shared with the Work Queue's optimistic UI), then lead update + `lead_activities` rows in one transaction via the `apply_lead_change` Postgres function (migration 009).
+- Actions: `log_call_attempt`, `qualify`, `disqualify`, `clear_qualification`, `book_call`, `reschedule_call`, `cancel_call`, `mark_showed`, `mark_no_show`, `clear_show`, `mark_dead`, `revive`, `set_follow_up`. Work Queue "Qualified" = `qualify` + `book_call` in one step.
+- Hard blocks (no overrides): `book_call` needs `first_contacted_at` (cal.com / Quickform ingestion exempt); `mark_showed` needs `call_booked_at`. Clearing a milestone needs a reason.
+- `disqualify` and `mark_no_show` also mark the lead dead (`dead_reason` `not_qualified` / `no_show`). Dead reason codes: `not_qualified`, `no_show`, `no_answer`, `not_interested`, `other`; older free-text reasons are shown via `deadReasonLabel`.
+- Plain field edits (notes, deal value, name/phone/email, custom fields) use `updateLeadFields` and log one `field_edited` activity with the changed keys. Inline "Call scheduled" edits route to `book_call` / `reschedule_call`.
+- `pipeline_stage` is a Postgres generated column (new → contacted → qualified → call_booked → showed_up; dead is the separate `is_dead` overlay). Never write it. `updateLead` sends only changed columns.
+- `setter_verified*` is no longer written (columns kept until Insights moves off it).
+- `/api/ingest/booking` logs a `schedule` activity on a lead's first booking. Repeat bookings update the time quietly; reschedules and cancellations are logged from the dashboard only.
+
 ## Leads / Work Queue filters
 - Every filter is in the URL. Source, Stage, and Action status are checkbox multi-selects written as comma-separated params (`?source=youtube,youtubemokshvideo`); repeated params are accepted too. OR within a field, AND across fields.
 - Chips above the table mirror the panel. × removes one filter; "Clear all" resets to `/leads?lifecycle=active` (rolling last 30 days).

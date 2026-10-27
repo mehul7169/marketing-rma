@@ -8,11 +8,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/app/leads/actions", () => ({
-  reviveDeadLeadAction: vi.fn(),
-  addLeadNoteAction: vi.fn(),
-  logLeadCallAttemptAction: vi.fn(),
-  logLeadShowOutcomeAction: vi.fn(),
-  rescheduleLeadCallAction: vi.fn()
+  leadLifecycleAction: vi.fn(),
+  addLeadNoteAction: vi.fn()
 }));
 
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";

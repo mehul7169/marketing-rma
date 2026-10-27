@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { insertLeadActivity } from "@/lib/db/lead_activities";
 import {
   getLeadByPhone,
   sheetFieldsForLeadUpdate,
@@ -122,6 +123,24 @@ function insertOnlyStatusPatch(
   }
 
   return Object.keys(patch).length ? patch : null;
+}
+
+/** Ingestion exception to the contacted gate: Quickform "call booked" still logs a schedule row. */
+async function logQuickformBooking(
+  statusPatch: Partial<LeadRow> | null,
+  lead: LeadRow
+): Promise<void> {
+  if (!statusPatch?.call_booked_at) return;
+  try {
+    await insertLeadActivity({
+      org_id: lead.org_id,
+      lead_id: lead.id,
+      type: "schedule",
+      note: "Booked via Quickform"
+    });
+  } catch (e) {
+    console.error("[quickform-lead] schedule activity failed", lead.id, e);
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -261,6 +280,7 @@ export async function POST(req: NextRequest) {
       const finalLead = statusPatch
         ? await updateLead(created, statusPatch)
         : created;
+      await logQuickformBooking(statusPatch, finalLead);
 
       return NextResponse.json({
         ok: true,
@@ -281,6 +301,7 @@ export async function POST(req: NextRequest) {
         ? insertOnlyStatusPatch(lead, leadStatus, bookingDetails, now)
         : null;
     const finalLead = statusPatch ? await updateLead(lead, statusPatch) : lead;
+    await logQuickformBooking(statusPatch, finalLead);
 
     return NextResponse.json({
       ok: true,

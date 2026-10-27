@@ -272,6 +272,7 @@ export async function insertLead(
     form_filled_at: row.form_filled_at ?? null,
     custom_fields: row.custom_fields ?? {},
     form_qualified: row.form_qualified ?? null,
+    first_contacted_at: row.first_contacted_at ?? null,
     qualified: row.qualified ?? null,
     qualified_at: row.qualified_at ?? null,
     qualified_by: row.qualified_by ?? null,
@@ -460,50 +461,69 @@ export function sheetFieldsForLeadUpdate(
   return patch;
 }
 
-export async function updateLead(existing: LeadRow, patch: Partial<LeadRow>): Promise<LeadRow> {
-  const db = requireDb();
+/** Merged row after applying patch: first-set timestamps, then stamp() derivations. */
+function buildNextLead(existing: LeadRow, patch: Partial<LeadRow>): LeadRow {
   const now = new Date().toISOString();
-  const next = stamp(existing, {
+  // An explicit *_at in the patch wins (lifecycle actions set/clear them directly).
+  const at = (
+    key: "qualified_at" | "setter_verified_at" | "reminder_sent_at" | "call_showed_at" | "closed_at",
+    derived: () => string | null
+  ): string | null => (key in patch ? (patch[key] ?? null) : derived());
+
+  return stamp(existing, {
     ...patch,
-    qualified_at:
+    qualified_at: at("qualified_at", () =>
       patch.qualified !== undefined
         ? firstSetAt(existing.qualified_at, patch.qualified, now)
-        : existing.qualified_at,
-    setter_verified_at:
+        : existing.qualified_at
+    ),
+    setter_verified_at: at("setter_verified_at", () =>
       patch.setter_verified !== undefined
         ? firstSetAt(existing.setter_verified_at, patch.setter_verified, now)
-        : existing.setter_verified_at,
-    reminder_sent_at:
+        : existing.setter_verified_at
+    ),
+    reminder_sent_at: at("reminder_sent_at", () =>
       patch.reminder_sent
         ? firstSetAt(existing.reminder_sent_at, patch.reminder_sent, now)
-        : existing.reminder_sent_at,
-    call_showed_at:
+        : existing.reminder_sent_at
+    ),
+    call_showed_at: at("call_showed_at", () =>
       patch.call_showed === null
         ? null
         : patch.call_showed !== undefined
           ? firstSetAt(existing.call_showed_at, patch.call_showed, now)
-          : patch.call_showed_at !== undefined
-            ? patch.call_showed_at
-            : existing.call_showed_at,
-    closed_at:
+          : existing.call_showed_at
+    ),
+    closed_at: at("closed_at", () =>
       patch.deal_closed !== undefined
         ? firstSetAt(existing.closed_at, patch.deal_closed, now)
         : existing.closed_at
+    )
   });
+}
 
+const NEVER_WRITTEN_KEYS = new Set(["id", "org_id", "created_at", "pipeline_stage"]);
+
+/**
+ * Columns whose value differs from the row we read. Only these are sent, so a
+ * write can't clobber fields another request changed in the meantime.
+ */
+export function changedLeadColumns(existing: LeadRow, next: LeadRow): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const before = existing as unknown as Record<string, unknown>;
+  for (const [key, value] of Object.entries(next as unknown as Record<string, unknown>)) {
+    if (value === undefined || NEVER_WRITTEN_KEYS.has(key)) continue;
+    if (JSON.stringify(value) !== JSON.stringify(before[key] ?? null)) out[key] = value;
+  }
+  return omitGeneratedLeadColumns(omitLegacyLeadColumns(out));
+}
+
+export async function updateLead(existing: LeadRow, patch: Partial<LeadRow>): Promise<LeadRow> {
+  const db = requireDb();
+  const changes = changedLeadColumns(existing, buildNextLead(existing, patch));
   const { data, error } = await db
     .from("leads")
-    .update(
-      omitGeneratedLeadColumns(
-        omitLegacyLeadColumns({
-          ...next,
-          id: existing.id,
-          org_id: existing.org_id,
-          email: existing.email,
-          created_at: existing.created_at
-        } as unknown as Record<string, unknown>)
-      )
-    )
+    .update(changes)
     .eq("id", existing.id)
     .eq("org_id", existing.org_id)
     .select("*")
@@ -512,27 +532,41 @@ export async function updateLead(existing: LeadRow, patch: Partial<LeadRow>): Pr
   return asLead(data);
 }
 
-export async function scheduleLeadCall(
+export type LeadActivityInput = {
+  type: string;
+  outcome?: string | null;
+  note?: string | null;
+  next_action_at?: string | null;
+  created_by?: string | null;
+};
+
+/**
+ * Lead update + activity rows in one transaction (apply_lead_change, migration 009).
+ * Either both land or neither does.
+ */
+export async function commitLeadChange(
   existing: LeadRow,
-  scheduledForIso: string,
-  changedBy: string,
-  extra: Partial<LeadRow> = {}
+  patch: Partial<LeadRow>,
+  activities: LeadActivityInput[]
 ): Promise<LeadRow> {
-  const now = new Date().toISOString();
-  const entry: BookingHistoryEntry = {
-    changed_at: now,
-    previous_scheduled_for: existing.call_scheduled_for,
-    new_scheduled_for: scheduledForIso,
-    source: "manual",
-    changed_by: changedBy
-  };
-  return updateLead(existing, {
-    ...extra,
-    call_scheduled_for: scheduledForIso,
-    booking_source: "manual",
-    booking_history: [...existing.booking_history, entry],
-    call_booked_at: existing.call_booked_at ?? now
-  });
+  const db = requireDb();
+  const changes = changedLeadColumns(existing, buildNextLead(existing, patch));
+  const { data, error } = await db
+    .rpc("apply_lead_change", {
+      p_lead_id: existing.id,
+      p_org_id: existing.org_id,
+      p_patch: changes,
+      p_activities: activities.map((a) => ({
+        type: a.type,
+        outcome: a.outcome ?? null,
+        note: a.note ?? null,
+        next_action_at: a.next_action_at ?? null,
+        created_by: a.created_by ?? null
+      }))
+    })
+    .single();
+  if (error) throw error;
+  return asLead(data);
 }
 
 /** Columns for CRM list/queue views — omits slack notification flags (not rendered). */
@@ -554,6 +588,8 @@ const LEAD_LIST_SELECT = [
   "form_filled_at",
   "custom_fields",
   "form_qualified",
+  "first_contacted_at",
+  "pipeline_stage",
   "qualified",
   "qualified_at",
   "qualified_by",

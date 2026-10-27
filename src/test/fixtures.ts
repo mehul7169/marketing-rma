@@ -20,6 +20,7 @@ export function makeLead(overrides: Partial<LeadRow> = {}): LeadRow {
     form_filled_at: "2026-01-01T00:00:00.000Z",
     custom_fields: {},
     form_qualified: null,
+    first_contacted_at: null,
     qualified: null,
     qualified_at: null,
     qualified_by: null,

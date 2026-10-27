@@ -237,15 +237,20 @@ export default function WorkQueueView({
 
       const rollback = optimisticPatch(lead.id, patch, previous);
       markSaving(lead.id);
+      const failSave = (message: string) => {
+        rollback();
+        clearRowStatus(lead.id);
+        setToast(message);
+      };
       void saveLeadPlainFieldsAction(lead.id, serverInput)
-        .then(() => markSaved(lead.id))
-        .catch((err) => {
-          rollback();
-          clearRowStatus(lead.id);
-          setToast(err instanceof Error ? err.message : "Save failed");
-        });
+        .then((res) => {
+          if (!res.ok) return failSave(res.error);
+          applyLeadPatch(lead.id, res.lead);
+          markSaved(lead.id);
+        })
+        .catch((err) => failSave(err instanceof Error ? err.message : "Save failed"));
     },
-    [clearRowStatus, markSaved, markSaving, optimisticPatch, preview.active]
+    [applyLeadPatch, clearRowStatus, markSaved, markSaving, optimisticPatch, preview.active]
   );
 
   const commitCustomField = useCallback(
@@ -258,15 +263,16 @@ export default function WorkQueueView({
       };
       const rollback = optimisticPatch(lead.id, { custom_fields }, previous);
       markSaving(lead.id);
+      const failSave = (message: string) => {
+        rollback();
+        clearRowStatus(lead.id);
+        setToast(message);
+      };
       void saveLeadPlainFieldsAction(lead.id, {
         custom_fields: { [key]: raw.trim() || null }
       })
-        .then(() => markSaved(lead.id))
-        .catch((err) => {
-          rollback();
-          clearRowStatus(lead.id);
-          setToast(err instanceof Error ? err.message : "Save failed");
-        });
+        .then((res) => (res.ok ? markSaved(lead.id) : failSave(res.error)))
+        .catch((err) => failSave(err instanceof Error ? err.message : "Save failed"));
     },
     [clearRowStatus, markSaved, markSaving, optimisticPatch, preview.active]
   );

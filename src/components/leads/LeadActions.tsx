@@ -2,13 +2,19 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import type { BookingHistoryEntry, LeadRow, VerificationCallStatus } from "@/lib/leads/types";
 import {
-  addLeadFollowUp,
-  logVerificationCallAttempt,
+  DEAD_REASON_CODES,
+  deadReasonLabel,
+  type BookingHistoryEntry,
+  type DeadReasonCode,
+  type LeadRow
+} from "@/lib/leads/types";
+import {
+  leadLifecycleAction,
   saveLeadActions,
-  saveLeadSchedule
+  saveLeadPlainFieldsAction
 } from "@/app/leads/actions";
+import type { LifecycleAction, LifecyclePayload } from "@/lib/leads/lifecycle";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
 import { formatCurrencyNullable } from "@/lib/format";
@@ -17,12 +23,15 @@ import {
   type PostCallStatus
 } from "@/lib/leads/computeStage";
 import { stageLabel } from "@/components/leads/StageBadge";
-import {
-  formatISTDateTime,
-  formatLastTriedFriendly,
-  toDatetimeLocalIST,
-  tomorrowSameTimeLocalIST
-} from "@/lib/timezone";
+import { formatISTDateTime, fromDatetimeLocalIST, toDatetimeLocalIST } from "@/lib/timezone";
+
+type RunLifecycle = (action: LifecycleAction, payload?: LifecyclePayload) => Promise<void>;
+
+/** Short reason prompt for clearing a milestone; null when the user cancels. */
+function askReason(question: string): string | null {
+  const reason = window.prompt(question)?.trim();
+  return reason ? reason : null;
+}
 
 function TriToggle({
   label,
@@ -126,192 +135,17 @@ function ActionSection({
   );
 }
 
-function ordinal(n: number): string {
-  const v = n % 100;
-  if (v >= 11 && v <= 13) return `${n}th`;
-  switch (n % 10) {
-    case 1:
-      return `${n}st`;
-    case 2:
-      return `${n}nd`;
-    case 3:
-      return `${n}rd`;
-    default:
-      return `${n}th`;
-  }
-}
-
-function verificationStatusLabel(status: VerificationCallStatus): string {
-  switch (status) {
-    case "no_answer":
-      return "No answer";
-    case "follow_up_needed":
-      return "Follow-up needed";
-    case "reached":
-      return "Reached";
-    default:
-      return "Not contacted";
-  }
-}
-
-function VerificationCallBlock({
-  lead,
-  saving,
-  onError,
-  onSaving
-}: {
-  lead: LeadRow;
-  saving: boolean;
-  onError: (msg: string | null) => void;
-  onSaving: (v: boolean) => void;
-}) {
-  const router = useRouter();
-  const done = lead.setter_verified === true || lead.setter_verified === false;
-  const [showReminderPrompt, setShowReminderPrompt] = useState(false);
-  const [due, setDue] = useState(tomorrowSameTimeLocalIST());
-
-  async function logAttempt(status: "no_answer" | "follow_up_needed" | "reached") {
-    onError(null);
-    onSaving(true);
-    try {
-      await logVerificationCallAttempt(lead.id, status);
-      router.refresh();
-      if (status === "follow_up_needed") {
-        setDue(tomorrowSameTimeLocalIST());
-        setShowReminderPrompt(true);
-      } else {
-        setShowReminderPrompt(false);
-      }
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      onSaving(false);
-    }
-  }
-
-  async function saveReminder() {
-    onError(null);
-    onSaving(true);
-    try {
-      await addLeadFollowUp(
-        lead.id,
-        "Verification call follow-up",
-        due || null
-      );
-      setShowReminderPrompt(false);
-      router.refresh();
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      onSaving(false);
-    }
-  }
-
-  const attempts = lead.verification_call_attempts ?? 0;
-  const historyLine =
-    attempts > 0
-      ? `${ordinal(attempts)} attempt — last tried ${formatLastTriedFriendly(lead.last_verification_call_at)}`
-      : null;
-
-  const btnClass = (active: boolean) =>
-    `rounded border px-3 py-1.5 text-sm ${
-      active
-        ? "ui-active"
-        : "border-slate-200 text-slate-700"
-    } ${done ? "cursor-default opacity-70" : ""}`;
-
-  return (
-    <div className={done ? "opacity-55" : undefined}>
-      <div className="space-y-1.5">
-        <div className="text-xs text-slate-600">Verification call</div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={saving || done}
-            className={btnClass(lead.verification_call_status === "no_answer")}
-            onClick={() => logAttempt("no_answer")}
-          >
-            No Answer
-          </button>
-          <button
-            type="button"
-            disabled={saving || done}
-            className={btnClass(lead.verification_call_status === "follow_up_needed")}
-            onClick={() => logAttempt("follow_up_needed")}
-          >
-            Follow-up Needed
-          </button>
-          <button
-            type="button"
-            disabled={saving || done}
-            className={btnClass(lead.verification_call_status === "reached")}
-            onClick={() => logAttempt("reached")}
-          >
-            Reached
-          </button>
-        </div>
-        {attempts > 0 ? (
-          <p className="text-xs text-slate-500">
-            {verificationStatusLabel(lead.verification_call_status)} · {historyLine}
-          </p>
-        ) : null}
-        {done ? (
-          <p className="text-xs text-slate-500">
-            Setter outcome recorded — attempt history kept for reference.
-          </p>
-        ) : null}
-      </div>
-
-      {showReminderPrompt && !done ? (
-        <div className="mt-3 space-y-2 rounded border border-slate-200 bg-slate-50 px-3 py-3">
-          <p className="text-xs text-slate-600">
-            Set a follow-up reminder (defaults to tomorrow, same time).
-          </p>
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="text-xs text-slate-600">
-              Due (IST)
-              <input
-                type="datetime-local"
-                value={due}
-                onChange={(e) => setDue(e.target.value)}
-                className="mt-1 block rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
-              />
-            </label>
-            <button
-              type="button"
-              disabled={saving || !due}
-              onClick={saveReminder}
-              className="btn-brand disabled:opacity-60"
-            >
-              {saving ? "Saving…" : "Save reminder"}
-            </button>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => setShowReminderPrompt(false)}
-              className="text-xs text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
-            >
-              Skip
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function ScheduleCall({
   lead,
   saving,
   onError,
-  onSaving
+  run
 }: {
   lead: LeadRow;
   saving: boolean;
   onError: (msg: string | null) => void;
-  onSaving: (v: boolean) => void;
+  run: RunLifecycle;
 }) {
-  const router = useRouter();
   const [when, setWhen] = useState(toDatetimeLocalIST(lead.call_scheduled_for));
   const [historyOpen, setHistoryOpen] = useState(false);
   const hasBooking = Boolean(lead.call_scheduled_for || lead.call_booked_at);
@@ -323,16 +157,14 @@ function ScheduleCall({
       onError("Pick a date and time for the call.");
       return;
     }
-    onError(null);
-    onSaving(true);
-    try {
-      await saveLeadSchedule(lead.id, when);
-      router.refresh();
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      onSaving(false);
-    }
+    await run(lead.call_booked_at ? "reschedule_call" : "book_call", {
+      scheduledFor: fromDatetimeLocalIST(when)
+    });
+  }
+
+  async function cancel() {
+    const reason = askReason("Why is this call being cancelled?");
+    if (reason) await run("cancel_call", { reason });
   }
 
   return (
@@ -369,6 +201,16 @@ function ScheduleCall({
         >
           {saving ? "Saving…" : "Save"}
         </button>
+        {lead.call_booked_at ? (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={cancel}
+            className="text-xs text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+          >
+            Cancel call
+          </button>
+        ) : null}
       </div>
       {rescheduleCount > 0 || history.length > 1 ? (
         <div>
@@ -422,6 +264,54 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
   const [dealClosed, setDealClosed] = useState(lead.deal_closed);
   const [saving, setSaving] = useState(false);
 
+  const run: RunLifecycle = async (action, payload = {}) => {
+    setError(null);
+    setSaving(true);
+    try {
+      const res = await leadLifecycleAction(lead.id, action, payload);
+      if (res.ok) router.refresh();
+      else setError(res.error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  async function onQualifiedChange(value: boolean | null) {
+    if (value === true) return run("qualify");
+    if (value === false) {
+      if (window.confirm("Marking Unqualified also moves this lead to Dead. Continue?")) {
+        await run("disqualify");
+      }
+      return;
+    }
+    const reason = askReason("Why are you clearing the qualification?");
+    if (reason) await run("clear_qualification", { reason });
+  }
+
+  async function onShowedChange(value: boolean | null) {
+    if (value === true) return run("mark_showed");
+    if (value === false) {
+      if (window.confirm("Marking No-show also moves this lead to Dead. Continue?")) {
+        await run("mark_no_show");
+      }
+      return;
+    }
+    const reason = askReason("Why are you clearing the show outcome?");
+    if (reason) await run("clear_show", { reason });
+  }
+
+  async function saveNotes() {
+    setError(null);
+    setSaving(true);
+    try {
+      const res = await saveLeadPlainFieldsAction(lead.id, { notes });
+      if (res.ok) router.refresh();
+      else setError(res.error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function patch(input: Parameters<typeof saveLeadActions>[1]) {
     setError(null);
     setSaving(true);
@@ -463,30 +353,10 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
           yes="Qualified"
           no="Unqualified"
           unset="Not yet decided"
-          onChange={(qualified) => patch({ qualified })}
+          help="Unqualified moves the lead to Dead."
+          onChange={onQualifiedChange}
         />
-        {lead.call_booked_at ? (
-          <VerificationCallBlock
-            lead={lead}
-            saving={saving}
-            onError={setError}
-            onSaving={setSaving}
-          />
-        ) : null}
-        <BoolToggle
-          label="Setter verified"
-          value={lead.setter_verified}
-          onLabel="Verified"
-          offLabel="Unqualified"
-          help="On a booked lead, mark Unqualified if the call does not actually qualify. We never delete records — this moves the lead to Dead."
-          onChange={(setter_verified) => patch({ setter_verified })}
-        />
-        <ScheduleCall
-          lead={lead}
-          saving={saving}
-          onError={setError}
-          onSaving={setSaving}
-        />
+        <ScheduleCall lead={lead} saving={saving} onError={setError} run={run} />
         <BoolToggle
           label="Reminder sent"
           value={lead.reminder_sent}
@@ -503,7 +373,8 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
           yes="Showed"
           no="No-show"
           unset="Not yet happened"
-          onChange={(call_showed) => patch({ call_showed })}
+          help="No-show moves the lead to Dead."
+          onChange={onShowedChange}
         />
         {showPostCall ? (
           <label className="block text-xs text-slate-600">
@@ -640,13 +511,68 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
       <button
         type="button"
         disabled={saving}
-        onClick={() => patch({ notes })}
+        onClick={saveNotes}
         className="btn-brand disabled:opacity-60"
       >
         {saving ? "Saving…" : "Save notes"}
       </button>
+      <div className="border-t border-slate-200" />
+
+      <MarkDead lead={lead} saving={saving} run={run} />
+
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       </fieldset>
+    </div>
+  );
+}
+
+function MarkDead({ lead, saving, run }: { lead: LeadRow; saving: boolean; run: RunLifecycle }) {
+  const [reason, setReason] = useState<DeadReasonCode | "">("");
+
+  if (lead.is_dead) {
+    return (
+      <p className="text-sm text-slate-600">
+        Dead{lead.dead_reason ? `: ${deadReasonLabel(lead.dead_reason)}` : ""}. Use Revive to bring it back.
+      </p>
+    );
+  }
+
+  async function markDead() {
+    const warning =
+      lead.call_showed === true
+        ? "This lead showed up for a call. Mark it dead anyway?"
+        : lead.call_booked_at
+          ? "This lead has a booked call. Mark it dead anyway?"
+          : null;
+    if (warning && !window.confirm(warning)) return;
+    await run("mark_dead", { deadReason: reason || null });
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <label className="flex flex-col text-xs text-slate-600">
+        Dead reason (optional)
+        <select
+          value={reason}
+          onChange={(e) => setReason(e.target.value as DeadReasonCode | "")}
+          className="mt-1 rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+        >
+          <option value="">No reason</option>
+          {DEAD_REASON_CODES.map((code) => (
+            <option key={code} value={code}>
+              {deadReasonLabel(code)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        disabled={saving}
+        onClick={markDead}
+        className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-800 disabled:opacity-60"
+      >
+        Mark dead
+      </button>
     </div>
   );
 }

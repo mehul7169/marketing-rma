@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { insertLeadActivity } from "@/lib/db/lead_activities";
 import { getLeadByEmail, insertLead, updateLead } from "@/lib/db/leads";
+import { applyLeadLifecycle } from "@/lib/leads/updateLeadLifecycle";
 import type { LeadRow } from "@/lib/leads/types";
 import { getOrgIdBySlug } from "@/lib/orgs/getOrgIdBySlug";
 import { notifySlackCallBooked } from "@/lib/slack/messages";
@@ -71,6 +73,12 @@ export async function POST(req: NextRequest) {
         cal_com_booking_id: calComBookingId,
         booking_source: "cal_com"
       });
+      try {
+        await insertLeadActivity({ org_id: orgId, lead_id: created.id, type: "schedule" });
+      } catch (e) {
+        // The booking is saved; a missing timeline row must not fail the webhook.
+        console.error("[ingest/booking] schedule activity failed", created.id, e);
+      }
       created = await maybeNotifyBooking(false, false, created);
       return NextResponse.json({
         id: created.id,
@@ -84,12 +92,25 @@ export async function POST(req: NextRequest) {
     const hadBooking = Boolean(existing.call_booked_at);
     const hadNotified = existing.slack_booking_notified;
 
-    let updated = await updateLead(existing, {
-      call_booked_at: existing.call_booked_at ?? now,
-      call_scheduled_for: callScheduledFor,
-      cal_com_booking_id: calComBookingId,
-      booking_source: "cal_com"
-    });
+    let updated: LeadRow;
+    if (hadBooking) {
+      // Already booked: refresh the time quietly. Reschedules are logged from the dashboard only.
+      updated = await updateLead(existing, {
+        call_scheduled_for: callScheduledFor,
+        cal_com_booking_id: calComBookingId,
+        booking_source: "cal_com"
+      });
+    } else {
+      const res = await applyLeadLifecycle(
+        existing,
+        "book_call",
+        { scheduledFor: callScheduledFor, calComBookingId },
+        { userId: null, email: null },
+        { source: "cal_com" }
+      );
+      if (!res.ok) return NextResponse.json({ error: res.error }, { status: 422 });
+      updated = res.lead;
+    }
 
     updated = await maybeNotifyBooking(hadBooking, hadNotified, updated);
 

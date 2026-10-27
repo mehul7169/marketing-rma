@@ -11,7 +11,7 @@ import { listLeadActivities } from "@/lib/db/lead_activities";
 import { listRemindersForLead } from "@/lib/db/lead_reminders";
 import { getLeadById } from "@/lib/db/leads";
 import { displayLeadEmail } from "@/lib/leads/contactNormalize";
-import type { LeadRow } from "@/lib/leads/types";
+import { deadReasonLabel, type LeadRow } from "@/lib/leads/types";
 import { formatCurrencyNullable } from "@/lib/format";
 import { formatDueFriendly, formatISTDateTime } from "@/lib/timezone";
 
@@ -90,7 +90,7 @@ export default async function LeadDetailPage({
           {touch.by !== "—"
             ? ` · last action by ${touch.by} at ${fmtWhen(touch.at)}`
             : ""}
-          {lead.dead_reason ? ` · Dead: ${lead.dead_reason}` : ""}
+          {lead.dead_reason ? ` · Dead: ${deadReasonLabel(lead.dead_reason)}` : ""}
         </p>
       </div>
 

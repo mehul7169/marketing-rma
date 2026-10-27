@@ -4,7 +4,7 @@ import { makeLead } from "@/test/fixtures";
 const insertLeadActivity = vi.fn();
 const getLeadById = vi.fn();
 const updateLead = vi.fn();
-const scheduleLeadCall = vi.fn();
+const commitLeadChange = vi.fn();
 const getLeadByEmail = vi.fn();
 const getLeadByPhone = vi.fn();
 const insertLead = vi.fn();
@@ -28,7 +28,7 @@ vi.mock("@/lib/db/lead_reminders", () => ({
 vi.mock("@/lib/db/leads", () => ({
   getLeadById: (...args: unknown[]) => getLeadById(...args),
   updateLead: (...args: unknown[]) => updateLead(...args),
-  scheduleLeadCall: (...args: unknown[]) => scheduleLeadCall(...args),
+  commitLeadChange: (...args: unknown[]) => commitLeadChange(...args),
   getLeadByEmail: (...args: unknown[]) => getLeadByEmail(...args),
   getLeadByPhone: (...args: unknown[]) => getLeadByPhone(...args),
   insertLead: (...args: unknown[]) => insertLead(...args)
@@ -36,8 +36,9 @@ vi.mock("@/lib/db/leads", () => ({
 
 import {
   createManualLeadAction,
+  leadLifecycleAction,
   saveLeadActions,
-  saveLeadSchedule
+  saveLeadPlainFieldsAction
 } from "@/app/leads/actions";
 
 beforeEach(() => {
@@ -47,9 +48,7 @@ beforeEach(() => {
   getLeadByPhone.mockResolvedValue(null);
   insertLead.mockImplementation(async (row) => makeLead({ ...row, id: "new-1" }));
   updateLead.mockImplementation(async (lead, patch) => makeLead({ ...lead, ...patch }));
-  scheduleLeadCall.mockImplementation(async (lead, iso, _by, extra) =>
-    makeLead({ ...lead, ...extra, call_scheduled_for: iso })
-  );
+  commitLeadChange.mockImplementation(async (lead, patch) => makeLead({ ...lead, ...patch }));
 });
 
 describe("saveLeadActions milestones", () => {
@@ -63,17 +62,10 @@ describe("saveLeadActions milestones", () => {
 
     await saveLeadActions(lead.id, { deal_closed: true, deal_value: 1000 });
 
-    expect(insertLeadActivity).toHaveBeenCalledTimes(1);
-    expect(insertLeadActivity).toHaveBeenCalledWith(
-      expect.objectContaining({
-        org_id: "org-1",
-        lead_id: lead.id,
-        type: "deal_outcome",
-        outcome: "won",
-        created_by: "user-1"
-      })
-    );
-    const patch = updateLead.mock.calls[0][1];
+    const [, patch, activities] = commitLeadChange.mock.calls[0];
+    expect(activities).toEqual([
+      { type: "deal_outcome", outcome: "won", created_by: "user-1" }
+    ]);
     expect(patch.last_action).toBe("Deal won");
     expect(patch.last_action_at > lead.last_action_at!).toBe(true);
   });
@@ -82,34 +74,64 @@ describe("saveLeadActions milestones", () => {
     const lead = makeLead({ last_action: "Called — No Answer" });
     getLeadById.mockResolvedValue(lead);
 
-    await saveLeadActions(lead.id, { notes: "hello", reminder_sent: true });
+    await saveLeadActions(lead.id, { reminder_sent: true });
 
-    expect(insertLeadActivity).not.toHaveBeenCalled();
+    expect(commitLeadChange).not.toHaveBeenCalled();
     expect(updateLead.mock.calls[0][1]).not.toHaveProperty("last_action");
   });
 });
 
-describe("saveLeadSchedule", () => {
-  it("logs schedule for first booking and reschedule afterwards", async () => {
-    getLeadById.mockResolvedValue(makeLead({ call_scheduled_for: null }));
-    await saveLeadSchedule("lead-1", "2026-09-25T10:00");
-    expect(insertLeadActivity).toHaveBeenLastCalledWith(
-      expect.objectContaining({ type: "schedule" })
-    );
-    expect(scheduleLeadCall.mock.calls[0][3]).toMatchObject({
-      last_action: "Call scheduled"
-    });
+describe("leadLifecycleAction", () => {
+  it("returns hard-block messages instead of throwing", async () => {
+    getLeadById.mockResolvedValue(makeLead({ call_booked_at: null }));
+    const res = await leadLifecycleAction("lead-1", "mark_showed");
+    expect(res).toEqual({ ok: false, error: "Book a call before marking it as showed." });
+    expect(commitLeadChange).not.toHaveBeenCalled();
+  });
 
-    getLeadById.mockResolvedValue(
-      makeLead({ call_scheduled_for: "2026-09-25T04:30:00.000Z" })
-    );
-    await saveLeadSchedule("lead-1", "2026-09-26T10:00");
-    expect(insertLeadActivity).toHaveBeenLastCalledWith(
-      expect.objectContaining({ type: "reschedule" })
-    );
-    expect(scheduleLeadCall.mock.calls[1][3]).toMatchObject({
-      last_action: "Call rescheduled"
+  it("disqualify from the detail page marks the lead dead with not_qualified", async () => {
+    getLeadById.mockResolvedValue(makeLead());
+    const res = await leadLifecycleAction("lead-1", "disqualify");
+    expect(res.ok).toBe(true);
+    expect(commitLeadChange.mock.calls[0][1]).toMatchObject({
+      qualified: false,
+      qualified_by: "setter@example.com",
+      is_dead: true,
+      dead_reason: "not_qualified"
     });
+  });
+});
+
+describe("saveLeadPlainFieldsAction", () => {
+  it("routes an inline Call scheduled edit through book_call (and its hard block)", async () => {
+    getLeadById.mockResolvedValue(makeLead({ call_booked_at: null, first_contacted_at: null }));
+    const res = await saveLeadPlainFieldsAction("lead-1", { call_scheduled_for: "2026-10-29T10:00:00.000Z" });
+    expect(res).toEqual({ ok: false, error: "Log a call attempt before booking a call." });
+    expect(updateLead).not.toHaveBeenCalled();
+    expect(commitLeadChange).not.toHaveBeenCalled();
+  });
+
+  it("reschedules when already booked", async () => {
+    getLeadById.mockResolvedValue(
+      makeLead({ call_booked_at: "2026-10-21T10:00:00.000Z", call_scheduled_for: "2026-10-25T10:00:00.000Z" })
+    );
+    const res = await saveLeadPlainFieldsAction("lead-1", { call_scheduled_for: "2026-10-29T10:00:00.000Z" });
+    expect(res.ok).toBe(true);
+    expect(commitLeadChange.mock.calls[0][2][0]).toMatchObject({ type: "reschedule" });
+  });
+
+  it("refuses to clear a booking inline", async () => {
+    const res = await saveLeadPlainFieldsAction("lead-1", { call_scheduled_for: null });
+    expect(res.ok).toBe(false);
+    expect(commitLeadChange).not.toHaveBeenCalled();
+  });
+
+  it("logs plain edits as field_edited", async () => {
+    getLeadById.mockResolvedValue(makeLead({ notes: null }));
+    await saveLeadPlainFieldsAction("lead-1", { notes: "call after 6" });
+    expect(commitLeadChange.mock.calls[0][2]).toEqual([
+      { type: "field_edited", outcome: null, note: "notes", created_by: "user-1" }
+    ]);
   });
 });
 
