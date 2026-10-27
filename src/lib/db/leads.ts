@@ -159,6 +159,15 @@ function stamp(existing: LeadRow, patch: Partial<LeadRow>): LeadRow {
   return merged;
 }
 
+/** Postgres-computed columns reject any written value (error 428C9). */
+const GENERATED_LEAD_COLUMNS = ["pipeline_stage"] as const;
+
+export function omitGeneratedLeadColumns<T extends Record<string, unknown>>(row: T): T {
+  const out: Record<string, unknown> = { ...row };
+  for (const key of GENERATED_LEAD_COLUMNS) delete out[key];
+  return out as T;
+}
+
 function firstSetAt(existing: string | null, nextValue: unknown, now: string): string | null {
   if (existing) return existing;
   if (nextValue === undefined || nextValue === null) return existing;
@@ -262,6 +271,7 @@ export async function insertLead(
     lead_source: row.lead_source ?? null,
     form_filled_at: row.form_filled_at ?? null,
     custom_fields: row.custom_fields ?? {},
+    form_qualified: row.form_qualified ?? null,
     qualified: row.qualified ?? null,
     qualified_at: row.qualified_at ?? null,
     qualified_by: row.qualified_by ?? null,
@@ -484,13 +494,15 @@ export async function updateLead(existing: LeadRow, patch: Partial<LeadRow>): Pr
   const { data, error } = await db
     .from("leads")
     .update(
-      omitLegacyLeadColumns({
-        ...next,
-        id: existing.id,
-        org_id: existing.org_id,
-        email: existing.email,
-        created_at: existing.created_at
-      } as unknown as Record<string, unknown>)
+      omitGeneratedLeadColumns(
+        omitLegacyLeadColumns({
+          ...next,
+          id: existing.id,
+          org_id: existing.org_id,
+          email: existing.email,
+          created_at: existing.created_at
+        } as unknown as Record<string, unknown>)
+      )
     )
     .eq("id", existing.id)
     .eq("org_id", existing.org_id)
@@ -541,6 +553,7 @@ const LEAD_LIST_SELECT = [
   "lead_source",
   "form_filled_at",
   "custom_fields",
+  "form_qualified",
   "qualified",
   "qualified_at",
   "qualified_by",
@@ -958,6 +971,7 @@ export async function listAllLeads(orgId: string, sources?: string[]): Promise<L
 }
 
 export async function listLeadsNeedingSlackNoBookingNudge(
+  orgId: string,
   delayMinutes: number
 ): Promise<LeadRow[]> {
   if (!supabaseAdmin) return [];
@@ -966,7 +980,8 @@ export async function listLeadsNeedingSlackNoBookingNudge(
   const { data, error } = await db
     .from("leads")
     .select("*")
-    .eq("qualified", true)
+    .eq("org_id", orgId)
+    .or("form_qualified.eq.true,qualified.eq.true")
     .is("call_booked_at", null)
     .eq("slack_no_booking_notified", false)
     .not("form_filled_at", "is", null)

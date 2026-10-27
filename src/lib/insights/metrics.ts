@@ -160,7 +160,7 @@ export function computeInsights(
   const cohort = leads.filter((l) => inRange(l.created_at, fromISO, toISO));
 
   const formFilled = cohort.filter((l) => Boolean(l.form_filled_at));
-  const formQualifiedNum = formFilled.filter((l) => l.qualified === true).length;
+  const formQualifiedNum = formFilled.filter((l) => l.form_qualified === true).length;
 
   const booked = cohort.filter((l) => Boolean(l.call_booked_at));
   const setterVerifiedNum = booked.filter((l) => l.setter_verified === true).length;

@@ -24,8 +24,13 @@ function linkBlock(url: string): { type: "section"; text: { type: "mrkdwn"; text
 }
 
 export async function notifySlackNewLead(lead: LeadRow) {
+  // Sent at intake, so this is the form's verdict, not a setter decision.
   const qualified =
-    lead.qualified === true ? "✅ Qualified" : lead.qualified === false ? "❌ Not Qualified" : "Not yet decided";
+    lead.form_qualified === true
+      ? "✅ Form Qualified"
+      : lead.form_qualified === false
+        ? "❌ Form Not Qualified"
+        : "Not yet decided";
   const header = `New Lead — ${qualified}`;
   const url = leadLink(lead);
   const [describesYouKey, biggestGoalKey] = WEBSITE_CANONICAL_CUSTOM_FIELD_KEYS;
@@ -84,7 +89,7 @@ export async function notifySlackNoBookingYet(lead: LeadRow, delayMinutes: numbe
         field("Name", lead.name),
         field("Email", lead.email),
         field("Phone", lead.phone),
-        field("Qualified at", formatISTDateTime(lead.qualified_at))
+        field("Form filled", formatISTDateTime(lead.form_filled_at))
       ]
     },
     {

@@ -130,9 +130,8 @@ export async function POST(req: NextRequest) {
         ...patch,
         custom_fields: mergeCustomFields({}, incomingCustom),
         form_filled_at: now,
-        qualified: qualified === undefined ? null : qualified,
-        qualified_at: qualified === true || qualified === false ? now : null,
-        qualified_by: qualified === true || qualified === false ? "form" : null
+        // The website's verdict is a tag only; `qualified` is the setter's decision.
+        form_qualified: qualified ?? null
       });
       created = await maybeNotifyNewLead(null, created);
       return NextResponse.json({
@@ -142,20 +141,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const nextQualified =
-      qualified === undefined ? existing.qualified : qualified;
-
     let updated = await updateLead(existing, {
       ...Object.fromEntries(
         Object.entries(patch).filter(([, v]) => v !== null)
       ),
       custom_fields: mergeCustomFields(existing.custom_fields, incomingCustom),
       form_filled_at: existing.form_filled_at ?? now,
-      qualified: nextQualified,
-      qualified_by:
-        qualified === true || qualified === false
-          ? "form"
-          : existing.qualified_by
+      form_qualified:
+        qualified === undefined ? existing.form_qualified : qualified
     });
 
     updated = await maybeNotifyNewLead(existing, updated);

@@ -55,9 +55,9 @@ function isQuickformLead(lead: LeadRow): boolean {
   return QF_SOURCES.has(lead.lead_source ?? "");
 }
 
-/** Form's own verdict — setter/admin edits overwrite qualified_by with an email. */
+/** The website form's own verdict, independent of any setter decision. */
 export function isFormQualified(lead: LeadRow): boolean {
-  return lead.qualified === true && lead.qualified_by === "form";
+  return lead.form_qualified === true;
 }
 
 /** Same definition as /leads?cohort=qualified_call_booked (call_confirmed). */

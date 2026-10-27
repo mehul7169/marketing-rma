@@ -62,7 +62,7 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 
 ## Website ingest (runmoreads.in)
 The marketing site never talks to Supabase. It POSTs to this app with `Authorization: Bearer $WEBSITE_INGEST_SECRET`:
-- `POST /api/ingest/lead-form` — qualification form submit (optional `qualified: boolean | null`)
+- `POST /api/ingest/lead-form` — qualification form submit (optional `qualified: boolean | null`). The website's verdict is stored in `form_qualified` only. `qualified` / `qualified_at` / `qualified_by` are the setter's decision, and ingest never writes them.
 - `POST /api/ingest/booking` — cal.com booking
 
 These routes are excluded from login middleware (same as cron).
@@ -84,7 +84,7 @@ Referrals and hand-entered leads are created from the Work Queue (blocked during
 Table above the trend charts, campaign → ad set → ad, same date range as the page.
 - Ads are classified by the `lead_source` of every lead ever attributed to them (same `utm_content` → ad id, then ad name resolver as the Campaigns table): `facebook` = landing page, `quickform_fb`/`quickform_ig` = Quickform. Other sources are ignored.
 - LP visitors = `meta_ads_daily.landing_page_views` (extracted from `actions` at ingest).
-- Landing-page-only metrics (facebook leads created in range): opt-ins = lead exists; qualified opt-ins = `qualified = true` and `qualified_by = 'form'`; calls booked = `call_booked_at` set; qualified calls booked = `call_confirmed` (same as `/leads?cohort=qualified_call_booked`).
+- Landing-page-only metrics (facebook leads created in range): opt-ins = lead exists; qualified opt-ins = `form_qualified = true`; calls booked = `call_booked_at` set; qualified calls booked = `call_confirmed` (same as `/leads?cohort=qualified_call_booked`).
 - Qualified showups = `call_confirmed` and `call_showed` for landing-page and Quickform leads.
 - Cost = the row's adspend ÷ count. A dash means the metric doesn't apply to that ad type, or the count is zero (for cost).
 

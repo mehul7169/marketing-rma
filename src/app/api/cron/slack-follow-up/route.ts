@@ -3,6 +3,7 @@ import {
   listLeadsNeedingSlackNoBookingNudge,
   markSlackNoBookingNotified,
 } from "@/lib/db/leads";
+import { getOrgIdBySlug } from "@/lib/orgs/getOrgIdBySlug";
 import { notifySlackNoBookingYet } from "@/lib/slack/messages";
 import { assertCronSecret } from "@/lib/utils/cronAuth";
 
@@ -21,7 +22,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // SLACK_WEBHOOK_URL is RMA's channel, so only RMA leads are nudged.
+    const orgId = await getOrgIdBySlug("rma");
     const leads = await listLeadsNeedingSlackNoBookingNudge(
+      orgId,
       SLACK_FOLLOWUP_DELAY_MINUTES,
     );
     let notified = 0;

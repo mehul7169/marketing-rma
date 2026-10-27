@@ -1,7 +1,7 @@
 /** Plain-language + calculation copy for Insights info tips (cohort-based). */
 export const INSIGHTS_TOOLTIPS = {
   formQualified:
-    "Of leads created in this date range who filled the form, what share were marked qualified by the form's criteria — regardless of when qualification was recorded. Calculation: cohort members with qualified = true ÷ cohort members with form_filled_at set.",
+    "Of leads created in this date range who filled the form, what share were marked qualified by the form's criteria — regardless of when qualification was recorded. Calculation: cohort members with form_qualified = true ÷ cohort members with form_filled_at set.",
   setterVerified:
     "Of leads created in this date range who booked a call, what share Vriddhi confirmed as genuinely qualified — regardless of when verification happened. Calculation: cohort members with setter_verified = true ÷ cohort members with call_booked_at set.",
   showUp:

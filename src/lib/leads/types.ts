@@ -44,6 +44,9 @@ export type LeadRow = {
   form_filled_at: string | null;
   /** Arbitrary per-source form answers (JSONB merge on ingest). */
   custom_fields: Record<string, unknown>;
+  /** The website form's own verdict (tag only). Never the setter's decision. */
+  form_qualified: boolean | null;
+  /** Setter decision. */
   qualified: boolean | null;
   qualified_at: string | null;
   qualified_by: string | null;

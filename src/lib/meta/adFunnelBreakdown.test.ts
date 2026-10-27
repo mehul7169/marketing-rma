@@ -50,13 +50,13 @@ describe("buildAdFunnelBreakdown", () => {
 
   const leads = [
     // Landing page: form-qualified, booked, confirmed, showed.
-    makeLead({ id: "a", lead_source: "facebook", utm_content: "LP Ad", created_at: IN, qualified: true, qualified_by: "form", call_booked_at: IN, call_confirmed: true, call_showed: true }),
-    // Admin-qualified: an opt-in and booking, but not a form-qualified opt-in.
-    makeLead({ id: "b", lead_source: "facebook", utm_content: "lp-ad", created_at: IN, qualified: true, qualified_by: "admin@x.com", call_booked_at: IN }),
+    makeLead({ id: "a", lead_source: "facebook", utm_content: "LP Ad", created_at: IN, form_qualified: true, call_booked_at: IN, call_confirmed: true, call_showed: true }),
+    // Setter-qualified but the form said no: an opt-in and booking, not a form-qualified opt-in.
+    makeLead({ id: "b", lead_source: "facebook", utm_content: "lp-ad", created_at: IN, form_qualified: false, qualified: true, qualified_by: "admin@x.com", call_booked_at: IN }),
     // Progressed past QCB (stage closed) — still counted via call_confirmed.
     makeLead({ id: "c", lead_source: "facebook", utm_content: "LP Ad", created_at: IN, stage: "closed", call_booked_at: IN, call_confirmed: true }),
     // Outside range — classifies but not counted.
-    makeLead({ id: "d", lead_source: "facebook", utm_content: "LP Ad", created_at: OUT, qualified: true, qualified_by: "form" }),
+    makeLead({ id: "d", lead_source: "facebook", utm_content: "LP Ad", created_at: OUT, form_qualified: true }),
     makeLead({ id: "e", lead_source: "quickform_ig", utm_content: "QF Ad", created_at: IN, call_booked_at: IN, call_confirmed: true, call_showed: true }),
     makeLead({ id: "f", lead_source: "quickform_fb", utm_content: "QF Ad", created_at: IN, call_confirmed: true }),
     // ig leads are in neither bucket, even when attributed to an ad.
