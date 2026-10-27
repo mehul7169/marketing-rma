@@ -101,6 +101,7 @@ export default function ConfigurableLeadsTable({
           reasonRequired={grid.confirm.reasonRequired}
           reasonLabel={grid.confirm.reasonLabel}
           showDeadReason={grid.confirm.showDeadReason}
+          anchor={grid.confirm.anchor}
           onConfirm={grid.resolveConfirm}
           onCancel={() => grid.setConfirm(null)}
         />

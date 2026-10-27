@@ -82,6 +82,7 @@ Spec: `docs/lead-lifecycle-spec.md`. Every milestone from the UI goes through `u
 - `disqualify` and `mark_no_show` also mark the lead dead (`dead_reason` `not_qualified` / `no_show`). Dead reason codes: `not_qualified`, `no_show`, `no_answer`, `not_interested`, `other`; older free-text reasons are shown via `deadReasonLabel`.
 - Plain field edits (notes, deal value, custom fields) use `updateLeadFields` and log one `field_edited` activity with the changed keys. Name, phone and email are locked. Inline "Call scheduled" edits route to `book_call` / `reschedule_call`.
 - `/leads` and the Work Queue share one inline-editable grid. The lead name opens a slide-over at `?lead=<id>` (activity, notes, booking history, post-call, follow-ups). `/leads/[id]` redirects there. Slack links use `?lead=`.
+- Action popovers (Log call, Stage Actions, confirm, book/reschedule, Note) use `ActionPopover` (`@floating-ui/react`): portal to `document.body`, flip/shift to stay on screen, internal scroll with pinned Save/Cancel.
 - Vercel functions run in Tokyo (`hnd1` in `vercel.json`) to match Supabase `ap-northeast-1`.
 - `pipeline_stage` is a Postgres generated column (new → contacted → qualified → call_booked → showed_up; dead is the separate `is_dead` overlay). Never write it. `updateLead` sends only changed columns.
 - `setter_verified*`, `call_confirmed`, `action_status`, and `lifecycle_status` are no longer written or read (columns kept for a week of verification).

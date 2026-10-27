@@ -86,7 +86,7 @@ function YesNoDash({
 }: {
   value: boolean | null;
   disabled?: boolean;
-  onChange: (v: boolean | null) => void;
+  onChange: (v: boolean | null, el: HTMLElement) => void;
 }) {
   const opt = (v: boolean | null, label: string) => (
     <button
@@ -99,7 +99,7 @@ function YesNoDash({
       }`}
       onClick={(e) => {
         e.stopPropagation();
-        if (value !== v) onChange(v);
+        if (value !== v) onChange(v, e.currentTarget);
       }}
     >
       {label}
@@ -292,7 +292,8 @@ export function renderLeadColumnCell(
                     message: spec.message,
                     reasonRequired: spec.reasonRequired,
                     showDeadReason: spec.showDeadReason,
-                    confirmLabel: spec.confirmLabel
+                    confirmLabel: spec.confirmLabel,
+                    anchor: spec.anchor
                   })
                 }
               />
@@ -354,33 +355,35 @@ export function renderLeadColumnCell(
     case "qualified":
       return (
         <Cell columnId={columnId} edit={edit}>
-          {canEdit ? (
-            <YesNoDash
-              value={lead.qualified}
-              onChange={(v) => {
-                if (v === true) edit?.onLifecycle?.("qualify");
-                else if (v === false) {
-                  edit?.onConfirm?.({
-                    columnId: "qualified",
-                    action: "disqualify",
-                    payload: {},
-                    title: "Mark unqualified",
-                    message: "Marking Unqualified also moves this lead to Dead.",
-                    confirmLabel: "Mark unqualified"
-                  });
-                } else {
-                  edit?.onConfirm?.({
-                    columnId: "qualified",
-                    action: "clear_qualification",
-                    payload: {},
-                    title: "Clear qualification",
-                    message: "Clear the setter qualification on this lead?",
-                    reasonRequired: true,
-                    confirmLabel: "Clear"
-                  });
-                }
-              }}
-            />
+            {canEdit ? (
+              <YesNoDash
+                value={lead.qualified}
+                onChange={(v, el) => {
+                  if (v === true) edit?.onLifecycle?.("qualify");
+                  else if (v === false) {
+                    edit?.onConfirm?.({
+                      columnId: "qualified",
+                      action: "disqualify",
+                      payload: {},
+                      title: "Mark unqualified",
+                      message: "Marking Unqualified also moves this lead to Dead.",
+                      confirmLabel: "Mark unqualified",
+                      anchor: el
+                    });
+                  } else {
+                    edit?.onConfirm?.({
+                      columnId: "qualified",
+                      action: "clear_qualification",
+                      payload: {},
+                      title: "Clear qualification",
+                      message: "Clear the setter qualification on this lead?",
+                      reasonRequired: true,
+                      confirmLabel: "Clear",
+                      anchor: el
+                    });
+                  }
+                }}
+              />
           ) : lead.qualified === true ? (
             "Yes"
           ) : lead.qualified === false ? (
@@ -393,33 +396,35 @@ export function renderLeadColumnCell(
     case "call_showed":
       return (
         <Cell columnId={columnId} edit={edit}>
-          {canEdit ? (
-            <YesNoDash
-              value={lead.call_showed}
-              onChange={(v) => {
-                if (v === true) edit?.onLifecycle?.("mark_showed");
-                else if (v === false) {
-                  edit?.onConfirm?.({
-                    columnId: "call_showed",
-                    action: "mark_no_show",
-                    payload: {},
-                    title: "Mark no-show",
-                    message: "Marking No-show also moves this lead to Dead.",
-                    confirmLabel: "Mark no-show"
-                  });
-                } else {
-                  edit?.onConfirm?.({
-                    columnId: "call_showed",
-                    action: "clear_show",
-                    payload: {},
-                    title: "Clear show outcome",
-                    message: "Clear the show outcome on this lead?",
-                    reasonRequired: true,
-                    confirmLabel: "Clear"
-                  });
-                }
-              }}
-            />
+            {canEdit ? (
+              <YesNoDash
+                value={lead.call_showed}
+                onChange={(v, el) => {
+                  if (v === true) edit?.onLifecycle?.("mark_showed");
+                  else if (v === false) {
+                    edit?.onConfirm?.({
+                      columnId: "call_showed",
+                      action: "mark_no_show",
+                      payload: {},
+                      title: "Mark no-show",
+                      message: "Marking No-show also moves this lead to Dead.",
+                      confirmLabel: "Mark no-show",
+                      anchor: el
+                    });
+                  } else {
+                    edit?.onConfirm?.({
+                      columnId: "call_showed",
+                      action: "clear_show",
+                      payload: {},
+                      title: "Clear show outcome",
+                      message: "Clear the show outcome on this lead?",
+                      reasonRequired: true,
+                      confirmLabel: "Clear",
+                      anchor: el
+                    });
+                  }
+                }}
+              />
           ) : lead.call_showed === true ? (
             "Yes"
           ) : lead.call_showed === false ? (
@@ -458,7 +463,8 @@ export function renderLeadColumnCell(
                     ? "This lead has a booked call. Mark it dead anyway?"
                     : "Mark this lead dead?",
                   showDeadReason: true,
-                  confirmLabel: "Mark dead"
+                  confirmLabel: "Mark dead",
+                  anchor: e.currentTarget
                 });
               }}
             >

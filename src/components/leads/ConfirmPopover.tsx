@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import ActionPopover from "@/components/leads/ActionPopover";
 import {
   DEAD_REASON_CODES,
   deadReasonLabel,
@@ -14,6 +15,7 @@ export default function ConfirmPopover({
   reasonRequired = false,
   reasonLabel = "Reason",
   showDeadReason = false,
+  anchor = null,
   onConfirm,
   onCancel
 }: {
@@ -23,6 +25,7 @@ export default function ConfirmPopover({
   reasonRequired?: boolean;
   reasonLabel?: string;
   showDeadReason?: boolean;
+  anchor?: HTMLElement | null;
   onConfirm: (opts: {
     reason?: string;
     deadReason?: DeadReasonCode | null;
@@ -31,63 +34,19 @@ export default function ConfirmPopover({
 }) {
   const [reason, setReason] = useState("");
   const [deadReason, setDeadReason] = useState<DeadReasonCode | "">("");
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onCancel();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
-
   const blocked = reasonRequired && !reason.trim();
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4"
-      onClick={onCancel}
-    >
-      <div
-        role="dialog"
-        aria-labelledby="confirm-title"
-        className="w-full max-w-sm rounded border border-slate-200 bg-white p-4 shadow-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 id="confirm-title" className="text-sm font-medium text-slate-900">
-          {title}
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">{message}</p>
-        {showDeadReason ? (
-          <label className="mt-3 block text-xs text-slate-600">
-            Dead reason (optional)
-            <select
-              value={deadReason}
-              onChange={(e) =>
-                setDeadReason(e.target.value as DeadReasonCode | "")
-              }
-              className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
-            >
-              <option value="">No reason</option>
-              {DEAD_REASON_CODES.map((code) => (
-                <option key={code} value={code}>
-                  {deadReasonLabel(code)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        {reasonRequired ? (
-          <label className="mt-3 block text-xs text-slate-600">
-            {reasonLabel}
-            <input
-              autoFocus
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
-            />
-          </label>
-        ) : null}
-        <div className="mt-4 flex justify-end gap-2">
+    <ActionPopover
+      open
+      onOpenChange={(next) => {
+        if (!next) onCancel();
+      }}
+      reference={anchor}
+      labelledBy="confirm-title"
+      widthClass="w-80 max-w-[calc(100vw-16px)]"
+      footer={
+        <div className="flex justify-end gap-2">
           <button
             type="button"
             className="rounded border border-slate-200 px-3 py-1.5 text-sm text-slate-700"
@@ -109,7 +68,41 @@ export default function ConfirmPopover({
             {confirmLabel}
           </button>
         </div>
-      </div>
-    </div>
+      }
+    >
+      <h2 id="confirm-title" className="text-sm font-medium text-slate-900">
+        {title}
+      </h2>
+      <p className="mt-1 text-sm text-slate-600">{message}</p>
+      {showDeadReason ? (
+        <label className="mt-3 block text-xs text-slate-600">
+          Dead reason (optional)
+          <select
+            value={deadReason}
+            onChange={(e) =>
+              setDeadReason(e.target.value as DeadReasonCode | "")
+            }
+            className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+          >
+            <option value="">No reason</option>
+            {DEAD_REASON_CODES.map((code) => (
+              <option key={code} value={code}>
+                {deadReasonLabel(code)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {reasonRequired ? (
+        <label className="mt-3 block text-xs text-slate-600">
+          {reasonLabel}
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+          />
+        </label>
+      ) : null}
+    </ActionPopover>
   );
 }

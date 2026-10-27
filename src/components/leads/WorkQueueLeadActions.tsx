@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import { addLeadNoteAction, leadLifecycleAction } from "@/app/leads/actions";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
+import ActionPopover from "@/components/leads/ActionPopover";
 import { needsQualification, pipelineStageOf } from "@/lib/leads/lifecycleDefinitions";
 import type { LogCallOutcome } from "@/lib/leads/lifecycle";
 import type { LifecycleResult } from "@/lib/leads/updateLeadLifecycle";
@@ -40,6 +40,38 @@ export function primaryWorkQueueActions(
   if (stage === "call_booked") return needsQualification(lead) ? ["qualify"] : [];
   if (stage === "showed_up") return [];
   return ["log_call"];
+}
+
+function PopoverFooter({
+  onCancel,
+  onSave,
+  saveLabel,
+  saveDisabled
+}: {
+  onCancel: () => void;
+  onSave: () => void;
+  saveLabel: string;
+  saveDisabled?: boolean;
+}) {
+  return (
+    <div className="flex justify-end gap-2">
+      <button
+        type="button"
+        className="rounded border border-slate-200 px-2.5 py-1 text-sm"
+        onClick={onCancel}
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        className="rounded bg-slate-900 px-2.5 py-1 text-sm text-white disabled:opacity-60"
+        disabled={saveDisabled}
+        onClick={onSave}
+      >
+        {saveLabel}
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -84,51 +116,6 @@ export default function WorkQueueLeadActions({
     toDatetimeLocalIST(lead.call_scheduled_for) || tomorrowSameTimeLocalIST()
   );
   const [error, setError] = useState<string | null>(null);
-  const [coords, setCoords] = useState<{ top: number; left: number } | null>(
-    null
-  );
-  const rootRef = useRef<HTMLDivElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    if (!popover || !rootRef.current) {
-      setCoords(null);
-      return;
-    }
-    const rect = rootRef.current.getBoundingClientRect();
-    const width = 288;
-    const left = Math.min(
-      Math.max(8, rect.left),
-      window.innerWidth - width - 8
-    );
-    const top = Math.min(rect.bottom + 6, window.innerHeight - 8);
-    setCoords({ top, left });
-  }, [popover]);
-
-  useEffect(() => {
-    if (!popover) return;
-    function onDoc(e: MouseEvent) {
-      const t = e.target as Node;
-      if (rootRef.current?.contains(t) || popoverRef.current?.contains(t)) {
-        return;
-      }
-      setPopover(null);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setPopover(null);
-    }
-    function onScroll() {
-      setPopover(null);
-    }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onScroll, true);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onScroll, true);
-    };
-  }, [popover]);
 
   const actions = primaryWorkQueueActions(lead);
   const btn = compact
@@ -205,278 +192,255 @@ export default function WorkQueueLeadActions({
       .catch((err) => rollback(err instanceof Error ? err.message : "Action failed"));
   }
 
-  return (
-    <div
-      ref={rootRef}
-      className="relative"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className={`flex flex-wrap gap-1.5 ${compact ? "" : "mt-3 gap-2"}`}>
-        <button
-          type="button"
-          title="Add note"
-          onClick={() => setPopover(popover === "note" ? null : "note")}
-          className={ghostBtn}
+  function toggle(kind: Exclude<PopoverKind, null>) {
+    setPopover((current) => (current === kind ? null : kind));
+  }
+
+  const callForm = (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold text-slate-900">
+        {popover === "qualify_call" ? "Qualify call" : "Log call"}
+      </h3>
+      <label className="block text-xs text-slate-600">
+        Outcome
+        <select
+          className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+          value={outcome}
+          onChange={(e) => setOutcome(e.target.value as LogCallOutcome)}
         >
-          Note
-        </button>
+          <option value="no_answer">No Answer</option>
+          <option value="follow_up_needed">Follow-up Needed</option>
+          <option value="qualified">Qualified</option>
+          <option value="not_qualified">Unqualified</option>
+        </select>
+      </label>
+      {outcome === "follow_up_needed" ? (
+        <label className="block text-xs text-slate-600">
+          Follow-up at
+          <input
+            type="datetime-local"
+            className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+            value={followUpAt}
+            onChange={(e) => setFollowUpAt(e.target.value)}
+          />
+        </label>
+      ) : null}
+      {outcome === "qualified" && !lead.call_scheduled_for ? (
+        <label className="block text-xs text-slate-600">
+          Call scheduled for
+          <input
+            type="datetime-local"
+            required
+            className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+            value={callAt}
+            onChange={(e) => setCallAt(e.target.value)}
+          />
+        </label>
+      ) : null}
+      {outcome === "qualified" && lead.call_scheduled_for ? (
+        <p className="text-xs text-slate-500">
+          Keeping scheduled time: {formatISTDateTime(lead.call_scheduled_for)}
+        </p>
+      ) : null}
+      <label className="block text-xs text-slate-600">
+        Note (optional)
+        <textarea
+          className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+          rows={2}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </label>
+    </div>
+  );
+
+  return (
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <div className={`flex flex-wrap gap-1.5 ${compact ? "" : "mt-3 gap-2"}`}>
+        <ActionPopover
+          open={popover === "note"}
+          onOpenChange={(next) => setPopover(next ? "note" : null)}
+          trigger={
+            <button
+              type="button"
+              title="Add note"
+              onClick={() => toggle("note")}
+              className={ghostBtn}
+            >
+              Note
+            </button>
+          }
+          footer={
+            <PopoverFooter
+              onCancel={() => setPopover(null)}
+              onSave={() =>
+                runBackground(() => addLeadNoteAction(lead.id, note), {
+                  last_action: note.trim(),
+                  last_action_at: new Date().toISOString()
+                })
+              }
+              saveLabel="Save note"
+              saveDisabled={!note.trim()}
+            />
+          }
+        >
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Add note</h3>
+            <textarea
+              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              rows={3}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+        </ActionPopover>
         {actions.includes("log_call") ? (
-          <button
-            type="button"
-            className={primaryBtn}
-            onClick={() => {
-              setOutcome("no_answer");
-              setPopover(popover === "log_call" ? null : "log_call");
-            }}
+          <ActionPopover
+            open={popover === "log_call"}
+            onOpenChange={(next) => setPopover(next ? "log_call" : null)}
+            trigger={
+              <button
+                type="button"
+                className={primaryBtn}
+                onClick={() => {
+                  setOutcome("no_answer");
+                  toggle("log_call");
+                }}
+              >
+                Log Call
+              </button>
+            }
+            footer={
+              <PopoverFooter
+                onCancel={() => setPopover(null)}
+                onSave={submitCallAttempt}
+                saveLabel="Save"
+              />
+            }
           >
-            Log Call
-          </button>
+            {callForm}
+          </ActionPopover>
         ) : null}
         {actions.includes("qualify") ? (
-          <button
-            type="button"
-            className={primaryBtn}
-            onClick={() => {
-              setOutcome("no_answer");
-              setPopover(popover === "qualify_call" ? null : "qualify_call");
-            }}
+          <ActionPopover
+            open={popover === "qualify_call"}
+            onOpenChange={(next) => setPopover(next ? "qualify_call" : null)}
+            trigger={
+              <button
+                type="button"
+                className={primaryBtn}
+                onClick={() => {
+                  setOutcome("no_answer");
+                  toggle("qualify_call");
+                }}
+              >
+                Qualify Call
+              </button>
+            }
+            footer={
+              <PopoverFooter
+                onCancel={() => setPopover(null)}
+                onSave={submitCallAttempt}
+                saveLabel="Save"
+              />
+            }
           >
-            Qualify Call
-          </button>
+            {callForm}
+          </ActionPopover>
         ) : null}
         {actions.includes("show") ? (
-          <button
-            type="button"
-            className={primaryBtn}
-            onClick={() =>
-              setPopover(popover === "show_outcome" ? null : "show_outcome")
+          <ActionPopover
+            open={popover === "show_outcome"}
+            onOpenChange={(next) => setPopover(next ? "show_outcome" : null)}
+            trigger={
+              <button
+                type="button"
+                className={primaryBtn}
+                onClick={() => toggle("show_outcome")}
+              >
+                Log Outcome
+              </button>
+            }
+            footer={
+              <PopoverFooter
+                onCancel={() => setPopover(null)}
+                onSave={() =>
+                  runBackground(
+                    () =>
+                      leadLifecycleAction(
+                        lead.id,
+                        showOutcome === "showed" ? "mark_showed" : "mark_no_show",
+                        { note: note || null }
+                      ),
+                    { call_showed: showOutcome === "showed" }
+                  )
+                }
+                saveLabel="Save"
+              />
             }
           >
-            Log Outcome
-          </button>
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Log show outcome</h3>
+              <select
+                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                value={showOutcome}
+                onChange={(e) =>
+                  setShowOutcome(e.target.value as "showed" | "no_show")
+                }
+              >
+                <option value="showed">Showed</option>
+                <option value="no_show">No-Show</option>
+              </select>
+            </div>
+          </ActionPopover>
         ) : null}
         {actions.includes("reschedule") ? (
-          <button
-            type="button"
-            className={secondaryBtn}
-            onClick={() =>
-              setPopover(popover === "reschedule" ? null : "reschedule")
+          <ActionPopover
+            open={popover === "reschedule"}
+            onOpenChange={(next) => setPopover(next ? "reschedule" : null)}
+            trigger={
+              <button
+                type="button"
+                className={secondaryBtn}
+                onClick={() => toggle("reschedule")}
+              >
+                Reschedule
+              </button>
+            }
+            footer={
+              <PopoverFooter
+                onCancel={() => setPopover(null)}
+                onSave={() =>
+                  runBackground(() =>
+                    leadLifecycleAction(lead.id, "reschedule_call", {
+                      scheduledFor: fromDatetimeLocalIST(rescheduleAt),
+                      note: note || null
+                    })
+                  )
+                }
+                saveLabel="Reschedule"
+              />
             }
           >
-            Reschedule
-          </button>
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Reschedule call</h3>
+              <input
+                type="datetime-local"
+                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                value={rescheduleAt}
+                onChange={(e) => setRescheduleAt(e.target.value)}
+              />
+            </div>
+          </ActionPopover>
         ) : null}
         {showHistoryToggle ? (
-          <button
-            type="button"
-            className={ghostBtn}
-            onClick={onToggleHistory}
-          >
+          <button type="button" className={ghostBtn} onClick={onToggleHistory}>
             {historyOpen ? "Hide history" : "View history"}
           </button>
         ) : null}
       </div>
 
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
-
-      {popover && coords
-        ? createPortal(
-            <div
-              ref={popoverRef}
-              style={{ top: coords.top, left: coords.left }}
-              className="fixed z-[70] w-72 rounded border border-slate-200 bg-white p-3 shadow-lg"
-            >
-              {popover === "log_call" || popover === "qualify_call" ? (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    {popover === "qualify_call" ? "Qualify call" : "Log call"}
-                  </h3>
-                  <label className="block text-xs text-slate-600">
-                    Outcome
-                    <select
-                      className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                      value={outcome}
-                      onChange={(e) =>
-                        setOutcome(e.target.value as LogCallOutcome)
-                      }
-                    >
-                      <option value="no_answer">No Answer</option>
-                      <option value="follow_up_needed">Follow-up Needed</option>
-                      <option value="qualified">Qualified</option>
-                      <option value="not_qualified">Unqualified</option>
-                    </select>
-                  </label>
-                  {outcome === "follow_up_needed" ? (
-                    <label className="block text-xs text-slate-600">
-                      Follow-up at
-                      <input
-                        type="datetime-local"
-                        className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                        value={followUpAt}
-                        onChange={(e) => setFollowUpAt(e.target.value)}
-                      />
-                    </label>
-                  ) : null}
-                  {outcome === "qualified" && !lead.call_scheduled_for ? (
-                    <label className="block text-xs text-slate-600">
-                      Call scheduled for
-                      <input
-                        type="datetime-local"
-                        required
-                        className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                        value={callAt}
-                        onChange={(e) => setCallAt(e.target.value)}
-                      />
-                    </label>
-                  ) : null}
-                  {outcome === "qualified" && lead.call_scheduled_for ? (
-                    <p className="text-xs text-slate-500">
-                      Keeping scheduled time:{" "}
-                      {formatISTDateTime(lead.call_scheduled_for)}
-                    </p>
-                  ) : null}
-                  <label className="block text-xs text-slate-600">
-                    Note (optional)
-                    <textarea
-                      className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                      rows={2}
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                    />
-                  </label>
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      className="rounded border border-slate-200 px-2.5 py-1 text-sm"
-                      onClick={() => setPopover(null)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded bg-slate-900 px-2.5 py-1 text-sm text-white"
-                      onClick={submitCallAttempt}
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {popover === "show_outcome" ? (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold">Log show outcome</h3>
-                  <select
-                    className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                    value={showOutcome}
-                    onChange={(e) =>
-                      setShowOutcome(e.target.value as "showed" | "no_show")
-                    }
-                  >
-                    <option value="showed">Showed</option>
-                    <option value="no_show">No-Show</option>
-                  </select>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      className="rounded border px-2.5 py-1 text-sm"
-                      onClick={() => setPopover(null)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded bg-slate-900 px-2.5 py-1 text-sm text-white"
-                      onClick={() =>
-                        runBackground(
-                          () =>
-                            leadLifecycleAction(
-                              lead.id,
-                              showOutcome === "showed" ? "mark_showed" : "mark_no_show",
-                              { note: note || null }
-                            ),
-                          { call_showed: showOutcome === "showed" }
-                        )
-                      }
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {popover === "reschedule" ? (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold">Reschedule call</h3>
-                  <input
-                    type="datetime-local"
-                    className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                    value={rescheduleAt}
-                    onChange={(e) => setRescheduleAt(e.target.value)}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      className="rounded border px-2.5 py-1 text-sm"
-                      onClick={() => setPopover(null)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded bg-slate-900 px-2.5 py-1 text-sm text-white"
-                      onClick={() =>
-                        runBackground(() =>
-                          leadLifecycleAction(lead.id, "reschedule_call", {
-                            scheduledFor: fromDatetimeLocalIST(rescheduleAt),
-                            note: note || null
-                          })
-                        )
-                      }
-                    >
-                      Reschedule
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {popover === "note" ? (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold">Add note</h3>
-                  <textarea
-                    className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                    rows={3}
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      className="rounded border px-2.5 py-1 text-sm"
-                      onClick={() => setPopover(null)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded bg-slate-900 px-2.5 py-1 text-sm text-white disabled:opacity-60"
-                      disabled={!note.trim()}
-                      onClick={() =>
-                        runBackground(() => addLeadNoteAction(lead.id, note), {
-                          last_action: note.trim(),
-                          last_action_at: new Date().toISOString()
-                        })
-                      }
-                    >
-                      Save note
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>,
-            document.body
-          )
-        : null}
     </div>
   );
 }

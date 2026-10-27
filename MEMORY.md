@@ -14,6 +14,7 @@
 - `pipeline_stage` is GENERATED: writing it fails with 428C9 (broke all prod updates for ~1h on 2026-10-27). `updateLead` sends only changed columns and strips it.
 - Default `/leads` URL is `?dead=hide`. In-app links must keep at least one filter param or the restore redirect fires. Saved `lifecycle` / `action_status` keys rewrite on restore via `migratePersistedState`. `?lead=` is a deep-link (blocks restore, never persisted) and opens the slide-over on `/leads` and `/leads/queue`. `/leads/[id]` redirects to `/leads?lead=`.
 - Grid cell saves patch the local row only (no `revalidatePath` + `router.refresh`). Name/phone/email are locked. Setter column is read-only `qualified_by` (no assigned_to column). Custom-field keys are cached per org for 5 minutes and refreshed on ingest / field edit.
+- Action popovers use `src/components/leads/ActionPopover.tsx` (`@floating-ui/react`: offset 6, flip, shift padding 8, size max-height, autoUpdate, FloatingPortal). No Radix/shadcn in this repo. Do not hand-roll getBoundingClientRect placement.
 - Vercel `regions: ["hnd1"]` (Tokyo) to match Supabase `ap-northeast-1`. After-region TTFB needs a deploy to measure.
 
 - Actor UUIDs live in `lead_activities.created_by`; do NOT add `*_by` UUID columns to `leads` (user decision). Legacy `leads.*_by` are text emails.

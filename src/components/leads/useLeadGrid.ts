@@ -29,6 +29,7 @@ export type GridConfirm = {
   reasonLabel?: string;
   showDeadReason?: boolean;
   confirmLabel?: string;
+  anchor?: HTMLElement | null;
 };
 
 export type GridConfirmSpec = Omit<GridConfirm, "lead">;
@@ -204,7 +205,12 @@ export function useLeadGrid(
             message: "Clearing the scheduled time cancels the booking.",
             reasonRequired: true,
             reasonLabel: "Why is this call being cancelled?",
-            confirmLabel: "Cancel call"
+            confirmLabel: "Cancel call",
+            anchor:
+              typeof document !== "undefined" &&
+              document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null
           });
           return;
         }
