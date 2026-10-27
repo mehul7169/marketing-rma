@@ -1,24 +1,8 @@
 import {
   IST_TIMEZONE,
-  toISTDateString,
-  todayISTDateString,
   utcToZonedTime,
   zonedTimeToUtc,
 } from "@/lib/timezone";
-
-/** Stored + displayed action_status values. Null on leads means Untouched. */
-export const ACTION_STATUSES = [
-  "Closed",
-  "Dead",
-  "Follow-up Overdue",
-  "Follow-up Due",
-  "Personally Contacted",
-  "Qualified Call Booked",
-  "Call Booked",
-  "Untouched",
-] as const;
-
-export type ActionStatus = (typeof ACTION_STATUSES)[number];
 
 export type CallAttemptOutcome =
   | "no_answer"
@@ -44,29 +28,6 @@ export type LeadActivityType =
 
 /** Default calling windows (IST): Morning / Afternoon / Evening. */
 export const TOUCHPOINT_HOURS_IST = [10, 13, 16] as const;
-
-export function displayActionStatus(
-  actionStatus: string | null | undefined,
-): ActionStatus {
-  if (!actionStatus) return "Untouched";
-  if ((ACTION_STATUSES as readonly string[]).includes(actionStatus)) {
-    return actionStatus as ActionStatus;
-  }
-  return "Untouched";
-}
-
-export function inferLastCallOutcome(
-  lastAction: string | null | undefined,
-): CallAttemptOutcome | null {
-  if (!lastAction) return null;
-  if (/no answer/i.test(lastAction)) return "no_answer";
-  if (/follow-?up needed/i.test(lastAction)) return "follow_up_needed";
-  if (/not qualified/i.test(lastAction)) return "not_qualified";
-  if (/not confirmed/i.test(lastAction)) return "not_confirmed";
-  if (/qualified/i.test(lastAction)) return "qualified";
-  if (/confirmed/i.test(lastAction)) return "confirmed";
-  return null;
-}
 
 export function callAttemptSummary(outcome: CallAttemptOutcome): string {
   switch (outcome) {
@@ -123,57 +84,6 @@ export function nextTouchpointAt(from: Date = new Date()): string {
     tomorrow.getDate(),
     TOUCHPOINT_HOURS_IST[0],
   );
-}
-
-export type ActionStatusInput = {
-  deal_closed: boolean | null;
-  is_dead: boolean;
-  next_action_at: string | null;
-  contact_attempts: number;
-  call_confirmed: boolean | null;
-  call_booked_at: string | null;
-  last_action?: string | null;
-};
-
-/**
- * Precedence (highest wins):
- * Closed → Dead → Follow-up Overdue → Follow-up Due →
- * Personally Contacted → Qualified Call Booked → Call Booked → Untouched
- *
- * no_answer always schedules next_action_at, so those leads land in
- * Follow-up Due/Overdue — not a separate unanswered status. Last Action
- * still shows "Called — No Answer".
- */
-export function computeActionStatus(
-  lead: ActionStatusInput,
-  _lastCallOutcome?: CallAttemptOutcome | null,
-  _now: Date = new Date(),
-): ActionStatus {
-  if (lead.deal_closed === true) return "Closed";
-  if (lead.is_dead) return "Dead";
-
-  if (lead.next_action_at) {
-    const nextDay = toISTDateString(lead.next_action_at);
-    const today = todayISTDateString();
-    if (nextDay < today) return "Follow-up Overdue";
-    if (nextDay === today) {
-      // Due today even if the clock time is still ahead.
-      return "Follow-up Due";
-    }
-    // Future next_action_at: fall through to contact/booking branches.
-  }
-
-  const attempts = lead.contact_attempts ?? 0;
-  const noResolution =
-    attempts > 0 && !lead.is_dead && lead.call_confirmed !== true;
-
-  if (noResolution) {
-    return "Personally Contacted";
-  }
-
-  if (lead.call_confirmed === true) return "Qualified Call Booked";
-  if (lead.call_booked_at) return "Call Booked";
-  return "Untouched";
 }
 
 export function isQuickformSource(

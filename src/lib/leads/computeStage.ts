@@ -41,15 +41,6 @@ export const LEAD_STAGES: LeadStage[] = [
   "closed"
 ];
 
-/** Overview funnel steps (subset of LeadStage). */
-export const FUNNEL_STEPS: Array<{ stage: LeadStage; label: string }> = [
-  { stage: "created", label: "Created" },
-  { stage: "call_booked", label: "Call Booked" },
-  { stage: "qualified_call_booked", label: "Qualified Call Booked" },
-  { stage: "show_up", label: "Show Up" },
-  { stage: "closed", label: "Closed" }
-];
-
 export type RequalificationResult = "requalified" | "still_unqualified";
 
 export type StageInput = {
@@ -57,7 +48,7 @@ export type StageInput = {
   is_dead: boolean;
   post_call_status: string | null;
   call_showed: boolean | null;
-  call_confirmed: boolean | null;
+  qualified: boolean | null;
   call_booked_at: string | null;
 };
 
@@ -69,21 +60,8 @@ function isFollowUpStatus(value: string | null): value is PostCallFollowUpStage 
 }
 
 /**
- * call_confirmed is a persistent flag (never reset once true). Set by Work Queue
- * "Qualified" call outcome, or by Setter verified = Yes on a booked lead.
- */
-export function resolveCallConfirmed(input: {
-  call_confirmed: boolean | null;
-  setter_verified: boolean | null;
-  call_booked_at: string | null;
-}): boolean | null {
-  if (input.call_confirmed === true) return true;
-  if (input.setter_verified === true && input.call_booked_at) return true;
-  return input.call_confirmed;
-}
-
-/**
- * Single source of truth for lead.stage. Called on every write.
+ * Legacy lead.stage (post-call detail). Counts and filters use pipeline_stage.
+ * Called on every write.
  * Precedence (highest wins):
  * closed → dead → post-call follow-up → show_up →
  * qualified_call_booked → call_booked → created
@@ -93,7 +71,7 @@ export function computeStage(input: StageInput): LeadStage {
   if (input.is_dead) return "dead";
   if (isFollowUpStatus(input.post_call_status)) return input.post_call_status;
   if (input.call_showed === true) return "show_up";
-  if (input.call_confirmed === true && input.call_booked_at) {
+  if (input.qualified === true && input.call_booked_at) {
     return "qualified_call_booked";
   }
   if (input.call_booked_at) return "call_booked";

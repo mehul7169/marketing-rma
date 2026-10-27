@@ -22,7 +22,7 @@ import {
   POST_CALL_STATUSES,
   type PostCallStatus
 } from "@/lib/leads/computeStage";
-import { stageLabel } from "@/components/leads/StageBadge";
+import { postCallStatusLabel } from "@/components/leads/StageBadge";
 import { formatISTDateTime, fromDatetimeLocalIST, toDatetimeLocalIST } from "@/lib/timezone";
 
 type RunLifecycle = (action: LifecycleAction, payload?: LifecyclePayload) => Promise<void>;
@@ -391,7 +391,7 @@ export default function LeadActions({ lead }: { lead: LeadRow }) {
               <option value="">Select status</option>
               {POST_CALL_STATUSES.map((status) => (
                 <option key={status} value={status}>
-                  {stageLabel(status)}
+                  {postCallStatusLabel(status)}
                 </option>
               ))}
             </select>

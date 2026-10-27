@@ -26,7 +26,15 @@ test.describe("Meta Ads funnel-by-ad table", () => {
 
     const table = page.locator("section", { has: funnelHeading }).locator("table");
     const headers = await table.locator("thead th").allTextContents();
-    for (const header of ["LP Visitors", "Website Opt-ins", "Qualified Opt-ins", "Calls Booked", "Qualified Calls Booked", "Qualified Showups", "Cost / Opt-in"]) {
+    for (const header of [
+      "LP Visitors",
+      "Website Opt-ins",
+      "Form-qualified Opt-ins",
+      "Calls Booked",
+      "Showups",
+      "Qualified Showups",
+      "Cost / Opt-in"
+    ]) {
       expect(headers).toContain(header);
     }
 

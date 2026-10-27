@@ -7,6 +7,7 @@ import {
   resolveCreativeMatch,
   type KnownAdsIndex
 } from "@/lib/insights/metrics";
+import { leadHitsKpiInRange } from "@/lib/leads/lifecycleDefinitions";
 import type { LeadRow } from "@/lib/leads/types";
 import { toISTDateString } from "@/lib/timezone";
 
@@ -32,15 +33,24 @@ function inCreatedRange(lead: LeadRow, fromISO: string, toISO: string): boolean 
   return d >= fromISO && d <= toISO;
 }
 
-function outcomesFromLead(lead: LeadRow): MetaFunnelOutcomes {
-  const closed = lead.deal_closed === true;
+/**
+ * Form fills / booked / showed are lifecycleDefinitions KPIs bucketed by their
+ * own milestone date. Deals stay cohort-based (created in range, post-call).
+ */
+function outcomesFromLead(lead: LeadRow, fromISO: string, toISO: string): MetaFunnelOutcomes {
+  const cohort = inCreatedRange(lead, fromISO, toISO);
+  const closed = cohort && lead.deal_closed === true;
   return {
-    formFilled: 1,
-    booked: lead.call_booked_at ? 1 : 0,
-    showed: lead.call_showed === true ? 1 : 0,
+    formFilled: cohort ? 1 : 0,
+    booked: leadHitsKpiInRange(lead, "calls_booked", fromISO, toISO) ? 1 : 0,
+    showed: leadHitsKpiInRange(lead, "showups", fromISO, toISO) ? 1 : 0,
     dealsClosed: closed ? 1 : 0,
     dealValue: closed ? (lead.deal_value ?? 0) : 0
   };
+}
+
+function hasOutcome(o: MetaFunnelOutcomes): boolean {
+  return o.formFilled + o.booked + o.showed + o.dealsClosed > 0;
 }
 
 function addOutcomes(into: MetaFunnelOutcomes, add: MetaFunnelOutcomes) {
@@ -136,8 +146,9 @@ export function leadsCreatedInRange(
 }
 
 /**
- * Attribute cohort leads to ads: match utm_content → ad_id first, then ad_name.
- * Unmatched = cohort leads that match neither known Meta ad id nor ad name.
+ * Attribute leads to ads: match utm_content → ad_id first, then ad_name.
+ * `leads` must be all-time so milestone buckets see older leads.
+ * Unmatched = leads created in range that match neither known Meta ad id nor ad name.
  */
 export function attachMetaFunnelOutcomes(
   campaigns: MetaCampaignNode[],
@@ -154,13 +165,15 @@ export function attachMetaFunnelOutcomes(
   const resolve = createLeadAdResolver(campaigns, knownAds);
 
   let unmatchedLeadCount = 0;
-  for (const lead of leadsCreatedInRange(leads, fromISO, toISO)) {
+  for (const lead of leads) {
+    const outcomes = outcomesFromLead(lead, fromISO, toISO);
+    if (!hasOutcome(outcomes)) continue;
     const res = resolve(lead);
     if (!res.matched) {
-      unmatchedLeadCount += 1;
+      if (outcomes.formFilled) unmatchedLeadCount += 1;
       continue;
     }
-    if (res.ad) addOutcomes(res.ad, outcomesFromLead(lead));
+    if (res.ad) addOutcomes(res.ad, outcomes);
   }
 
   for (const campaign of campaigns) {

@@ -34,7 +34,7 @@ describe("pickPersistableFilters", () => {
     expect(pickPersistableFilters("leads", params, TODAY)).toEqual({
       source: "facebook,ig",
       stage: "call_booked",
-      lifecycle: "active"
+      dead: "hide"
     });
   });
 
@@ -44,12 +44,13 @@ describe("pickPersistableFilters", () => {
       to: TODAY,
       lifecycle: "active"
     });
-    expect(pickPersistableFilters("leads", rolling, TODAY)).toEqual({ lifecycle: "active" });
+    expect(pickPersistableFilters("leads", rolling, TODAY)).toEqual({ dead: "hide" });
 
     const custom = new URLSearchParams({ from: "2026-09-01", to: "2026-09-10" });
     expect(pickPersistableFilters("leads", custom, TODAY)).toEqual({
       from: "2026-09-01",
-      to: "2026-09-10"
+      to: "2026-09-10",
+      dead: "hide"
     });
   });
 
@@ -81,7 +82,21 @@ describe("parsePersistedFilterState / restoreHref", () => {
       bogus: 5
     });
     expect(saved).toEqual({ source: "facebook,ig", stage: "call_booked" });
-    expect(restoreHref("/leads", saved)).toBe("/leads?stage=call_booked&source=facebook%2Cig");
+    expect(restoreHref("/leads", saved)).toBe(
+      "/leads?dead=hide&stage=call_booked&source=facebook%2Cig"
+    );
+  });
+
+  it("rewrites a saved lifecycle=active view to dead=hide", () => {
+    expect(restoreHref("/leads", { lifecycle: "active", source: "youtube" })).toBe(
+      "/leads?dead=hide&source=youtube"
+    );
+  });
+
+  it("rewrites a saved Work Queue untouched filter to new", () => {
+    expect(restoreHref("/leads/queue", { filter: "untouched", view: "table" })).toBe(
+      "/leads/queue?filter=new&view=table"
+    );
   });
 
   it("does not redirect when nothing is saved", () => {

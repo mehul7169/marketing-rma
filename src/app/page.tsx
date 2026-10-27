@@ -1,15 +1,13 @@
 import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import CohortMaturityNote from "@/components/CohortMaturityNote";
 import DateRangePicker from "@/components/DateRangePicker";
-import { listDistinctLeadSources, listLeadsInRange } from "@/lib/db/leads";
-import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
-import { FUNNEL_STEPS } from "@/lib/leads/computeStage";
+import { countLeads, listDistinctLeadSources, listLeads } from "@/lib/db/leads";
 import {
-  leadReachedCohortStage,
-  urlCohortForFunnelStage,
-  type FunnelEventStage
-} from "@/lib/leads/stageEvents";
-import type { LeadRow } from "@/lib/leads/types";
+  HOME_FUNNEL_KPIS,
+  KPI_DEFINITIONS,
+  type KpiKey
+} from "@/lib/leads/lifecycleDefinitions";
+import { kpiLeadsHref } from "@/lib/leads/listFilterParams";
 import { formatCurrency, formatInteger, formatPercent } from "@/lib/format";
 import {
   clampDateRange,
@@ -21,55 +19,6 @@ import { todayISTDateString } from "@/lib/timezone";
 function rate(num: number, den: number): number {
   if (den <= 0) return 0;
   return (num / den) * 100;
-}
-
-/** Cohort = created_at in range; counts are “ever reached” via raw fields. */
-function funnelCounts(cohort: LeadRow[]) {
-  const count = (stage: FunnelEventStage) =>
-    cohort.filter((l) => leadReachedCohortStage(l, stage)).length;
-
-  const total = cohort.length;
-  const created = count("created");
-  const callBooked = count("call_booked");
-  const qualifiedCallBooked = count("qualified_call_booked");
-  const showUp = count("show_up");
-  const closed = count("closed");
-  const revenue = cohort
-    .filter((l) => leadReachedCohortStage(l, "closed"))
-    .reduce((s, l) => s + (l.deal_value ?? 0), 0);
-
-  const counts: Record<string, number> = {
-    created,
-    call_booked: callBooked,
-    qualified_call_booked: qualifiedCallBooked,
-    show_up: showUp,
-    closed
-  };
-
-  return {
-    total,
-    created,
-    callBooked,
-    qualifiedCallBooked,
-    showUp,
-    closed,
-    revenue,
-    counts
-  };
-}
-
-function lifecyclePulse(leads: LeadRow[]) {
-  const counts = { active: 0, unqualified: 0, dead: 0, closed: 0 };
-  for (const l of leads) {
-    const status = computeLifecycleStatus({
-      deal_closed: l.deal_closed,
-      is_dead: Boolean(l.is_dead),
-      call_booked_at: l.call_booked_at,
-      qualified: l.qualified
-    });
-    counts[status] += 1;
-  }
-  return counts;
 }
 
 export default async function HomePage({
@@ -95,34 +44,21 @@ export default async function HomePage({
   const hasCustomRange = Boolean(searchParams.from || searchParams.to);
   const immature = isCohortImmature(toISO, todayISO);
   const orgId = await getCurrentOrgId();
+  const range = { fromISO, toISO };
+  const base = { orgId, fromISO, toISO, sources };
 
-  const [cohort, allSources] = await Promise.all([
-    listLeadsInRange(fromISO, toISO, orgId, sources),
-    listDistinctLeadSources(orgId)
+  const kpiKeys: KpiKey[] = [...HOME_FUNNEL_KPIS, "deals_closed"];
+  const [allSources, closedRows, ...kpiCounts] = await Promise.all([
+    listDistinctLeadSources(orgId),
+    listLeads({ ...base, kpi: "deals_closed" }),
+    ...kpiKeys.map((kpi) => countLeads({ ...base, kpi }))
   ]);
 
-  const f = funnelCounts(cohort);
-  const life = lifecyclePulse(cohort);
-  const prevCounts = [
-    f.total,
-    f.callBooked,
-    f.qualifiedCallBooked,
-    f.showUp,
-    f.closed
-  ];
-
-  function leadsHref(stage?: string, lifecycle?: string) {
-    const params = new URLSearchParams();
-    params.set("from", fromISO);
-    params.set("to", toISO);
-    params.set("lifecycle", lifecycle ?? "all");
-    if (source) params.set("source", source);
-    if (stage) {
-      const cohortKey = urlCohortForFunnelStage(stage as FunnelEventStage);
-      if (cohortKey) params.set("cohort", cohortKey);
-    }
-    return `/leads?${params.toString()}`;
-  }
+  const counts = Object.fromEntries(kpiKeys.map((k, i) => [k, kpiCounts[i] ?? 0])) as Record<
+    KpiKey,
+    number
+  >;
+  const revenue = closedRows.reduce((s, l) => s + (l.deal_value ?? 0), 0);
 
   return (
     <div className="space-y-8">
@@ -160,73 +96,51 @@ export default async function HomePage({
         ))}
       </div>
 
-      <p className="text-sm text-slate-600">
-        <a href={leadsHref(undefined, "active")} className="hover:text-slate-900">
-          {formatInteger(life.active)} Active
-        </a>
-        {" · "}
-        <a href={leadsHref(undefined, "unqualified")} className="hover:text-slate-900">
-          {formatInteger(life.unqualified)} Unqualified
-        </a>
-        {" · "}
-        <a href={leadsHref(undefined, "dead")} className="hover:text-slate-900">
-          {formatInteger(life.dead)} Dead
-        </a>
-        {" · "}
-        <a href={leadsHref(undefined, "closed")} className="hover:text-slate-900">
-          {formatInteger(life.closed)} Closed
-        </a>
-      </p>
-
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="stat-card">
-          <div className="text-xs text-slate-600">Total Leads</div>
-          <div className="mt-2 text-xl font-semibold">{formatInteger(f.total)}</div>
-        </div>
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="stat-card">
           <div className="text-xs text-slate-600">Booked Rate</div>
           <div className="mt-2 text-xl font-semibold">
-            {formatPercent(rate(f.callBooked, f.total))}
+            {formatPercent(rate(counts.calls_booked, counts.leads))}
           </div>
         </div>
         <div className="stat-card">
           <div className="text-xs text-slate-600">Show-up Rate</div>
           <div className="mt-2 text-xl font-semibold">
-            {formatPercent(rate(f.showUp, f.qualifiedCallBooked || f.callBooked))}
+            {formatPercent(rate(counts.showups, counts.calls_booked))}
           </div>
         </div>
         <div className="stat-card">
           <div className="text-xs text-slate-600">Closing Rate</div>
           <div className="mt-2 text-xl font-semibold">
-            {formatPercent(rate(f.closed, f.showUp))}
+            {formatPercent(rate(counts.deals_closed, counts.showups))}
           </div>
         </div>
         <div className="stat-card">
           <div className="text-xs text-slate-600">Total Revenue</div>
-          <div className="mt-2 text-xl font-semibold">{formatCurrency(f.revenue)}</div>
+          <div className="mt-2 text-xl font-semibold">{formatCurrency(revenue)}</div>
         </div>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-slate-900">Funnel</h2>
         {immature ? <CohortMaturityNote /> : null}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {FUNNEL_STEPS.map((step, i) => {
-            const count = f.counts[step.stage] ?? 0;
-            const prev = i === 0 ? f.total : prevCounts[i - 1];
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {HOME_FUNNEL_KPIS.map((kpi, i) => {
+            const count = counts[kpi];
+            const prev = i === 0 ? counts.leads : counts[HOME_FUNNEL_KPIS[i - 1]!];
             const cvr = i === 0 ? 100 : rate(count, prev);
             return (
               <a
-                key={step.stage}
-                href={leadsHref(step.stage)}
+                key={kpi}
+                href={kpiLeadsHref(kpi, range, { sources })}
                 className="rounded border border-slate-200 p-4 hover:border-slate-300"
               >
-                <div className="text-xs text-slate-600">{step.label}</div>
+                <div className="text-xs text-slate-600">{KPI_DEFINITIONS[kpi].label}</div>
                 <div className="mt-2 text-xl font-semibold text-slate-900">
                   {formatInteger(count)}
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
-                  {i === 0 ? "100% of leads" : `${cvr.toFixed(0)}% of previous`}
+                  {i === 0 ? "in this range" : `${cvr.toFixed(0)}% of previous`}
                 </div>
               </a>
             );

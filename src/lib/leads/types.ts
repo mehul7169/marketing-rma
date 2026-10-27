@@ -1,3 +1,5 @@
+import type { FollowUpState, KpiKey } from "@/lib/leads/lifecycleDefinitions";
+
 export type BookingSource = "cal_com" | "manual";
 
 export type BookingHistoryEntry = {
@@ -21,6 +23,9 @@ export type LeadReminder = {
 };
 
 export type PipelineStage = "new" | "contacted" | "qualified" | "call_booked" | "showed_up";
+
+export type DeadFilter = "hide" | "show" | "only";
+export type YesNoFilter = "yes" | "no";
 
 /** dead_reason codes written by the app. Older rows keep free-text reasons. */
 export const DEAD_REASON_CODES = [
@@ -87,9 +92,6 @@ export type LeadRow = {
   cal_com_booking_id: string | null;
   booking_source: BookingSource | null;
   booking_history: BookingHistoryEntry[];
-  setter_verified: boolean | null;
-  setter_verified_at: string | null;
-  setter_verified_by: string | null;
   verification_call_status: VerificationCallStatus;
   verification_call_attempts: number;
   last_verification_call_at: string | null;
@@ -112,13 +114,9 @@ export type LeadRow = {
   post_call_status: string | null;
   post_call_status_updated_at: string | null;
   post_call_status_updated_by: string | null;
-  lifecycle_status: string | null;
-  /** CRM work-queue status; null = Untouched (pre-backfill rows). */
-  action_status: string | null;
   is_dead: boolean;
   dead_reason: string | null;
   contact_attempts: number;
-  call_confirmed: boolean | null;
   next_action_at: string | null;
   last_action: string | null;
   last_action_at: string | null;
@@ -131,30 +129,27 @@ export type LeadRow = {
 export type LeadListFilters = {
   /** Required for all UI list queries — never omit. */
   orgId: string;
+  /** IST days, inclusive. Applied to the KPI's milestone field, else created_at. */
   fromISO?: string;
   toISO?: string;
-  stages?: string[];
-  /** Legacy event-in-range deep link (timestamp of the event in range). */
-  event?: string;
-  /** Cohort deep link: created_at in range + ever reached this stage. */
-  cohort?: string;
+  /** Milestone deep link (lifecycleDefinitions KPI_DEFINITIONS). */
+  kpi?: KpiKey;
+  pipelineStages?: PipelineStage[];
+  /** Default (omitted) = show. */
+  dead?: DeadFilter;
+  formQualified?: YesNoFilter;
+  qualified?: YesNoFilter;
+  needsQualification?: boolean;
+  /** next_action_at bucket(s) by IST day; any of the listed states matches. */
+  followUp?: FollowUpState[];
+  /** Hide form_qualified=false with no setter decision. */
+  hideFormUnqualified?: boolean;
   sources?: string[];
   search?: string;
-  lifecycle?: string;
-  needsRequal?: boolean;
-  /** Booked, setter_verified unset, verification not yet reached. */
-  needsVerificationCall?: boolean;
-  followUpsDue?: boolean;
-  /** Match action_status; include null rows when filtering Untouched. */
-  actionStatuses?: string[];
-  /** true / false / omit (no filter). */
-  isDead?: boolean;
-  /** Work Queue: hide dead + closed by default. */
-  excludeDeadAndClosed?: boolean;
-  /** next_action_at after end of today (IST). */
-  upcomingOnly?: boolean;
   /** call_scheduled_for set and still in the future. */
   meetingsBookedOnly?: boolean;
+  /** "queue" = next_action_at asc (nulls last), then created_at desc. */
+  sort?: "date" | "queue";
   /** Page size (e.g. 50). Omit for unbounded (admin/scripts). */
   limit?: number;
   /** 0-based offset into the ordered result set. */

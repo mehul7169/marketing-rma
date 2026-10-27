@@ -1,7 +1,7 @@
 import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
+import { redirect } from "next/navigation";
 import DateRangePicker from "@/components/DateRangePicker";
 import LeadsFilters from "@/components/leads/LeadsFilters";
-import { stageLabel } from "@/components/leads/StageBadge";
 import ConfigurableLeadsTable from "@/components/table-views/ConfigurableLeadsTable";
 import PersistFilterState from "@/components/table-views/PersistFilterState";
 import { DataTablePageShell } from "@/components/table-views/ScrollableDataTable";
@@ -9,16 +9,15 @@ import Pagination from "@/components/ui/Pagination";
 import { listDueFollowUps } from "@/lib/db/lead_reminders";
 import { countLeads, listDistinctLeadSources, listLeads } from "@/lib/db/leads";
 import { getOrganizationById } from "@/lib/db/organizations";
+import { kpiBannerCopy } from "@/lib/leads/lifecycleDefinitions";
 import {
   buildLeadsQuery,
+  hasLegacyLeadsParams,
+  leadListFiltersFromState,
+  leadsHref,
   parseLeadsFilterParams,
   type LeadsSearchParams
 } from "@/lib/leads/listFilterParams";
-import {
-  cohortBannerCopy,
-  eventBannerCopy,
-  parseUrlEvent
-} from "@/lib/leads/stageEvents";
 import {
   LEAD_LIST_PAGE_SIZE,
   pageOffset,
@@ -29,7 +28,7 @@ import {
   restorePersistedFilters
 } from "@/lib/table-views/loadBootstrap";
 import { todayISTDateString } from "@/lib/timezone";
-import type { LeadListFilters, LeadReminder } from "@/lib/leads/types";
+import type { LeadReminder } from "@/lib/leads/types";
 
 export default async function LeadsPage({
   searchParams
@@ -41,38 +40,15 @@ export default async function LeadsPage({
 
   const todayISO = todayISTDateString();
   const filterState = parseLeadsFilterParams(searchParams, todayISO);
-  const { fromISO, toISO, lifecycle, stages, sources, cohort, event } = filterState;
-  const cohortStage = parseUrlEvent(cohort);
-  const eventStage = cohortStage ? null : parseUrlEvent(event);
-  const deepLinkStage = cohortStage ?? eventStage;
-  const needsVerificationCall = lifecycle === "needs_verification";
-  const followUpsDue = lifecycle === "follow_ups_due";
+  // Old links / saved state: rewrite onto the new keys (persistence then saves those).
+  if (hasLegacyLeadsParams(searchParams)) redirect(leadsHref(filterState));
+
+  const { fromISO, toISO, kpi } = filterState;
   const page = parsePageParam(
     Array.isArray(searchParams.page) ? searchParams.page[0] : searchParams.page
   );
 
-  const scopeFilters: LeadListFilters = {
-    orgId,
-    fromISO,
-    toISO,
-    stages: deepLinkStage ? undefined : stages,
-    cohort,
-    event: cohortStage ? undefined : event,
-    sources,
-    search: filterState.q,
-    lifecycle: followUpsDue || needsVerificationCall ? undefined : lifecycle,
-    followUpsDue,
-    needsVerificationCall,
-    actionStatuses: filterState.actionStatuses.length
-      ? filterState.actionStatuses
-      : undefined,
-    isDead:
-      filterState.isDead === "true"
-        ? true
-        : filterState.isDead === "false"
-          ? false
-          : undefined
-  };
+  const scopeFilters = leadListFiltersFromState(orgId, filterState);
 
   const [total, rows, allSources, org, tableViewBootstrap] = await Promise.all([
     countLeads(scopeFilters),
@@ -110,11 +86,7 @@ export default async function LeadsPage({
           <div>
             <h1 className="page-title">Leads</h1>
             <p className="mt-1 text-sm text-slate-600">
-              {lifecycle === "follow_ups_due"
-                ? `${total} with follow-ups due today or overdue`
-                : lifecycle === "needs_verification"
-                  ? `${total} needing a verification call`
-                  : `${total} in ${fromISO} to ${toISO}`}
+              {`${total} in ${fromISO} to ${toISO}`}
               {" · "}
               <a
                 href="/leads/queue"
@@ -134,21 +106,13 @@ export default async function LeadsPage({
           />
         </div>
 
-        {cohortStage ? (
+        {kpi ? (
           <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            {cohortBannerCopy(cohortStage)}
-          </p>
-        ) : eventStage ? (
-          <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            {eventBannerCopy(eventStage)}
+            {kpiBannerCopy(kpi)}
           </p>
         ) : null}
 
-        <LeadsFilters
-          sources={allSources}
-          state={filterState}
-          deepLinkLabel={deepLinkStage ? stageLabel(deepLinkStage) : undefined}
-        />
+        <LeadsFilters sources={allSources} state={filterState} />
       </div>
 
       <ConfigurableLeadsTable

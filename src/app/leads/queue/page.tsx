@@ -1,11 +1,11 @@
 import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
+import { redirect } from "next/navigation";
 import WorkQueueStatusFilter from "@/components/leads/WorkQueueStatusFilter";
 import WorkQueueView from "@/components/table-views/WorkQueueView";
 import { DataTablePageShell } from "@/components/table-views/ScrollableDataTable";
 import { listRecentLeadActivitiesForLeads } from "@/lib/db/lead_activities";
 import { countLeads, listLeads } from "@/lib/db/leads";
 import { getOrganizationById } from "@/lib/db/organizations";
-import type { ActionStatus } from "@/lib/leads/actionStatus";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
 import {
   LEAD_LIST_PAGE_SIZE,
@@ -25,38 +25,35 @@ const TABS: Array<{
   label: string;
 }> = [
   { id: "meetings_booked", label: "Meetings Booked" },
-  { id: "follow_ups_due", label: "Follow-ups Due" }
+  { id: "follow_ups_due", label: "Follow-ups" }
 ];
 
-/** Narrow the default (all active) queue on demand — not permanent tabs. */
-const STATUS_FILTERS: Array<{
-  id: string;
-  label: string;
-  actionStatuses?: ActionStatus[];
-  upcomingOnly?: boolean;
-}> = [
-  { id: "untouched", label: "Untouched", actionStatuses: ["Untouched"] },
-  {
-    id: "personally_contacted",
-    label: "Personally Contacted",
-    actionStatuses: ["Personally Contacted"]
-  },
-  { id: "upcoming", label: "Upcoming", upcomingOnly: true }
+/** Narrow the default queue on demand — not permanent tabs. */
+const STATUS_FILTERS: Array<{ id: string; filters: Partial<LeadListFilters> }> = [
+  { id: "new", filters: { pipelineStages: ["new"] } },
+  { id: "contacted", filters: { pipelineStages: ["contacted"] } },
+  { id: "upcoming", filters: { followUp: ["upcoming"] } }
 ];
+
+/** Saved queue state from before the Stage rename. */
+const LEGACY_FILTER_IDS: Record<string, string> = {
+  untouched: "new",
+  personally_contacted: "contacted"
+};
 
 function queueHref(opts: {
   view: string;
   tab?: string | null;
   filter?: string | null;
   search?: string;
-  page?: number;
+  showFormUnqualified?: boolean;
 }): string {
   const params = new URLSearchParams();
   params.set("view", opts.view);
   if (opts.tab) params.set("tab", opts.tab);
   if (opts.filter) params.set("filter", opts.filter);
+  if (opts.showFormUnqualified) params.set("show_unqualified", "1");
   if (opts.search?.trim()) params.set("search", opts.search.trim());
-  if (opts.page && opts.page > 1) params.set("page", String(opts.page));
   return `/leads/queue?${params.toString()}`;
 }
 
@@ -64,31 +61,23 @@ function listFiltersForView(
   orgId: string,
   tabId: string | null,
   filterId: string | null,
-  search: string
+  search: string,
+  showFormUnqualified: boolean
 ): LeadListFilters {
   const base: LeadListFilters = {
     orgId,
-    excludeDeadAndClosed: true,
+    dead: "hide",
+    sort: "queue",
     search: search || undefined
   };
-  if (tabId === "meetings_booked") {
-    return { ...base, meetingsBookedOnly: true };
-  }
-  if (tabId === "follow_ups_due") {
-    return {
-      ...base,
-      actionStatuses: ["Follow-up Due", "Follow-up Overdue"]
-    };
-  }
+  if (tabId === "meetings_booked") return { ...base, meetingsBookedOnly: true };
+  if (tabId === "follow_ups_due") return { ...base, followUp: ["overdue", "today"] };
   const filter = STATUS_FILTERS.find((f) => f.id === filterId);
-  if (filter) {
-    return {
-      ...base,
-      actionStatuses: filter.actionStatuses,
-      upcomingOnly: filter.upcomingOnly
-    };
-  }
-  return base;
+  return {
+    ...base,
+    hideFormUnqualified: !showFormUnqualified,
+    ...filter?.filters
+  };
 }
 
 export default async function WorkQueuePage({
@@ -100,6 +89,7 @@ export default async function WorkQueuePage({
     view?: string;
     search?: string;
     page?: string;
+    show_unqualified?: string;
   };
 }) {
   const orgId = await getCurrentOrgId();
@@ -107,17 +97,37 @@ export default async function WorkQueuePage({
   const rawTab = searchParams.tab?.trim() || "";
   const tabId =
     rawTab === "meetings_booked" || rawTab === "follow_ups_due" ? rawTab : null;
+  const rawFilter = searchParams.filter?.trim() ?? "";
+  const mappedFilter = LEGACY_FILTER_IDS[rawFilter] ?? rawFilter;
   const filterId = tabId
     ? null
-    : STATUS_FILTERS.some((f) => f.id === searchParams.filter)
-      ? (searchParams.filter as string)
+    : STATUS_FILTERS.some((f) => f.id === mappedFilter)
+      ? mappedFilter
       : null;
+  const showFormUnqualified = searchParams.show_unqualified === "1";
   const initialViewMode = searchParams.view === "cards" ? "cards" : "table";
   const initialSearch = (searchParams.search ?? "").trim();
   const page = parsePageParam(searchParams.page);
+  if (rawFilter && LEGACY_FILTER_IDS[rawFilter]) {
+    redirect(
+      queueHref({
+        view: initialViewMode,
+        tab: tabId,
+        filter: mappedFilter,
+        search: initialSearch,
+        showFormUnqualified
+      })
+    );
+  }
 
-  const countBase = { orgId, excludeDeadAndClosed: true as const };
-  const scopeFilters = listFiltersForView(orgId, tabId, filterId, initialSearch);
+  const countBase: LeadListFilters = { orgId, dead: "hide" };
+  const scopeFilters = listFiltersForView(
+    orgId,
+    tabId,
+    filterId,
+    initialSearch,
+    showFormUnqualified
+  );
   const listFilters: LeadListFilters = {
     ...scopeFilters,
     limit: LEAD_LIST_PAGE_SIZE,
@@ -134,10 +144,7 @@ export default async function WorkQueuePage({
   ] = await Promise.all([
     // Badge counts: lightweight count(*), not the paged row set.
     countLeads({ ...countBase, meetingsBookedOnly: true }),
-    countLeads({
-      ...countBase,
-      actionStatuses: ["Follow-up Due", "Follow-up Overdue"]
-    }),
+    countLeads({ ...countBase, followUp: ["overdue", "today"] }),
     countLeads(scopeFilters),
     listLeads(listFilters),
     getOrganizationById(orgId),
@@ -166,7 +173,9 @@ export default async function WorkQueuePage({
         <div>
           <h1 className="page-title">Work Queue</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Active calling queue — dead and closed leads are hidden.{" "}
+            Calling queue — dead leads are hidden
+            {showFormUnqualified || tabId ? "" : ", and so are form-unqualified leads with no setter decision"}
+            .{" "}
             <a
               href="/leads"
               className="underline decoration-slate-300 hover:text-slate-900"
@@ -193,12 +202,14 @@ export default async function WorkQueuePage({
                     active
                       ? queueHref({
                           view: initialViewMode,
-                          search: initialSearch
+                          search: initialSearch,
+                          showFormUnqualified
                         })
                       : queueHref({
                           view: initialViewMode,
                           tab: tab.id,
-                          search: initialSearch
+                          search: initialSearch,
+                          showFormUnqualified
                         })
                   }
                   className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs ${
@@ -224,15 +235,36 @@ export default async function WorkQueuePage({
             search={initialSearch}
             disabled={Boolean(tabId)}
           />
+
+          {tabId ? null : (
+          <a
+            href={queueHref({
+              view: initialViewMode,
+              filter: filterId,
+              search: initialSearch,
+              showFormUnqualified: !showFormUnqualified
+            })}
+            aria-pressed={showFormUnqualified}
+            className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs ${
+              showFormUnqualified
+                ? "border-slate-400 bg-slate-100 text-slate-900"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <input type="checkbox" readOnly checked={showFormUnqualified} className="h-3 w-3" tabIndex={-1} />
+            Show form-unqualified
+          </a>
+          )}
         </div>
       </div>
 
       <WorkQueueView
-        key={`${tabId ?? "all"}:${filterId ?? ""}:${page}:${initialSearch}`}
+        key={`${tabId ?? "all"}:${filterId ?? ""}:${showFormUnqualified}:${page}:${initialSearch}`}
         initialViewMode={initialViewMode}
         initialSearch={initialSearch}
         activeTabId={tabId ?? "all"}
         statusFilterId={filterId}
+        showFormUnqualified={showFormUnqualified}
         page={page}
         total={total}
         pageSize={LEAD_LIST_PAGE_SIZE}

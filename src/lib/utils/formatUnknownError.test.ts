@@ -54,7 +54,7 @@ describe("sheetFieldsForLeadUpdate", () => {
       qualified: true,
       notes: "keep me",
       contact_attempts: 2,
-      action_status: "Personally Contacted"
+      last_action: "Called — No Answer"
     });
     const patch = sheetFieldsForLeadUpdate(existing, {
       name: "New",
@@ -63,7 +63,7 @@ describe("sheetFieldsForLeadUpdate", () => {
     expect(patch).not.toHaveProperty("qualified");
     expect(patch).not.toHaveProperty("notes");
     expect(patch).not.toHaveProperty("contact_attempts");
-    expect(patch).not.toHaveProperty("action_status");
+    expect(patch).not.toHaveProperty("last_action");
     expect(patch).not.toHaveProperty("stage");
     expect(patch).not.toHaveProperty("is_dead");
   });

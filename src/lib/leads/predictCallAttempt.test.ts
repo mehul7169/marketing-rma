@@ -4,12 +4,12 @@ import { predictLogCallAttemptPatch } from "@/lib/leads/predictCallAttempt";
 
 describe("predictLogCallAttemptPatch", () => {
   it("no_answer increments attempts and schedules next touchpoint", () => {
-    const lead = makeLead({ contact_attempts: 0, action_status: null });
+    const lead = makeLead({ contact_attempts: 0 });
     const patch = predictLogCallAttemptPatch(lead, "no_answer")!;
     expect(patch.contact_attempts).toBe(1);
     expect(patch.is_dead).toBe(false);
     expect(patch.next_action_at).toBeTruthy();
-    expect(patch.action_status).toBeTruthy();
+    expect(patch).not.toHaveProperty("action_status");
     expect(patch.first_contacted_at).toBeTruthy();
   });
 
@@ -28,7 +28,7 @@ describe("predictLogCallAttemptPatch", () => {
     const patch = predictLogCallAttemptPatch(lead, "qualified", {
       scheduledForIso: when
     })!;
-    expect(patch.call_confirmed).toBe(true);
+    expect(patch).not.toHaveProperty("call_confirmed");
     expect(patch.call_scheduled_for).toBe(when);
     expect(patch.call_booked_at).toBeTruthy();
     expect(patch.contact_attempts).toBe(0);

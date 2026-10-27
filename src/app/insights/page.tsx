@@ -82,7 +82,7 @@ export default async function InsightsPage({
         {immature ? <CohortMaturityNote /> : null}
         <InsightsRateCards
           formQualified={metrics.formQualified}
-          setterVerified={metrics.setterVerified}
+          qualified={metrics.qualified}
           showUp={metrics.showUp}
           closure={metrics.closure}
         />

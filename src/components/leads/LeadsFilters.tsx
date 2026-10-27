@@ -2,37 +2,60 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ACTION_STATUSES } from "@/lib/leads/actionStatus";
-import { LEAD_STAGES } from "@/lib/leads/computeStage";
 import {
+  FOLLOW_UP_LABELS,
+  PIPELINE_STAGES,
+  PIPELINE_STAGE_LABELS,
+  type FollowUpState
+} from "@/lib/leads/lifecycleDefinitions";
+import {
+  DEAD_FILTER_LABELS,
   clearedLeadsFilterState,
   leadsFilterChips,
   leadsHref,
   type LeadsFilterState
 } from "@/lib/leads/listFilterParams";
-import { stageLabel } from "@/components/leads/StageBadge";
+import type { DeadFilter, PipelineStage } from "@/lib/leads/types";
 import CheckboxMultiSelect from "@/components/ui/CheckboxMultiSelect";
 
-const LIFECYCLE_TABS: Array<{ id: string; label: string }> = [
-  { id: "active", label: "Active" },
-  { id: "unqualified", label: "Unqualified" },
-  { id: "dead", label: "Dead" },
-  { id: "closed", label: "Closed" },
-  { id: "all", label: "All" }
-];
+const STAGE_OPTIONS = PIPELINE_STAGES.map((s) => ({ value: s, label: PIPELINE_STAGE_LABELS[s] }));
+const FOLLOW_UP_OPTIONS = (Object.keys(FOLLOW_UP_LABELS) as FollowUpState[]).map((s) => ({
+  value: s,
+  label: FOLLOW_UP_LABELS[s]
+}));
 
-const STAGE_OPTIONS = LEAD_STAGES.map((s) => ({ value: s, label: stageLabel(s) }));
-const ACTION_STATUS_OPTIONS = ACTION_STATUSES.map((s) => ({ value: s, label: s }));
+function YesNoSelect({
+  label,
+  value,
+  onChange
+}: {
+  label: string;
+  value: "" | "yes" | "no";
+  onChange: (next: "" | "yes" | "no") => void;
+}) {
+  return (
+    <label className="flex flex-col text-xs text-slate-600">
+      {label}
+      <select
+        className="mt-1 min-w-[110px] rounded border border-slate-200 px-2 py-2 text-sm"
+        value={value}
+        onChange={(e) => onChange(e.target.value as "" | "yes" | "no")}
+      >
+        <option value="">Any</option>
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+    </label>
+  );
+}
 
 /** Filter panel + chips — both render the same (optimistic) state. */
 export default function LeadsFilters({
   sources,
-  state: serverState,
-  deepLinkLabel
+  state: serverState
 }: {
   sources: string[];
   state: LeadsFilterState;
-  deepLinkLabel?: string;
 }) {
   const router = useRouter();
   const [state, setState] = useState(serverState);
@@ -57,53 +80,10 @@ export default function LeadsFilters({
     value: s,
     label: s
   }));
-  const chips = leadsFilterChips(state, {
-    stage: stageLabel,
-    deepLink: () => deepLinkLabel ?? ""
-  });
-  const deepLink = Boolean(state.cohort || state.event);
+  const chips = leadsFilterChips(state);
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {LIFECYCLE_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={`rounded border px-3 py-1.5 text-sm ${
-              state.lifecycle === tab.id
-                ? "ui-active"
-                : "border-slate-200 text-slate-700"
-            }`}
-            onClick={() => patch({ lifecycle: tab.id })}
-          >
-            {tab.label}
-          </button>
-        ))}
-        <button
-          type="button"
-          className={`rounded border px-3 py-1.5 text-sm ${
-            state.lifecycle === "follow_ups_due"
-              ? "border-red-700 bg-red-700 text-white"
-              : "border-red-200 bg-red-50 text-red-900"
-          }`}
-          onClick={() => patch({ lifecycle: "follow_ups_due" })}
-        >
-          Follow-ups Due
-        </button>
-        <button
-          type="button"
-          className={`rounded border px-3 py-1.5 text-sm ${
-            state.lifecycle === "needs_verification"
-              ? "ui-active"
-              : "border-slate-200 text-slate-700"
-          }`}
-          onClick={() => patch({ lifecycle: "needs_verification" })}
-        >
-          Needs Verification Call
-        </button>
-      </div>
-
       <div className="flex flex-wrap items-end gap-4">
         <label className="flex min-w-[220px] flex-1 flex-col text-xs text-slate-600">
           Search name or email
@@ -135,32 +115,54 @@ export default function LeadsFilters({
         <CheckboxMultiSelect
           label="Stage"
           options={STAGE_OPTIONS}
-          selected={deepLink ? [] : state.stages}
-          // Stage and cohort/event deep links are mutually exclusive.
-          onChange={(next) => patch({ stages: next, cohort: undefined, event: undefined })}
-        />
-
-        <CheckboxMultiSelect
-          label="Action status"
-          options={ACTION_STATUS_OPTIONS}
-          selected={state.actionStatuses}
-          onChange={(next) => patch({ actionStatuses: next })}
+          selected={state.stages}
+          onChange={(next) => patch({ stages: next as PipelineStage[] })}
         />
 
         <label className="flex flex-col text-xs text-slate-600">
-          Dead?
+          Dead
           <select
             className="mt-1 min-w-[120px] rounded border border-slate-200 px-2 py-2 text-sm"
-            value={state.isDead}
-            onChange={(e) =>
-              patch({ isDead: e.target.value as LeadsFilterState["isDead"] })
-            }
+            value={state.dead}
+            onChange={(e) => patch({ dead: e.target.value as DeadFilter })}
           >
-            <option value="">All</option>
-            <option value="true">Dead only</option>
-            <option value="false">Not dead</option>
+            {(Object.keys(DEAD_FILTER_LABELS) as DeadFilter[]).map((d) => (
+              <option key={d} value={d}>
+                {DEAD_FILTER_LABELS[d]}
+              </option>
+            ))}
           </select>
         </label>
+
+        <YesNoSelect
+          label="Form Qualified"
+          value={state.formQualified}
+          onChange={(formQualified) => patch({ formQualified })}
+        />
+
+        <YesNoSelect
+          label="Qualified"
+          value={state.qualified}
+          onChange={(qualified) => patch({ qualified })}
+        />
+
+        <CheckboxMultiSelect
+          label="Follow-up"
+          options={FOLLOW_UP_OPTIONS}
+          selected={state.followUp}
+          onChange={(next) => patch({ followUp: next as FollowUpState[] })}
+        />
+
+        <button
+          type="button"
+          aria-pressed={state.needsQualification}
+          className={`rounded border px-3 py-2 text-sm ${
+            state.needsQualification ? "ui-active" : "border-slate-200 text-slate-700"
+          }`}
+          onClick={() => patch({ needsQualification: !state.needsQualification })}
+        >
+          Needs qualification
+        </button>
       </div>
 
       {chips.length > 0 ? (

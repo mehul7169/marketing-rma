@@ -44,7 +44,14 @@ export const LEGACY_LEAD_COLUMN_KEYS = [
   "biggest_goal",
   "monthly_revenue",
   "investment_capacity",
-  "form_answers"
+  "form_answers",
+  // Retired lifecycle fields (replaced by pipeline_stage + lifecycleDefinitions).
+  "lifecycle_status",
+  "action_status",
+  "call_confirmed",
+  "setter_verified",
+  "setter_verified_at",
+  "setter_verified_by"
 ] as const;
 
 /** Strip legacy columns from a row before insert/update so they stay untouched. */

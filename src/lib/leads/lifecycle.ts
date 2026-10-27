@@ -297,8 +297,7 @@ const revive: Step = (d, p, ctx) => {
     contact_attempts: 0,
     next_action_at: null,
     last_action: note ? `Revived — ${note}` : "Revived",
-    last_action_at: ctx.now,
-    action_status: "Untouched"
+    last_action_at: ctx.now
   };
   if (d.lead.dead_reason && NOT_QUALIFIED_REASONS.has(d.lead.dead_reason)) {
     patch.qualified = null;
@@ -354,7 +353,7 @@ const logCallAttempt: Step = (d, p, ctx) => {
     } else if (!error && scheduledFor !== d.lead.call_scheduled_for) {
       d.set({ call_scheduled_for: scheduledFor });
     }
-    if (!error) d.set({ call_confirmed: true, contact_attempts: 0, next_action_at: null });
+    if (!error) d.set({ contact_attempts: 0, next_action_at: null });
   } else if (outcome === "not_qualified") {
     error = disqualify(d, {}, ctx);
   }

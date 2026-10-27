@@ -100,6 +100,11 @@ function parseFiltersByOrg(
  * Merge saved config with defaults + currently available ids.
  * Unknown saved ids are dropped; new available ids append (hidden) at the end.
  */
+/** Saved views keep their slot when a column is folded into another. */
+const RETIRED_COLUMN_ALIASES: Record<string, string> = {
+  action_status: "stage"
+};
+
 export function mergeColumnsWithDefaults(
   saved: TableViewConfig | null,
   defaultColumns: TableColumnConfig[],
@@ -122,7 +127,8 @@ export function mergeColumnsWithDefaults(
 
   const result: TableColumnConfig[] = [];
   const seen = new Set<string>();
-  for (const col of saved.columns) {
+  for (const savedCol of saved.columns) {
+    const col = { ...savedCol, id: RETIRED_COLUMN_ALIASES[savedCol.id] ?? savedCol.id };
     if (!available.has(col.id) && !defaultsById.has(col.id)) continue;
     if (seen.has(col.id)) continue;
     seen.add(col.id);

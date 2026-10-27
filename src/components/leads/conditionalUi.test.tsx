@@ -17,10 +17,10 @@ import { renderLeadColumnCell } from "@/components/table-views/leadColumnCells";
 import CustomFieldsPanel from "@/components/leads/CustomFieldsPanel";
 
 describe("WorkQueueLeadActions UI", () => {
-  it("shows Log Call for Untouched and not Qualify Call", () => {
+  it("shows Log Call for a New lead and not Qualify Call", () => {
     render(
       <WorkQueueLeadActions
-        lead={makeLead({ action_status: null, call_booked_at: null })}
+        lead={makeLead({ call_booked_at: null })}
       />
     );
     expect(screen.getByRole("button", { name: "Log Call" })).toBeInTheDocument();
@@ -34,9 +34,7 @@ describe("WorkQueueLeadActions UI", () => {
     render(
       <WorkQueueLeadActions
         lead={makeLead({
-          action_status: "Call Booked",
-          call_booked_at: "2026-01-01T00:00:00.000Z",
-          call_confirmed: null
+          call_booked_at: "2026-01-01T00:00:00.000Z"
         })}
       />
     );

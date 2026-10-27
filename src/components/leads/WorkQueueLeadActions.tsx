@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { addLeadNoteAction, leadLifecycleAction } from "@/app/leads/actions";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
-import { displayActionStatus } from "@/lib/leads/actionStatus";
+import { needsQualification, pipelineStageOf } from "@/lib/leads/lifecycleDefinitions";
 import type { LogCallOutcome } from "@/lib/leads/lifecycle";
 import type { LifecycleResult } from "@/lib/leads/updateLeadLifecycle";
 import { predictLogCallAttemptPatch } from "@/lib/leads/predictCallAttempt";
@@ -33,31 +33,13 @@ function callPastDue(lead: LeadRow): boolean {
 export function primaryWorkQueueActions(
   lead: LeadRow
 ): Array<"qualify" | "log_call" | "show" | "reschedule"> {
-  const status = displayActionStatus(lead.action_status);
-  const actions: Array<"qualify" | "log_call" | "show" | "reschedule"> = [];
-
-  if (lead.call_showed === false) {
-    actions.push("reschedule");
-  } else if (callPastDue(lead)) {
-    actions.push("show");
-  } else if (
-    lead.call_booked_at &&
-    lead.call_confirmed !== true &&
-    (status === "Call Booked" ||
-      status === "Untouched" ||
-      status === "Personally Contacted")
-  ) {
-    actions.push("qualify");
-  } else if (
-    status === "Untouched" ||
-    status === "Personally Contacted" ||
-    status === "Follow-up Due" ||
-    status === "Follow-up Overdue"
-  ) {
-    actions.push("log_call");
-  }
-
-  return actions.slice(0, 2);
+  if (lead.is_dead) return [];
+  if (lead.call_showed === false) return ["reschedule"];
+  if (callPastDue(lead)) return ["show"];
+  const stage = pipelineStageOf(lead);
+  if (stage === "call_booked") return needsQualification(lead) ? ["qualify"] : [];
+  if (stage === "showed_up") return [];
+  return ["log_call"];
 }
 
 /**

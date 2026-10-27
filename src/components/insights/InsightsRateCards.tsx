@@ -33,12 +33,12 @@ function Card({
 
 export default function InsightsRateCards({
   formQualified,
-  setterVerified,
+  qualified,
   showUp,
   closure
 }: {
   formQualified: RateStat;
-  setterVerified: RateStat;
+  qualified: RateStat;
   showUp: RateStat;
   closure: RateStat;
 }) {
@@ -50,9 +50,9 @@ export default function InsightsRateCards({
         stat={formQualified}
       />
       <Card
-        label="Setter-Verified Rate"
-        tip={INSIGHTS_TOOLTIPS.setterVerified}
-        stat={setterVerified}
+        label="Qualified Rate"
+        tip={INSIGHTS_TOOLTIPS.qualified}
+        stat={qualified}
       />
       <Card label="Show-Up Rate" tip={INSIGHTS_TOOLTIPS.showUp} stat={showUp} />
       <Card label="Closure Rate" tip={INSIGHTS_TOOLTIPS.closure} stat={closure} />

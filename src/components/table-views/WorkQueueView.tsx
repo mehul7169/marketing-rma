@@ -19,7 +19,11 @@ import AsyncStatusIndicator from "@/components/ui/AsyncStatusIndicator";
 import Pagination from "@/components/ui/Pagination";
 import { useTableView } from "@/hooks/useTableView";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
-import { displayActionStatus } from "@/lib/leads/actionStatus";
+import {
+  followUpState,
+  isFormUnqualified,
+  pipelineStageOf
+} from "@/lib/leads/lifecycleDefinitions";
 import { normalizePhoneInput } from "@/lib/leads/contactNormalize";
 import { DEFAULT_COLUMNS } from "@/lib/table-views/registry";
 import type { TableColumnConfig, TableViewBootstrap } from "@/lib/table-views/types";
@@ -34,6 +38,7 @@ export default function WorkQueueView({
   initialSearch = "",
   activeTabId,
   statusFilterId = null,
+  showFormUnqualified = false,
   page = 1,
   total = 0,
   pageSize = 50,
@@ -46,6 +51,7 @@ export default function WorkQueueView({
   initialSearch?: string;
   activeTabId: string;
   statusFilterId?: string | null;
+  showFormUnqualified?: boolean;
   page?: number;
   total?: number;
   pageSize?: number;
@@ -118,9 +124,10 @@ export default function WorkQueueView({
     const q: Record<string, string> = { view: viewMode };
     if (activeTabId && activeTabId !== "all") q.tab = activeTabId;
     if (statusFilterId) q.filter = statusFilterId;
+    if (showFormUnqualified) q.show_unqualified = "1";
     if (initialSearch.trim()) q.search = initialSearch.trim();
     return q;
-  }, [activeTabId, statusFilterId, initialSearch, viewMode]);
+  }, [activeTabId, statusFilterId, showFormUnqualified, initialSearch, viewMode]);
 
   useEffect(() => {
     // Keep view mode in the URL without a full navigation when toggling cards/table.
@@ -141,11 +148,11 @@ export default function WorkQueueView({
           l.id === leadId ? { ...l, ...patch } : l
         );
         return next.filter((l) =>
-          leadBelongsInView(l, activeTabId, statusFilterId)
+          leadBelongsInView(l, activeTabId, statusFilterId, showFormUnqualified)
         );
       });
     },
-    [activeTabId, statusFilterId]
+    [activeTabId, statusFilterId, showFormUnqualified]
   );
 
   const restoreLead = useCallback(
@@ -153,7 +160,7 @@ export default function WorkQueueView({
       setLocalRows((prev) => {
         const idx = prev.findIndex((l) => l.id === snapshot.id);
         if (idx === -1) {
-          if (!leadBelongsInView(snapshot, activeTabId, statusFilterId)) {
+          if (!leadBelongsInView(snapshot, activeTabId, statusFilterId, showFormUnqualified)) {
             return prev;
           }
           return [snapshot, ...prev];
@@ -163,7 +170,7 @@ export default function WorkQueueView({
         return copy;
       });
     },
-    [activeTabId, statusFilterId]
+    [activeTabId, statusFilterId, showFormUnqualified]
   );
 
   const optimisticPatch = useCallback(
@@ -290,17 +297,17 @@ export default function WorkQueueView({
 
   const onLeadCreated = useCallback(
     (lead: LeadRow) => {
-      if (leadBelongsInView(lead, activeTabId, statusFilterId)) {
+      if (leadBelongsInView(lead, activeTabId, statusFilterId, showFormUnqualified)) {
         setLocalRows((prev) => [lead, ...prev.filter((l) => l.id !== lead.id)]);
         setNotice(`Created ${lead.name ?? "lead"}`);
       } else {
         setNotice(
-          `Created ${lead.name ?? "lead"} — it's in the default Work Queue view (Untouched), not this tab.`
+          `Created ${lead.name ?? "lead"} — it's in the default Work Queue view (New), not this tab.`
         );
       }
       router.refresh();
     },
-    [activeTabId, statusFilterId, router]
+    [activeTabId, statusFilterId, showFormUnqualified, router]
   );
 
   const tableColumns = ensureActionsColumn(view.visibleColumns);
@@ -569,7 +576,7 @@ function visibleCardFields(
   lead: LeadRow,
   orgName?: string | null
 ): Array<{ id: string; label: string; value: string }> {
-  const skip = new Set(["name", "action_status", "actions"]);
+  const skip = new Set(["name", "stage", "actions"]);
   const out: Array<{ id: string; label: string; value: string }> = [];
   for (const col of columns) {
     if (!col.visible || skip.has(col.id)) continue;
@@ -580,31 +587,30 @@ function visibleCardFields(
   return out;
 }
 
+/** Client mirror of the queue page's server filters (optimistic add/remove). */
 function leadBelongsInView(
   lead: LeadRow,
   tabId: string,
-  statusFilterId: string | null | undefined
+  statusFilterId: string | null | undefined,
+  showFormUnqualified: boolean
 ): boolean {
-  if (lead.is_dead || lead.deal_closed === true) return false;
+  if (lead.is_dead) return false;
 
   if (tabId === "meetings_booked") {
     if (!lead.call_scheduled_for) return false;
     return new Date(lead.call_scheduled_for).getTime() > Date.now();
   }
   if (tabId === "follow_ups_due") {
-    const status = displayActionStatus(lead.action_status);
-    return status === "Follow-up Due" || status === "Follow-up Overdue";
+    const state = followUpState(lead.next_action_at);
+    return state === "overdue" || state === "today";
   }
 
-  // Default "all" (+ optional status filter)
-  if (statusFilterId === "untouched") {
-    return displayActionStatus(lead.action_status) === "Untouched";
-  }
-  if (statusFilterId === "personally_contacted") {
-    return displayActionStatus(lead.action_status) === "Personally Contacted";
+  if (!showFormUnqualified && isFormUnqualified(lead)) return false;
+  if (statusFilterId === "new" || statusFilterId === "contacted") {
+    return pipelineStageOf(lead) === statusFilterId;
   }
   if (statusFilterId === "upcoming") {
-    return Boolean(lead.next_action_at);
+    return followUpState(lead.next_action_at) === "upcoming";
   }
   return true;
 }

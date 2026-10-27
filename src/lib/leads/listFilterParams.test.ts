@@ -2,57 +2,72 @@ import { describe, expect, it } from "vitest";
 import {
   buildLeadsQuery,
   clearedLeadsFilterState,
+  hasLegacyLeadsParams,
   leadsFilterChips,
   leadsHref,
-  parseLeadsFilterParams,
-  parseList
+  parseLeadsFilterParams
 } from "@/lib/leads/listFilterParams";
 import { defaultFromISO } from "@/lib/utils/date";
 
 const TODAY = "2026-09-28";
-const label = { stage: (s: string) => s.toUpperCase() };
-
-describe("parseList", () => {
-  it("accepts comma-separated and repeated params, de-duplicated", () => {
-    expect(parseList("a, b,,a")).toEqual(["a", "b"]);
-    expect(parseList(["a", "b,c"])).toEqual(["a", "b", "c"]);
-    expect(parseList(undefined)).toEqual([]);
-  });
-});
 
 describe("parseLeadsFilterParams", () => {
-  it("defaults to active + rolling 30 days", () => {
+  it("defaults to hide-dead + rolling 30 days", () => {
     const s = parseLeadsFilterParams({}, TODAY);
     expect(s).toMatchObject({
       fromISO: defaultFromISO(TODAY),
       toISO: TODAY,
       isDefaultRange: true,
-      lifecycle: "active",
-      sources: [],
-      actionStatuses: []
+      dead: "hide",
+      stages: [],
+      followUp: []
     });
+    expect(s.kpi).toBeUndefined();
   });
 
-  it("parses multi-value source, stage and action status", () => {
+  it("parses multi-value source, stage and follow-up", () => {
     const s = parseLeadsFilterParams(
       {
         source: "youtube,youtubemokshvideo",
-        stage: ["call_booked", "showed"],
-        action_status: "Untouched,Follow-up Due"
+        stage: ["call_booked", "showed_up"],
+        follow_up: "overdue,today"
       },
       TODAY
     );
     expect(s.sources).toEqual(["youtube", "youtubemokshvideo"]);
-    expect(s.stages).toEqual(["call_booked", "showed"]);
-    expect(s.actionStatuses).toEqual(["Untouched", "Follow-up Due"]);
+    expect(s.stages).toEqual(["call_booked", "showed_up"]);
+    expect(s.followUp).toEqual(["overdue", "today"]);
   });
 
-  it("defaults lifecycle to all for cohort deep links", () => {
-    expect(parseLeadsFilterParams({ cohort: "call_booked" }, TODAY).lifecycle).toBe("all");
+  it("maps legacy action_status onto stage / follow-up", () => {
+    const s = parseLeadsFilterParams(
+      { action_status: "Untouched,Follow-up Due" },
+      TODAY
+    );
+    expect(s.stages).toEqual(["new"]);
+    expect(s.followUp).toEqual(["today"]);
   });
 
-  it("ignores an invalid is_dead value", () => {
-    expect(parseLeadsFilterParams({ is_dead: "maybe" }, TODAY).isDead).toBe("");
+  it("redirects qualified_call_booked cohort to Calls Booked + Qualified yes", () => {
+    const s = parseLeadsFilterParams({ cohort: "qualified_call_booked" }, TODAY);
+    expect(s.kpi).toBe("calls_booked");
+    expect(s.qualified).toBe("yes");
+    expect(s.dead).toBe("show");
+  });
+
+  it("maps lifecycle=active to dead=hide and lifecycle=all to dead=show", () => {
+    expect(parseLeadsFilterParams({ lifecycle: "active" }, TODAY).dead).toBe("hide");
+    expect(parseLeadsFilterParams({ lifecycle: "all" }, TODAY).dead).toBe("show");
+    expect(parseLeadsFilterParams({ lifecycle: "dead" }, TODAY).dead).toBe("only");
+  });
+});
+
+describe("hasLegacyLeadsParams", () => {
+  it("detects retired keys and old stage values", () => {
+    expect(hasLegacyLeadsParams({ lifecycle: "active" })).toBe(true);
+    expect(hasLegacyLeadsParams({ cohort: "call_booked" })).toBe(true);
+    expect(hasLegacyLeadsParams({ stage: "created" })).toBe(true);
+    expect(hasLegacyLeadsParams({ dead: "hide", stage: "call_booked" })).toBe(false);
   });
 });
 
@@ -63,10 +78,8 @@ describe("buildLeadsQuery", () => {
       to: "2026-09-10",
       source: "facebook,ig",
       stage: "call_booked",
-      action_status: "Untouched",
-      is_dead: "false",
-      q: "raj",
-      lifecycle: "all"
+      dead: "show",
+      q: "raj"
     };
     const state = parseLeadsFilterParams(params, TODAY);
     const query = buildLeadsQuery(state);
@@ -74,46 +87,50 @@ describe("buildLeadsQuery", () => {
     expect(parseLeadsFilterParams(query, TODAY)).toEqual(state);
   });
 
-  it("omits the rolling range but always writes lifecycle", () => {
+  it("omits the rolling range but always writes dead", () => {
     const state = parseLeadsFilterParams({}, TODAY);
-    expect(buildLeadsQuery(state)).toEqual({ lifecycle: "active" });
+    expect(buildLeadsQuery(state)).toEqual({ dead: "hide" });
   });
 });
 
 describe("leadsFilterChips", () => {
   it("has no chips for the default state", () => {
-    expect(leadsFilterChips(parseLeadsFilterParams({}, TODAY), label)).toEqual([]);
+    expect(leadsFilterChips(parseLeadsFilterParams({}, TODAY))).toEqual([]);
   });
 
   it("removing one chip leaves the other filters intact", () => {
     const state = parseLeadsFilterParams(
-      { source: "facebook,ig", stage: "call_booked", lifecycle: "active" },
+      { source: "facebook,ig", stage: "call_booked", dead: "hide" },
       TODAY
     );
-    const chips = leadsFilterChips(state, label);
+    const chips = leadsFilterChips(state);
     expect(chips.map((c) => c.label)).toEqual([
-      "Source: facebook, ig",
-      "Stage: CALL_BOOKED"
+      "Stage: Call Booked",
+      "Source: facebook, ig"
     ]);
     const withoutSource = chips.find((c) => c.id === "source")!.without;
     expect(buildLeadsQuery(withoutSource)).toEqual({
-      lifecycle: "active",
+      dead: "hide",
       stage: "call_booked"
     });
   });
 
-  it("hides the implicit 'all' lifecycle on cohort links and removes cohort back to active", () => {
-    const state = parseLeadsFilterParams({ cohort: "call_booked", stage: "x" }, TODAY);
-    const chips = leadsFilterChips(state, { ...label, deepLink: () => "Call booked" });
-    expect(chips.map((c) => c.id)).toEqual(["cohort"]);
-    expect(leadsHref(chips[0]!.without)).toBe("/leads?lifecycle=active&stage=x");
+  it("kpi chip removes the deep link back to hide-dead", () => {
+    const state = parseLeadsFilterParams(
+      { kpi: "calls_booked", from: "2026-09-01", to: "2026-09-10" },
+      TODAY
+    );
+    const chips = leadsFilterChips(state);
+    expect(chips.map((c) => c.id)).toContain("kpi");
+    const without = chips.find((c) => c.id === "kpi")!.without;
+    expect(leadsHref(without)).toBe("/leads?from=2026-09-01&to=2026-09-10&dead=hide");
   });
 
   it("clear all resets to the default base", () => {
     const state = parseLeadsFilterParams(
-      { from: "2026-09-01", to: "2026-09-02", source: "ig", q: "a", lifecycle: "dead" },
+      { from: "2026-09-01", to: "2026-09-02", source: "ig", q: "a", dead: "only" },
       TODAY
     );
-    expect(leadsHref(clearedLeadsFilterState(state))).toBe("/leads?lifecycle=active");
+    expect(leadsHref(clearedLeadsFilterState(state))).toBe("/leads?dead=hide");
   });
 });

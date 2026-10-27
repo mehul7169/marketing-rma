@@ -1,8 +1,8 @@
 import type { MetaAdNode, MetaCampaignNode } from "@/lib/db/meta_ads_daily";
 import type { KnownAdsIndex } from "@/lib/insights/metrics";
-import { leadReachedCohortStage } from "@/lib/leads/stageEvents";
+import { leadHitsKpiInRange } from "@/lib/leads/lifecycleDefinitions";
 import type { LeadRow } from "@/lib/leads/types";
-import { createLeadAdResolver, leadsCreatedInRange } from "@/lib/meta/funnelOutcomes";
+import { createLeadAdResolver } from "@/lib/meta/funnelOutcomes";
 
 export const LANDING_PAGE_LEAD_SOURCES = ["facebook"] as const;
 export const QUICKFORM_LEAD_SOURCES = ["quickform_fb", "quickform_ig"] as const;
@@ -18,7 +18,7 @@ export const AD_FUNNEL_COUNT_KEYS = [
   "optIns",
   "qualifiedOptIns",
   "callsBooked",
-  "qualifiedCallsBooked",
+  "showups",
   "qualifiedShowups"
 ] as const;
 
@@ -55,15 +55,6 @@ function isQuickformLead(lead: LeadRow): boolean {
   return QF_SOURCES.has(lead.lead_source ?? "");
 }
 
-/** The website form's own verdict, independent of any setter decision. */
-export function isFormQualified(lead: LeadRow): boolean {
-  return lead.form_qualified === true;
-}
-
-/** Same definition as /leads?cohort=qualified_call_booked (call_confirmed). */
-export function isQualifiedCallBooked(lead: LeadRow): boolean {
-  return leadReachedCohortStage(lead, "qualified_call_booked");
-}
 
 function classify(lp: boolean, qf: boolean): AdFunnelClassification {
   if (lp && qf) return "mixed";
@@ -78,13 +69,14 @@ function appliesLandingPage(c: AdFunnelClassification): boolean {
 
 function emptyCounts(classification: AdFunnelClassification): AdFunnelCounts {
   const lp = appliesLandingPage(classification) ? 0 : null;
+  const any = classification ? 0 : null;
   return {
     landingPageViews: lp,
     optIns: lp,
     qualifiedOptIns: lp,
-    callsBooked: lp,
-    qualifiedCallsBooked: lp,
-    qualifiedShowups: classification ? 0 : null
+    callsBooked: any,
+    showups: any,
+    qualifiedShowups: any
   };
 }
 
@@ -118,6 +110,8 @@ export function costPer(spend: number, count: number | null): number | null {
 /**
  * Per campaign → ad set → ad funnel table for /meta-ads.
  * Attribution reuses createLeadAdResolver (same as the Campaigns table).
+ * Each count is a lifecycleDefinitions KPI bucketed by its own milestone date,
+ * so allLeads must be all-time (not just leads created in range).
  * Classification uses ALL leads ever resolved to an ad (not just this range),
  * so an LP ad with no opt-ins in range still reads as LP with 0. It goes
  * through the same resolver so same-named ads aren't all classified at once.
@@ -158,27 +152,23 @@ export function buildAdFunnelBreakdown(
     }
   }
 
-  for (const lead of leadsCreatedInRange(allLeads, fromISO, toISO)) {
+  const hit = (lead: LeadRow, kpi: Parameters<typeof leadHitsKpiInRange>[1]) =>
+    leadHitsKpiInRange(lead, kpi, fromISO, toISO);
+  for (const lead of allLeads) {
     const lp = isLandingPageLead(lead);
     if (!lp && !isQuickformLead(lead)) continue;
     const res = resolve(lead);
     if (!res.matched || !res.ad) continue;
     const row = adRows.get(res.ad);
-    if (!row) continue;
+    if (!row || row.callsBooked === null) continue;
 
     if (lp && row.optIns !== null) {
-      row.optIns += 1;
-      if (isFormQualified(lead)) row.qualifiedOptIns! += 1;
-      if (leadReachedCohortStage(lead, "call_booked")) row.callsBooked! += 1;
-      if (isQualifiedCallBooked(lead)) row.qualifiedCallsBooked! += 1;
+      if (hit(lead, "leads")) row.optIns += 1;
+      if (hit(lead, "form_qualified_opt_ins")) row.qualifiedOptIns! += 1;
     }
-    if (
-      row.qualifiedShowups !== null &&
-      isQualifiedCallBooked(lead) &&
-      leadReachedCohortStage(lead, "show_up")
-    ) {
-      row.qualifiedShowups += 1;
-    }
+    if (hit(lead, "calls_booked")) row.callsBooked += 1;
+    if (hit(lead, "showups")) row.showups! += 1;
+    if (hit(lead, "qualified_showups")) row.qualifiedShowups! += 1;
   }
 
   return campaigns.map((campaign) => {

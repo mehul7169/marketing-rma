@@ -65,11 +65,10 @@ export default function MetaPerformanceDashboard({
           <MetaAdFunnelTable rows={funnelBreakdown} />
           <div className="text-xs text-slate-500">
             Landing page ads = attributed leads from lead_source facebook; Quickform
-            ads = quickform_fb / quickform_ig. Opt-in, booking, and qualified-call
-            columns are landing-page only; qualified showups cover both. Lead counts
-            are cohort-based (created in this range); qualified call booked matches
-            /leads?cohort=qualified_call_booked. Cost = row adspend ÷ count. — means
-            the metric does not apply to that row&apos;s ad type.
+            ads = quickform_fb / quickform_ig. Opt-ins are landing-page only. Calls
+            Booked, Showups, and Qualified Showups use the same milestone timestamps
+            as Home and /leads?kpi=… (IST days, inclusive). Cost = row adspend ÷
+            count. — means the metric does not apply to that row&apos;s ad type.
           </div>
         </section>
       ) : null}

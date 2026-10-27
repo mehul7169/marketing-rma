@@ -53,11 +53,11 @@ test.describe("Leads filter persistence", () => {
     const m = await login(browser, member);
 
     // --- Admin: two sources + a stage via checkboxes (OR within, AND across).
-    await a.goto("/leads?lifecycle=all");
+    await a.goto("/leads?dead=show");
     await a.locator("table tbody tr").first().click();
     await a.waitForURL(/\/leads\/[0-9a-f-]{36}/, { timeout: 30_000 });
     const leadHref = new URL(a.url()).pathname;
-    await a.goto("/leads?lifecycle=all");
+    await a.goto("/leads?dead=show");
     const sources = await sourceOptions(a);
     expect(sources.length).toBeGreaterThanOrEqual(2);
     const [s1, s2] = sources;
@@ -75,7 +75,7 @@ test.describe("Leads filter persistence", () => {
     const adminUrl = a.url();
 
     // --- Member: a different single source.
-    await m.goto("/leads?lifecycle=active");
+    await m.goto("/leads?dead=hide");
     const memberSources = await sourceOptions(m);
     const ms = memberSources[memberSources.length - 1]!;
     await tick(m, "Source", ms);
@@ -104,7 +104,7 @@ test.describe("Leads filter persistence", () => {
     await expect.poll(() => a.url()).toBe(adminUrl);
 
     // --- Sanity 2: explicit params aren't overridden by the persisted state.
-    await a.goto(`/leads?lifecycle=active&source=${encodeURIComponent(s2!)}`);
+    await a.goto(`/leads?dead=hide&source=${encodeURIComponent(s2!)}`);
     await expect(a.getByTestId("filter-chip-source")).toHaveText(new RegExp(`Source: ${s2}`));
     expect(param(a, "source")).toBe(s2);
     expect(param(a, "stage")).toBeNull();
@@ -120,21 +120,21 @@ test.describe("Leads filter persistence", () => {
     const clearedSave = a.waitForResponse(
       (r) =>
         r.url().includes("/api/table-views/leads/filters") &&
-        r.request().postData()?.includes('"search":"lifecycle=active"') === true
+        r.request().postData()?.includes('"search":"dead=hide"') === true
     );
     await a.getByRole("button", { name: "Clear all" }).click();
-    await expect.poll(() => new URL(a.url()).search).toBe("?lifecycle=active");
+    await expect.poll(() => new URL(a.url()).search).toBe("?dead=hide");
     await clearedSave;
     await expect(a.getByLabel("Active filters")).toHaveCount(0);
     await expect(a.getByRole("button", { name: "Stage filter" })).toContainText("All");
     // The cleared state is what's remembered now.
     await a.waitForTimeout(1_000);
     await a.goto("/leads");
-    await expect.poll(() => new URL(a.url()).search).toBe("?lifecycle=active");
+    await expect.poll(() => new URL(a.url()).search).toBe("?dead=hide");
 
     // Leave the member's state neutral too.
-    await m.goto("/leads?lifecycle=active");
-    await expect.poll(() => new URL(m.url()).search).toBe("?lifecycle=active");
+    await m.goto("/leads?dead=hide");
+    await expect.poll(() => new URL(m.url()).search).toBe("?dead=hide");
     await m.waitForTimeout(1_000);
   });
 

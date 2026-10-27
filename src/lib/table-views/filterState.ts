@@ -3,20 +3,42 @@
  * table_views.config.filters[orgId] as the page's own URL params.
  */
 
+import { migratePersistedLeadsParams } from "@/lib/leads/listFilterParams";
+import { todayISTDateString } from "@/lib/timezone";
 import { defaultFromISO } from "@/lib/utils/date";
+
+const QUEUE_FILTER_ALIASES: Record<string, string> = {
+  untouched: "new",
+  personally_contacted: "contacted"
+};
 
 /** URL param → value, exactly as it appears in the page URL. */
 export type PersistedFilterState = Record<string, string>;
 
 /** Params that are remembered and restored per page. */
 const PERSISTED_KEYS: Record<string, readonly string[]> = {
-  leads: ["from", "to", "lifecycle", "stage", "source", "q", "action_status", "is_dead"],
-  "leads-queue": ["view", "tab", "filter", "search"]
+  leads: [
+    "from",
+    "to",
+    "stage",
+    "dead",
+    "form_qualified",
+    "qualified",
+    "needs_qualification",
+    "follow_up",
+    "source",
+    "q",
+    // Retired keys: still read so old saved state restores (then migrates).
+    "lifecycle",
+    "action_status",
+    "is_dead"
+  ],
+  "leads-queue": ["view", "tab", "filter", "search", "show_unqualified"]
 };
 
 /** Deep-link params: explicit (block restore) but never remembered. */
 const DEEP_LINK_KEYS: Record<string, readonly string[]> = {
-  leads: ["cohort", "event"],
+  leads: ["kpi", "cohort", "event"],
   "leads-queue": []
 };
 
@@ -64,7 +86,7 @@ export function pickPersistableFilters(
     delete out.from;
     delete out.to;
   }
-  return out;
+  return migratePersistedState(pageKey, out, todayISO);
 }
 
 export function parsePersistedFilterState(
@@ -81,8 +103,24 @@ export function parsePersistedFilterState(
   return out;
 }
 
+/** Map retired URL keys onto the current vocabulary so saved views still load. */
+export function migratePersistedState(
+  pageKey: string,
+  state: PersistedFilterState,
+  todayISO: string = todayISTDateString()
+): PersistedFilterState {
+  if (pageKey === "leads") return migratePersistedLeadsParams(state, todayISO);
+  if (pageKey === "leads-queue" && state.filter && QUEUE_FILTER_ALIASES[state.filter]) {
+    return { ...state, filter: QUEUE_FILTER_ALIASES[state.filter] };
+  }
+  return state;
+}
+
 /** Redirect target when restoring; null when nothing is saved. */
 export function restoreHref(pathname: string, state: PersistedFilterState | null): string | null {
   if (!state || Object.keys(state).length === 0) return null;
-  return `${pathname}?${new URLSearchParams(state).toString()}`;
+  const pageKey = pathname === "/leads/queue" ? "leads-queue" : pathname === "/leads" ? "leads" : "";
+  const migrated = pageKey ? migratePersistedState(pageKey, state) : state;
+  if (Object.keys(migrated).length === 0) return null;
+  return `${pathname}?${new URLSearchParams(migrated).toString()}`;
 }

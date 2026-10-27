@@ -2,18 +2,18 @@
 export const INSIGHTS_TOOLTIPS = {
   formQualified:
     "Of leads created in this date range who filled the form, what share were marked qualified by the form's criteria — regardless of when qualification was recorded. Calculation: cohort members with form_qualified = true ÷ cohort members with form_filled_at set.",
-  setterVerified:
-    "Of leads created in this date range who booked a call, what share Vriddhi confirmed as genuinely qualified — regardless of when verification happened. Calculation: cohort members with setter_verified = true ÷ cohort members with call_booked_at set.",
+  qualified:
+    "Of leads contacted in this date range (first_contacted_at in range), what share the setter marked Qualified (qualified_at in range). Includes leads who later died. Calculation: Qualified ÷ Contacted.",
   showUp:
-    "Of setter-verified cohort members, what share showed up — regardless of when the show was logged. Calculation: verified + showed ÷ setter-verified, among leads created in the selected range.",
+    "Of calls booked in this date range (call_booked_at in range), what share showed up (call_showed_at in range). Includes leads who later died. Calculation: Showups ÷ Calls Booked.",
   closure:
-    "Of setter-verified cohort members who showed, what share closed a deal — regardless of when. Calculation: deal_closed ÷ (setter_verified and call_showed), among leads created in the selected range.",
+    "Of qualified showups in this date range, what share closed a deal (closed_at in range). Post-call; unchanged until the after-sales tab. Calculation: Deals Closed ÷ Qualified Showups.",
   creativeSpend:
     "Total Meta ad spend attributed to this creative for the selected date range, from Meta's own reporting (period spend — not cohort-based).",
   creativeCallsBooked:
     "Of leads created in this range whose UTM Content matches this creative, how many have call_booked_at set — regardless of when they booked.",
   creativeQualified:
-    "Of leads created in this range matched to this creative, how many are setter-verified — regardless of when verification happened.",
+    "Of leads created in this range matched to this creative, how many have qualified = true — regardless of when the setter decided.",
   creativeShowed:
     "Of leads created in this range matched to this creative, how many have call_showed = true — regardless of when.",
   creativeDealsClosed:

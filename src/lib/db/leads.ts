@@ -1,20 +1,10 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
-import { listLeadIdsWithDueFollowUps } from "@/lib/db/lead_reminders";
-import {
-  computeActionStatus,
-  inferLastCallOutcome
-} from "@/lib/leads/actionStatus";
-import { computeLifecycleStatus } from "@/lib/leads/computeLifecycleStatus";
-import { computeStage, resolveCallConfirmed } from "@/lib/leads/computeStage";
+import { computeStage } from "@/lib/leads/computeStage";
 import {
   mergeCustomFields,
   omitLegacyLeadColumns
 } from "@/lib/leads/customFields";
-import {
-  funnelEventField,
-  leadMatchesFunnelStage,
-  parseUrlEvent
-} from "@/lib/leads/stageEvents";
+import { KPI_DEFINITIONS } from "@/lib/leads/lifecycleDefinitions";
 import type {
   BookingHistoryEntry,
   BookingSource,
@@ -101,16 +91,9 @@ function asLead(row: unknown): LeadRow {
     slack_form_notified: Boolean((r as LeadRow).slack_form_notified),
     slack_booking_notified: Boolean((r as LeadRow).slack_booking_notified),
     slack_no_booking_notified: Boolean((r as LeadRow).slack_no_booking_notified),
-    action_status: (r as LeadRow).action_status ?? null,
     is_dead: Boolean((r as LeadRow).is_dead),
     dead_reason: (r as LeadRow).dead_reason ?? null,
     contact_attempts: Number.isFinite(contactAttempts) ? contactAttempts : 0,
-    call_confirmed:
-      (r as LeadRow).call_confirmed === true
-        ? true
-        : (r as LeadRow).call_confirmed === false
-          ? false
-          : null,
     next_action_at: (r as LeadRow).next_action_at ?? null,
     last_action: (r as LeadRow).last_action ?? null,
     last_action_at: (r as LeadRow).last_action_at ?? null,
@@ -125,36 +108,14 @@ function asLead(row: unknown): LeadRow {
 
 function stamp(existing: LeadRow, patch: Partial<LeadRow>): LeadRow {
   const merged: LeadRow = { ...existing, ...patch };
-  merged.call_confirmed = resolveCallConfirmed(merged);
   merged.stage = computeStage({
     deal_closed: merged.deal_closed,
     is_dead: Boolean(merged.is_dead),
     post_call_status: merged.post_call_status,
     call_showed: merged.call_showed,
-    call_confirmed: merged.call_confirmed,
+    qualified: merged.qualified,
     call_booked_at: merged.call_booked_at
   });
-  merged.lifecycle_status = computeLifecycleStatus({
-    deal_closed: merged.deal_closed,
-    is_dead: Boolean(merged.is_dead),
-    call_booked_at: merged.call_booked_at,
-    qualified: merged.qualified
-  });
-  // Explicit action_status in patch wins (e.g. revive → Untouched).
-  if (patch.action_status === undefined) {
-    merged.action_status = computeActionStatus(
-      {
-        deal_closed: merged.deal_closed,
-        is_dead: Boolean(merged.is_dead),
-        next_action_at: merged.next_action_at,
-        contact_attempts: merged.contact_attempts ?? 0,
-        call_confirmed: merged.call_confirmed,
-        call_booked_at: merged.call_booked_at,
-        last_action: merged.last_action
-      },
-      inferLastCallOutcome(merged.last_action)
-    );
-  }
   merged.updated_at = new Date().toISOString();
   return merged;
 }
@@ -281,9 +242,6 @@ export async function insertLead(
     cal_com_booking_id: row.cal_com_booking_id ?? null,
     booking_source: row.booking_source ?? null,
     booking_history: row.booking_history ?? [],
-    setter_verified: row.setter_verified ?? null,
-    setter_verified_at: row.setter_verified_at ?? null,
-    setter_verified_by: row.setter_verified_by ?? null,
     verification_call_status: row.verification_call_status ?? "not_contacted",
     verification_call_attempts: row.verification_call_attempts ?? 0,
     last_verification_call_at: row.last_verification_call_at ?? null,
@@ -306,12 +264,9 @@ export async function insertLead(
     post_call_status: row.post_call_status ?? null,
     post_call_status_updated_at: row.post_call_status_updated_at ?? null,
     post_call_status_updated_by: row.post_call_status_updated_by ?? null,
-    lifecycle_status: null,
-    action_status: row.action_status ?? null,
     is_dead: row.is_dead ?? false,
     dead_reason: row.dead_reason ?? null,
     contact_attempts: row.contact_attempts ?? 0,
-    call_confirmed: row.call_confirmed ?? null,
     next_action_at: row.next_action_at ?? null,
     last_action: row.last_action ?? null,
     last_action_at: row.last_action_at ?? null,
@@ -351,7 +306,7 @@ export type LeadSheetUpsertFields = {
 /**
  * True upsert on UNIQUE (org_id, email).
  * On conflict: refreshes sheet-sourced fields only (phone only if existing is empty).
- * Workflow fields (qualified, call_*, stage, action_status, notes, …) are never in the
+ * Workflow fields (qualified, call_*, stage, notes, …) are never in the
  * upsert payload, so re-sync cannot clobber CRM progress.
  */
 export async function upsertLeadByOrgEmail(
@@ -466,7 +421,7 @@ function buildNextLead(existing: LeadRow, patch: Partial<LeadRow>): LeadRow {
   const now = new Date().toISOString();
   // An explicit *_at in the patch wins (lifecycle actions set/clear them directly).
   const at = (
-    key: "qualified_at" | "setter_verified_at" | "reminder_sent_at" | "call_showed_at" | "closed_at",
+    key: "qualified_at" | "reminder_sent_at" | "call_showed_at" | "closed_at",
     derived: () => string | null
   ): string | null => (key in patch ? (patch[key] ?? null) : derived());
 
@@ -476,11 +431,6 @@ function buildNextLead(existing: LeadRow, patch: Partial<LeadRow>): LeadRow {
       patch.qualified !== undefined
         ? firstSetAt(existing.qualified_at, patch.qualified, now)
         : existing.qualified_at
-    ),
-    setter_verified_at: at("setter_verified_at", () =>
-      patch.setter_verified !== undefined
-        ? firstSetAt(existing.setter_verified_at, patch.setter_verified, now)
-        : existing.setter_verified_at
     ),
     reminder_sent_at: at("reminder_sent_at", () =>
       patch.reminder_sent
@@ -598,9 +548,6 @@ const LEAD_LIST_SELECT = [
   "cal_com_booking_id",
   "booking_source",
   "booking_history",
-  "setter_verified",
-  "setter_verified_at",
-  "setter_verified_by",
   "verification_call_status",
   "verification_call_attempts",
   "last_verification_call_at",
@@ -623,94 +570,67 @@ const LEAD_LIST_SELECT = [
   "post_call_status",
   "post_call_status_updated_at",
   "post_call_status_updated_by",
-  "lifecycle_status",
-  "action_status",
   "is_dead",
   "dead_reason",
   "contact_attempts",
-  "call_confirmed",
   "next_action_at",
   "last_action",
   "last_action_at",
   "updated_at"
 ].join(",");
 
-export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
-  if (!supabaseAdmin) return [];
+/**
+ * Shared WHERE clause for list + count so badges, totals and rows can't drift.
+ * Definitions come from lifecycleDefinitions.
+ */
+function leadsQuery(
+  filters: LeadListFilters,
+  select: string,
+  opts?: { count: "exact"; head: true }
+) {
   const db = requireDb();
+  const kpi = filters.kpi ? KPI_DEFINITIONS[filters.kpi] : null;
+  const dateField = kpi?.field ?? "created_at";
 
-  // cohort: created_at in range + ever reached stage (Overview funnel deep link).
-  // event: event timestamp in range (legacy).
-  // stage: current state + created_at (manual Stage dropdown).
-  const cohortStage = parseUrlEvent(filters.cohort);
-  const eventStage = cohortStage ? null : parseUrlEvent(filters.event);
-  const dateField = eventStage ? funnelEventField(eventStage) : "created_at";
+  let query = db.from("leads").select(select, opts).eq("org_id", filters.orgId);
 
-  if (!filters.orgId) throw new Error("listLeads requires orgId");
-
-  let query = db.from("leads").select(LEAD_LIST_SELECT).eq("org_id", filters.orgId);
-
-  if (filters.needsVerificationCall) {
-    // Operational queue — not clipped by the page date range.
-    // Never-contacted (null last_verification_call_at) first, then oldest tries.
-    query = query
-      .not("call_booked_at", "is", null)
-      .is("setter_verified", null)
-      .or(
-        "verification_call_status.is.null,verification_call_status.eq.not_contacted,verification_call_status.eq.no_answer,verification_call_status.eq.follow_up_needed"
-      )
-      .order("last_verification_call_at", { ascending: true, nullsFirst: true });
-  } else {
-    query = query.order(dateField, { ascending: false });
+  if (filters.fromISO) query = query.gte(dateField, istDayStartUtcIso(filters.fromISO));
+  if (filters.toISO) query = query.lte(dateField, istDayEndUtcIso(filters.toISO));
+  if (kpi) {
+    query = query.not(kpi.field, "is", null);
+    for (const flag of kpi.requireTrue) query = query.eq(flag, true);
   }
 
-  if (filters.followUpsDue) {
-    const dueIds = await listLeadIdsWithDueFollowUps(filters.orgId);
-    if (dueIds.length === 0) return [];
-    query = query.in("id", dueIds);
-  } else if (!filters.needsVerificationCall) {
-    if (filters.fromISO) query = query.gte(dateField, istDayStartUtcIso(filters.fromISO));
-    if (filters.toISO) query = query.lte(dateField, istDayEndUtcIso(filters.toISO));
-    if (eventStage && dateField !== "created_at") {
-      query = query.not(dateField, "is", null);
-    }
+  if (filters.pipelineStages && filters.pipelineStages.length > 0) {
+    query = query.in("pipeline_stage", filters.pipelineStages);
   }
-
-  if (cohortStage) {
-    // Cumulative “ever reached” — persistent fields only, never stage=.
-    if (cohortStage === "call_booked") query = query.not("call_booked_at", "is", null);
-    if (cohortStage === "qualified_call_booked") {
-      query = query.eq("call_confirmed", true);
+  if (filters.dead === "hide") query = query.eq("is_dead", false);
+  if (filters.dead === "only") query = query.eq("is_dead", true);
+  if (filters.formQualified) {
+    query = query.eq("form_qualified", filters.formQualified === "yes");
+  }
+  if (filters.qualified) query = query.eq("qualified", filters.qualified === "yes");
+  if (filters.needsQualification) {
+    query = query.not("call_booked_at", "is", null).is("qualified", null);
+  }
+  if (filters.hideFormUnqualified) {
+    query = query.or("form_qualified.is.null,form_qualified.eq.true,qualified.not.is.null");
+  }
+  if (filters.followUp && filters.followUp.length > 0) {
+    const today = todayISTDateString();
+    const start = istDayStartUtcIso(today);
+    const end = istDayEndUtcIso(today);
+    const parts: string[] = [];
+    if (filters.followUp.includes("overdue")) parts.push(`next_action_at.lt.${start}`);
+    if (filters.followUp.includes("today")) {
+      parts.push(`and(next_action_at.gte.${start},next_action_at.lte.${end})`);
     }
-    if (cohortStage === "show_up") query = query.eq("call_showed", true);
-    if (cohortStage === "closed") query = query.eq("deal_closed", true);
-  } else if (eventStage) {
-    if (eventStage === "qualified_call_booked") {
-      query = query.eq("call_confirmed", true);
-    }
-    if (eventStage === "show_up") query = query.eq("call_showed", true);
-    if (eventStage === "closed") query = query.eq("deal_closed", true);
-  } else if (filters.stages && filters.stages.length > 0) {
-    query = query.in("stage", filters.stages);
+    if (filters.followUp.includes("upcoming")) parts.push(`next_action_at.gt.${end}`);
+    query = query.or(parts.join(","));
   }
 
   if (filters.sources && filters.sources.length > 0) {
     query = query.in("lead_source", filters.sources);
-  }
-  if (filters.needsRequal) {
-    query = query
-      .eq("qualified", false)
-      .or("requalification_attempted.eq.false,requalification_attempted.is.null");
-  } else if (
-    !filters.needsVerificationCall &&
-    filters.lifecycle &&
-    filters.lifecycle !== "all"
-  ) {
-    if (filters.lifecycle === "active") {
-      query = query.or("lifecycle_status.eq.active,lifecycle_status.is.null");
-    } else {
-      query = query.eq("lifecycle_status", filters.lifecycle);
-    }
   }
   if (filters.search && filters.search.trim()) {
     const raw = filters.search.trim().replace(/[%_,]/g, " ");
@@ -725,42 +645,25 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
     }
     query = query.or(parts.join(","));
   }
-
-  if (filters.excludeDeadAndClosed) {
-    query = query
-      .eq("is_dead", false)
-      .or("deal_closed.is.null,deal_closed.eq.false");
-  }
-  if (filters.isDead === true) {
-    query = query.eq("is_dead", true);
-  } else if (filters.isDead === false) {
-    query = query.eq("is_dead", false);
-  }
-  if (filters.actionStatuses && filters.actionStatuses.length > 0) {
-    const wantsUntouched = filters.actionStatuses.includes("Untouched");
-    const others = filters.actionStatuses.filter((s) => s !== "Untouched");
-    if (wantsUntouched && others.length === 0) {
-      query = query.or("action_status.is.null,action_status.eq.Untouched");
-    } else if (wantsUntouched && others.length > 0) {
-      const parts = [
-        "action_status.is.null",
-        ...filters.actionStatuses.map((s) => `action_status.eq.${s}`)
-      ];
-      query = query.or(parts.join(","));
-    } else {
-      query = query.in("action_status", others);
-    }
-  }
-  if (filters.upcomingOnly) {
-    const afterToday = istDayEndUtcIso(todayISTDateString());
-    query = query
-      .not("next_action_at", "is", null)
-      .gt("next_action_at", afterToday);
-  }
   if (filters.meetingsBookedOnly) {
     query = query
       .not("call_scheduled_for", "is", null)
       .gt("call_scheduled_for", new Date().toISOString());
+  }
+  return { query, dateField };
+}
+
+export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
+  if (!supabaseAdmin) return [];
+  if (!filters.orgId) throw new Error("listLeads requires orgId");
+
+  let { query, dateField } = leadsQuery(filters, LEAD_LIST_SELECT);
+  if (filters.sort === "queue") {
+    query = query
+      .order("next_action_at", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false });
+  } else {
+    query = query.order(dateField, { ascending: false });
   }
 
   if (
@@ -778,151 +681,14 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
 
   const { data, error } = await query;
   if (error) throw error;
-  let rows = (data ?? []).map(asLead);
-
-  if (eventStage === "call_booked" && filters.fromISO && filters.toISO) {
-    rows = rows.filter((lead) =>
-      leadMatchesFunnelStage(lead, "call_booked", filters.fromISO!, filters.toISO!)
-    );
-  }
-
-  if (filters.needsVerificationCall) {
-    rows = [...rows].sort((a, b) => {
-      const aAt = a.last_verification_call_at;
-      const bAt = b.last_verification_call_at;
-      if (!aAt && !bAt) return 0;
-      if (!aAt) return -1;
-      if (!bAt) return 1;
-      return aAt < bAt ? -1 : aAt > bAt ? 1 : 0;
-    });
-  }
-
-  return rows;
+  return (data ?? []).map(asLead);
 }
 
-
-/** Head-count for Work Queue tab badges — avoids fetching full lead rows. */
+/** Head-count with the same filters as listLeads (tab badges, totals, Slack). */
 export async function countLeads(filters: LeadListFilters): Promise<number> {
   if (!supabaseAdmin) return 0;
-  const db = requireDb();
   if (!filters.orgId) throw new Error("countLeads requires orgId");
-
-  const cohortStage = parseUrlEvent(filters.cohort);
-  const eventStage = cohortStage ? null : parseUrlEvent(filters.event);
-  const dateField = eventStage ? funnelEventField(eventStage) : "created_at";
-
-  let query = db
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .eq("org_id", filters.orgId);
-
-  if (filters.needsVerificationCall) {
-    query = query
-      .not("call_booked_at", "is", null)
-      .is("setter_verified", null)
-      .or(
-        "verification_call_status.is.null,verification_call_status.eq.not_contacted,verification_call_status.eq.no_answer,verification_call_status.eq.follow_up_needed"
-      );
-  }
-
-  if (filters.followUpsDue) {
-    const dueIds = await listLeadIdsWithDueFollowUps(filters.orgId);
-    if (dueIds.length === 0) return 0;
-    query = query.in("id", dueIds);
-  } else if (!filters.needsVerificationCall) {
-    if (filters.fromISO) query = query.gte(dateField, istDayStartUtcIso(filters.fromISO));
-    if (filters.toISO) query = query.lte(dateField, istDayEndUtcIso(filters.toISO));
-    if (eventStage && dateField !== "created_at") {
-      query = query.not(dateField, "is", null);
-    }
-  }
-
-  if (cohortStage) {
-    if (cohortStage === "call_booked") query = query.not("call_booked_at", "is", null);
-    if (cohortStage === "qualified_call_booked") {
-      query = query.eq("call_confirmed", true);
-    }
-    if (cohortStage === "show_up") query = query.eq("call_showed", true);
-    if (cohortStage === "closed") query = query.eq("deal_closed", true);
-  } else if (eventStage) {
-    if (eventStage === "qualified_call_booked") {
-      query = query.eq("call_confirmed", true);
-    }
-    if (eventStage === "show_up") query = query.eq("call_showed", true);
-    if (eventStage === "closed") query = query.eq("deal_closed", true);
-  } else if (filters.stages && filters.stages.length > 0) {
-    query = query.in("stage", filters.stages);
-  }
-
-  if (filters.sources && filters.sources.length > 0) {
-    query = query.in("lead_source", filters.sources);
-  }
-  if (filters.needsRequal) {
-    query = query
-      .eq("qualified", false)
-      .or("requalification_attempted.eq.false,requalification_attempted.is.null");
-  } else if (
-    !filters.needsVerificationCall &&
-    filters.lifecycle &&
-    filters.lifecycle !== "all"
-  ) {
-    if (filters.lifecycle === "active") {
-      query = query.or("lifecycle_status.eq.active,lifecycle_status.is.null");
-    } else {
-      query = query.eq("lifecycle_status", filters.lifecycle);
-    }
-  }
-  if (filters.search && filters.search.trim()) {
-    const raw = filters.search.trim().replace(/[%_,]/g, " ");
-    const digits = raw.replace(/\D/g, "");
-    const parts = [
-      `name.ilike.%${raw}%`,
-      `email.ilike.%${raw}%`,
-      `phone.ilike.%${raw}%`
-    ];
-    if (digits.length >= 3 && digits !== raw) {
-      parts.push(`phone.ilike.%${digits}%`);
-    }
-    query = query.or(parts.join(","));
-  }
-
-  if (filters.excludeDeadAndClosed) {
-    query = query
-      .eq("is_dead", false)
-      .or("deal_closed.is.null,deal_closed.eq.false");
-  }
-  if (filters.isDead === true) {
-    query = query.eq("is_dead", true);
-  } else if (filters.isDead === false) {
-    query = query.eq("is_dead", false);
-  }
-  if (filters.actionStatuses && filters.actionStatuses.length > 0) {
-    const wantsUntouched = filters.actionStatuses.includes("Untouched");
-    const others = filters.actionStatuses.filter((s) => s !== "Untouched");
-    if (wantsUntouched && others.length === 0) {
-      query = query.or("action_status.is.null,action_status.eq.Untouched");
-    } else if (wantsUntouched && others.length > 0) {
-      const parts = [
-        "action_status.is.null",
-        ...filters.actionStatuses.map((s) => `action_status.eq.${s}`)
-      ];
-      query = query.or(parts.join(","));
-    } else {
-      query = query.in("action_status", others);
-    }
-  }
-  if (filters.upcomingOnly) {
-    const afterToday = istDayEndUtcIso(todayISTDateString());
-    query = query
-      .not("next_action_at", "is", null)
-      .gt("next_action_at", afterToday);
-  }
-  if (filters.meetingsBookedOnly) {
-    query = query
-      .not("call_scheduled_for", "is", null)
-      .gt("call_scheduled_for", new Date().toISOString());
-  }
-
+  const { query } = leadsQuery(filters, "id", { count: "exact", head: true });
   const { count, error } = await query;
   if (error) throw error;
   return count ?? 0;

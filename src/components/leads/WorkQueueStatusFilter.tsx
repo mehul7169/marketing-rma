@@ -1,10 +1,10 @@
 "use client";
 
 const FILTERS = [
-  { id: "", label: "All active" },
-  { id: "untouched", label: "Untouched" },
-  { id: "personally_contacted", label: "Personally Contacted" },
-  { id: "upcoming", label: "Upcoming" }
+  { id: "", label: "All" },
+  { id: "new", label: "New" },
+  { id: "contacted", label: "Contacted" },
+  { id: "upcoming", label: "Follow-up upcoming" }
 ] as const;
 
 /**
@@ -36,7 +36,7 @@ export default function WorkQueueStatusFilter({
         title={
           disabled
             ? "Clear the tab above to use status filters"
-            : "Narrow the all-active queue"
+            : "Narrow the queue"
         }
         onChange={(e) => {
           const next = e.target.value;

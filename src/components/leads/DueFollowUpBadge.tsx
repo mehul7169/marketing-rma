@@ -38,7 +38,7 @@ export default function DueFollowUpBadge({ reminders }: { reminders: LeadReminde
         </span>
       ) : null}
       <span className="sr-only">
-        {reminders.length === 1 ? "Follow-up due" : `${reminders.length} follow-ups due`}
+        {reminders.length === 1 ? "Follow-up" : `${reminders.length} follow-ups`}
       </span>
     </span>
   );

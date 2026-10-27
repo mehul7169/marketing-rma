@@ -1,19 +1,18 @@
 import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import { notFound } from "next/navigation";
 import CopyValue from "@/components/CopyValue";
-import ActionStatusBadge from "@/components/leads/ActionStatusBadge";
 import CustomFieldsPanel from "@/components/leads/CustomFieldsPanel";
 import LeadActions from "@/components/leads/LeadActions";
 import LeadFollowUps from "@/components/leads/LeadFollowUps";
 import ReviveLeadButton from "@/components/leads/ReviveLeadButton";
-import StageBadge, { stageLabel } from "@/components/leads/StageBadge";
+import { FollowUpDate, LeadStatusBadges, postCallStatusLabel } from "@/components/leads/StageBadge";
 import { listLeadActivities } from "@/lib/db/lead_activities";
 import { listRemindersForLead } from "@/lib/db/lead_reminders";
 import { getLeadById } from "@/lib/db/leads";
 import { displayLeadEmail } from "@/lib/leads/contactNormalize";
-import { deadReasonLabel, type LeadRow } from "@/lib/leads/types";
+import type { LeadRow } from "@/lib/leads/types";
 import { formatCurrencyNullable } from "@/lib/format";
-import { formatDueFriendly, formatISTDateTime } from "@/lib/timezone";
+import { formatISTDateTime } from "@/lib/timezone";
 
 function fmtWhen(iso: string | null): string {
   return formatISTDateTime(iso);
@@ -39,12 +38,14 @@ function Field({
   );
 }
 
+/** Legacy qualified_by values written by form ingest, not a setter. */
+const FORM_QUALIFIED_BY = new Set(["form", "quickform"]);
+
 function lastTouch(lead: LeadRow): { by: string; at: string } {
   const events = [
     { by: lead.closed_by, at: lead.closed_at },
     { by: lead.post_call_status_updated_by, at: lead.post_call_status_updated_at },
     { by: lead.call_showed_by, at: lead.call_showed_at },
-    { by: lead.setter_verified_by, at: lead.setter_verified_at },
     { by: lead.qualified_by, at: lead.qualified_at }
   ].filter((e): e is { by: string; at: string } => Boolean(e.by && e.at));
 
@@ -81,34 +82,37 @@ export default async function LeadDetailPage({
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <h1 className="page-title">{lead.name || lead.email}</h1>
-          <ActionStatusBadge actionStatus={lead.action_status} />
-          <StageBadge stage={lead.stage} />
+          <LeadStatusBadges lead={lead} />
           {lead.is_dead ? <ReviveLeadButton leadId={lead.id} /> : null}
         </div>
         <p className="mt-1 text-sm text-slate-500">
           Last updated {fmtWhen(lead.updated_at)}
           {touch.by !== "—"
             ? ` · last action by ${touch.by} at ${fmtWhen(touch.at)}`
-            : ""}
-          {lead.dead_reason ? ` · Dead: ${deadReasonLabel(lead.dead_reason)}` : ""}
-        </p>
+            : ""}        </p>
       </div>
 
       <section className="space-y-3 rounded border border-slate-200 p-4">
-        <h2 className="text-sm font-medium text-slate-900">Lifecycle</h2>
+        <h2 className="text-sm font-medium text-slate-900">Status</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field
-            label="Status"
-            value={lead.action_status ?? "Untouched"}
-          />
-          <Field
-            label="Next Action"
+            label="Qualified"
             value={
-              lead.next_action_at
-                ? formatDueFriendly(lead.next_action_at)
-                : null
+              lead.qualified === null
+                ? null
+                : `${lead.qualified ? "Yes" : "No"}${
+                    lead.qualified_by && !FORM_QUALIFIED_BY.has(lead.qualified_by)
+                      ? ` · ${lead.qualified_by}`
+                      : ""
+                  }`
             }
           />
+          <div>
+            <div className="text-xs text-slate-500">Next Action</div>
+            <div className="mt-0.5 text-sm text-slate-900">
+              <FollowUpDate at={lead.next_action_at} />
+            </div>
+          </div>
           <Field label="Last Action" value={lead.last_action} />
           <Field
             label="Last Action At"
@@ -121,16 +125,6 @@ export default async function LeadDetailPage({
             }
           />
           <Field label="Attempts" value={String(lead.contact_attempts ?? 0)} />
-          <Field
-            label="Call confirmed"
-            value={
-              lead.call_confirmed === true
-                ? "Yes"
-                : lead.call_confirmed === false
-                  ? "No"
-                  : null
-            }
-          />
           <Field
             label="Last note / conversation"
             value={
@@ -251,12 +245,11 @@ export default async function LeadDetailPage({
                 </div>
               </div>
               <Field label="GHL contact" value={lead.ghl_contact_id} />
-              <Field label="Lifecycle" value={lead.lifecycle_status} />
               <Field
                 label="Post-call status"
                 value={
                   lead.post_call_status
-                    ? stageLabel(lead.post_call_status)
+                    ? postCallStatusLabel(lead.post_call_status)
                     : null
                 }
               />
@@ -295,15 +288,9 @@ export default async function LeadDetailPage({
               <CustomFieldsPanel customFields={lead.custom_fields} />
               <div className="grid grid-cols-2 gap-4">
                 <Field
-                  label="Qualified by"
+                  label="Form Qualified"
                   value={
-                    lead.qualified_by
-                      ? `${lead.qualified_by}${
-                          lead.qualified_at
-                            ? ` · ${fmtWhen(lead.qualified_at)}`
-                            : ""
-                        }`
-                      : null
+                    lead.form_qualified === null ? null : lead.form_qualified ? "Yes" : "No"
                   }
                 />
               </div>

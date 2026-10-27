@@ -8,9 +8,11 @@
 - DDL / any `SET`: use session-mode pooler port 5432, never session `SET` on 6543 (transaction pooler leaks session state onto shared backends — a `default_transaction_read_only=on` leaked once and had to be reset). zsh: write SQL to a file and use `psql -f`.
 
 ## Conventions
-- `call_confirmed` = "Qualified Call Booked". Set by Work Queue Qualified outcome (historically also setter verified = Yes, via `resolveCallConfirmed` in `stamp()`). One-way; cancel_call does not reset it.
+- Counts, filters, cohorts and badges import from `src/lib/leads/lifecycleDefinitions.ts`. Stage = `pipeline_stage`. Calls Booked = `call_booked_at` in range (not `call_confirmed`). Showups = `call_showed` + `call_showed_at` in range. Follow-up colour is render-time IST (`followUpState`), never stored.
+- `stamp()` still writes `stage` (post-call values for StageBadge). It does not write `action_status`, `lifecycle_status`, or `call_confirmed`. Those columns stay until a drop migration after a week of verification.
 - Lifecycle writes go only through `updateLeadLifecycle` / `planLifecycle` (README "Lead lifecycle writes"). Lead + activity are atomic via the `apply_lead_change` RPC (migration 009 — must exist in prod before deploying code that calls it). Field edits log `field_edited`; post-call fields (deal, recording, post_call_status, reminder) stay on `saveLeadActions`.
 - `pipeline_stage` is GENERATED: writing it fails with 428C9 (broke all prod updates for ~1h on 2026-10-27). `updateLead` sends only changed columns and strips it.
+- Default `/leads` URL is `?dead=hide`. In-app links must keep at least one filter param or the restore redirect fires. Saved `lifecycle` / `action_status` keys rewrite on restore via `migratePersistedState`.
 
 - Actor UUIDs live in `lead_activities.created_by`; do NOT add `*_by` UUID columns to `leads` (user decision). Legacy `leads.*_by` are text emails.
 - Manual lead sources: `referral` / `manual` / `other` (`MANUAL_LEAD_SOURCES`). Placeholder email `manual-phone-<digits>@manual.invalid`.
@@ -18,20 +20,20 @@
 - User said no live DB writes for sanity checks — ask before creating test rows.
 
 ## Insights
-- Cohort URLs (`?cohort=`) window on `created_at` in IST days (`istDayStartUtcIso`/`istDayEndUtcIso`); milestones are "ever reached" flags, not timestamps in range.
+- KPI deep links (`?kpi=`) window on the milestone timestamp in IST days (`istDayStartUtcIso`/`istDayEndUtcIso`), inclusive of the last day. `?cohort=` / `?event=` still rewrite onto `kpi`. Dead leads are included.
 - `lead_activities.type` is free text (no CHECK constraint); `created_by` FKs `profiles(id)`.
 - `computeActionStatus` ignores its `_lastCallOutcome` arg, so `last_action` label text does not affect status.
 - `*_at` milestone columns are first-set timestamps (`firstSetAt`), not last-change times.
 
 - E2E: `e2e/*.spec.ts` need `PLAYWRIGHT_BROWSERS_PATH=$HOME/Library/Caches/ms-playwright` and E2E_* creds (map from TEST_* in .env). Start dev with `WATCHPACK_POLLING=true` + `ulimit -n 10240`. TEST_ADMIN_EMAIL is NOT a platform admin (preview e2e skips).
 
-- "Qualified Call Booked" everywhere (cohort, Home funnel, /meta-ads funnel) = `call_confirmed === true` (`leadReachedCohortStage`). Never `stage` or `action_status`.
+- Home / Slack / `/leads?kpi=` / Meta funnel Calls Booked + Showups all use `lifecycleDefinitions` KPIs. Meta table totals are still facebook+quickform attributed only, so they will not equal org-wide Home counts.
 - Lead → ad attribution: `createLeadAdResolver` in `src/lib/meta/funnelOutcomes.ts`. facebook and quickform leads carry the ad NAME in `utm_content` (0 match by id), and names like "London 1/2/3" repeat across campaigns. Same-named ads resolve to the highest-spend ad in range.
 - `meta_ads_daily.landing_page_views` added and backfilled 2026-09-28 (migration 007, 806 rows, 0 mismatches vs `actions`).
 - `call_showed` is manual only. Recordings are Fathom share links (`fathom.video/share/...`). There's no Fathom or cal.com integration or key in `.env`.
 
-- There's no booking activity type. Work Queue "Qualified" sets `call_booked_at` (it keeps an existing cal.com time) along with `call_confirmed`. Self-serve cal.com bookings never write a `call_attempt`. Setter "Calls Booked" = qualified row within 5 min of `call_booked_at`, once per lead (user decision 2026-09-29).
-- Filter persistence lives in `table_views.config.filters[orgId]` (user chose no new table). Named saved views should go in another config key. Don't add a `filters` column. `src/lib/leads/listFilterParams.ts` is the single parse/build path for `/leads` URLs. In-app links must keep at least one filter param (e.g. `lifecycle`, `view`), or the restore redirect fires.
+- There's no booking activity type. Work Queue "Qualified" = qualify + book_call. Self-serve cal.com bookings never write a `call_attempt`. Setter "Calls Booked" (Insights setter table) = qualified row within 5 min of `call_booked_at`, once per lead (user decision 2026-09-29). Headline Calls Booked KPI is `call_booked_at` in range.
+- Filter persistence lives in `table_views.config.filters[orgId]` (user chose no new table). Named saved views should go in another config key. Don't add a `filters` column. `src/lib/leads/listFilterParams.ts` is the single parse/build path for `/leads` URLs.
 - Crons: Vercel Cron in `vercel.json` (UTC schedules). Auth is `assertCronSecret`, and Vercel sends `Authorization: Bearer $CRON_SECRET`. Runs are logged via `logCronRun`. The daily digest `30 14 * * *` (8 PM IST) reuses page query functions. Don't write parallel queries. Test with `?dry_run=1` and don't post to the live webhook.
 - `form_qualified` = the website form's verdict (tag only). `qualified*` = the setter's decision only. The backfill ran in prod on 2026-10-27, 11:16–11:51 UTC, as raw SQL with no `updated_at` trigger, so rows don't show the change. The Slack no-booking nudge is RMA-only (org filter) and uses form_qualified OR qualified.
 - The org table is `organizations` (not `orgs`). `profiles` has id, email, role, is_platform_admin, and no name column.
@@ -48,6 +50,6 @@
 - `ghl_contact_id` kept (user decision): not a dedup key (Quickform dedups by email → phone → qf-phone placeholder), but it's the only stored Meta lead id.
 - `call_cancelled_at`: code + `/api/ingest/booking-cancelled` removed (never fired, 0 rows). Migration 006 drops the column — apply ONLY after that build is deployed.
 - `requalification_*` orphaned (UI removed 1a3cc4d); `booking_history` not appended by cal.com or Work Queue reschedule; 8 `call_confirmed=true` leads sit at stage `created`.
-- Quickform "reject" status still seeds `qualified=false, qualified_by='quickform'` on insert (not a setter decision). Revisit with Prompt 3.
+- Quickform "reject" status still seeds `qualified=false, qualified_by='quickform'` on insert (not a setter decision).
 - `lead_reminders` and `next_action_at` are two follow-up systems; untouched pending a decision.
 - Booking webhook only handles bookings (user decision 2026-10-27): no cal.com cancel/reschedule routes.

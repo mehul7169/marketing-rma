@@ -49,21 +49,60 @@ describe("buildAdFunnelBreakdown", () => {
     hierarchy([ad("lp-ad", "LP Ad", 1000, 50), ad("qf-ad", "QF Ad", 600, 7), ad("idle-ad", "Idle Ad", 100, 9)]);
 
   const leads = [
-    // Landing page: form-qualified, booked, confirmed, showed.
-    makeLead({ id: "a", lead_source: "facebook", utm_content: "LP Ad", created_at: IN, form_qualified: true, call_booked_at: IN, call_confirmed: true, call_showed: true }),
+    makeLead({
+      id: "a",
+      lead_source: "facebook",
+      utm_content: "LP Ad",
+      created_at: IN,
+      form_qualified: true,
+      call_booked_at: IN,
+      qualified: true,
+      call_showed: true,
+      call_showed_at: IN
+    }),
     // Setter-qualified but the form said no: an opt-in and booking, not a form-qualified opt-in.
-    makeLead({ id: "b", lead_source: "facebook", utm_content: "lp-ad", created_at: IN, form_qualified: false, qualified: true, qualified_by: "admin@x.com", call_booked_at: IN }),
-    // Progressed past QCB (stage closed) — still counted via call_confirmed.
-    makeLead({ id: "c", lead_source: "facebook", utm_content: "LP Ad", created_at: IN, stage: "closed", call_booked_at: IN, call_confirmed: true }),
-    // Outside range — classifies but not counted.
+    makeLead({
+      id: "b",
+      lead_source: "facebook",
+      utm_content: "lp-ad",
+      created_at: IN,
+      form_qualified: false,
+      qualified: true,
+      qualified_by: "admin@x.com",
+      call_booked_at: IN
+    }),
+    makeLead({
+      id: "c",
+      lead_source: "facebook",
+      utm_content: "LP Ad",
+      created_at: IN,
+      stage: "closed",
+      call_booked_at: IN
+    }),
     makeLead({ id: "d", lead_source: "facebook", utm_content: "LP Ad", created_at: OUT, form_qualified: true }),
-    makeLead({ id: "e", lead_source: "quickform_ig", utm_content: "QF Ad", created_at: IN, call_booked_at: IN, call_confirmed: true, call_showed: true }),
-    makeLead({ id: "f", lead_source: "quickform_fb", utm_content: "QF Ad", created_at: IN, call_confirmed: true }),
-    // ig leads are in neither bucket, even when attributed to an ad.
-    makeLead({ id: "g", lead_source: "ig", utm_content: "Idle Ad", created_at: IN, call_confirmed: true, call_showed: true })
+    makeLead({
+      id: "e",
+      lead_source: "quickform_ig",
+      utm_content: "QF Ad",
+      created_at: IN,
+      call_booked_at: IN,
+      qualified: true,
+      call_showed: true,
+      call_showed_at: IN
+    }),
+    // Booking-less "confirmed" leftover — must not count as Calls Booked.
+    makeLead({ id: "f", lead_source: "quickform_fb", utm_content: "QF Ad", created_at: IN }),
+    makeLead({
+      id: "g",
+      lead_source: "ig",
+      utm_content: "Idle Ad",
+      created_at: IN,
+      call_showed: true,
+      call_showed_at: IN
+    })
   ];
 
-  it("counts landing-page metrics per ad with the cohort QCB definition", () => {
+  it("counts KPI-in-range Calls Booked / Showups / Qualified Showups", () => {
     const [campaign] = buildAdFunnelBreakdown(campaigns(), leads, known, "2026-09-01", "2026-09-30");
     const [lp, qf, idle] = campaign!.ad_sets[0]!.ads;
 
@@ -73,7 +112,7 @@ describe("buildAdFunnelBreakdown", () => {
       optIns: 3,
       qualifiedOptIns: 1,
       callsBooked: 3,
-      qualifiedCallsBooked: 2,
+      showups: 1,
       qualifiedShowups: 1
     });
     expect(qf).toMatchObject({
@@ -81,8 +120,8 @@ describe("buildAdFunnelBreakdown", () => {
       landingPageViews: null,
       optIns: null,
       qualifiedOptIns: null,
-      callsBooked: null,
-      qualifiedCallsBooked: null,
+      callsBooked: 1,
+      showups: 1,
       qualifiedShowups: 1
     });
     expect(idle).toMatchObject({ classification: null, landingPageViews: null, qualifiedShowups: null });

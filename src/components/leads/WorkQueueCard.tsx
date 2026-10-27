@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import ActionStatusBadge from "@/components/leads/ActionStatusBadge";
+import { FollowUpDate, LeadStatusBadges } from "@/components/leads/StageBadge";
 import InlineEditableValue from "@/components/leads/InlineEditableValue";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
 import AsyncStatusIndicator from "@/components/ui/AsyncStatusIndicator";
@@ -11,7 +11,7 @@ import {
   isSyntheticQuickformEmail
 } from "@/lib/leads/contactNormalize";
 import type { LeadRow } from "@/lib/leads/types";
-import { formatDueFriendly, formatISTDateTime, toDatetimeLocalIST } from "@/lib/timezone";
+import { formatISTDateTime, toDatetimeLocalIST } from "@/lib/timezone";
 import {
   customFieldKeyFromColumnId,
   isCustomFieldColumnId
@@ -104,7 +104,7 @@ export default function WorkQueueCard({
             )}
           </div>
         </div>
-        <ActionStatusBadge actionStatus={lead.action_status} />
+        <LeadStatusBadges lead={lead} />
       </div>
 
       <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-4">
@@ -126,9 +126,7 @@ export default function WorkQueueCard({
             <div>
               <dt className="text-slate-400">Next action</dt>
               <dd className="mt-0.5 text-slate-800">
-                {lead.next_action_at
-                  ? formatDueFriendly(lead.next_action_at)
-                  : "—"}
+                <FollowUpDate at={lead.next_action_at} />
               </dd>
             </div>
             <div>

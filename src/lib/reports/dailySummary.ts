@@ -3,6 +3,7 @@ import type {
   SetterActivityCounts,
   SetterActivityReport
 } from "@/lib/insights/setterActivity";
+import { kpiLeadsHref } from "@/lib/leads/listFilterParams";
 import { formatCalendarDate, formatIST } from "@/lib/timezone";
 
 const APP_BASE_URL = "https://tracking.runmoreads.in";
@@ -17,6 +18,8 @@ export type DailySummaryData = {
   leadsReceived: number;
   /** Leads whose call_booked_at is today (any booking path). */
   callsBooked: number;
+  /** Leads whose call_showed_at is today (call_showed = true). */
+  showups: number;
   /** Latest meta-ads cron run — spend is only as fresh as this. */
   metaLastRun: { ranAt: string; ok: boolean } | null;
 };
@@ -55,6 +58,7 @@ export function buildDailySummaryMessage(d: DailySummaryData): {
   const dayLabel = formatCalendarDate(d.dateISO, "EEE d MMM yyyy");
   const title = `📊 Daily summary — ${dayLabel}`;
   const range = `from=${d.dateISO}&to=${d.dateISO}`;
+  const day = { fromISO: d.dateISO, toISO: d.dateISO };
 
   const setterLines =
     d.setter.users.length === 0
@@ -68,7 +72,8 @@ export function buildDailySummaryMessage(d: DailySummaryData): {
     "*📣 Marketing*",
     `💸 Ad spend: *${formatCurrency(d.adSpend)}*`,
     `🧲 Leads received: *${formatInteger(d.leadsReceived)}*`,
-    `📅 Calls booked: *${formatInteger(d.callsBooked)}*`
+    `📅 Calls booked: *${formatInteger(d.callsBooked)}*`,
+    `🤝 Showups: *${formatInteger(d.showups)}*`
   ].join("\n");
 
   const notes: string[] = [];
@@ -97,11 +102,12 @@ export function buildDailySummaryMessage(d: DailySummaryData): {
     mrkdwn(marketing),
     ...(notes.length ? [context(notes.join("\n"))] : []),
     context(
-      `<${APP_BASE_URL}/insights?${range}|Insights> · <${APP_BASE_URL}/leads?lifecycle=all&${range}|Leads> · ` +
-        `<${APP_BASE_URL}/leads?event=call_booked&${range}|Calls booked>`
+      `<${APP_BASE_URL}/insights?${range}|Insights> · <${APP_BASE_URL}${kpiLeadsHref("leads", day)}|Leads> · ` +
+        `<${APP_BASE_URL}${kpiLeadsHref("calls_booked", day)}|Calls booked> · ` +
+        `<${APP_BASE_URL}${kpiLeadsHref("showups", day)}|Showups>`
     )
   ];
 
-  const text = `${title} (as of ${asOfTime} IST): ${formatInteger(d.setter.orgTotals.dials)} dials, ${formatInteger(d.leadsReceived)} leads, ${formatInteger(d.callsBooked)} calls booked, ${formatCurrency(d.adSpend)} spend`;
+  const text = `${title} (as of ${asOfTime} IST): ${formatInteger(d.setter.orgTotals.dials)} dials, ${formatInteger(d.leadsReceived)} leads, ${formatInteger(d.callsBooked)} calls booked, ${formatInteger(d.showups)} showups, ${formatCurrency(d.adSpend)} spend`;
   return { text, blocks };
 }

@@ -1,52 +1,109 @@
-import type { LeadStage } from "@/lib/leads/computeStage";
+import type { PostCallStatus } from "@/lib/leads/computeStage";
+import {
+  FOLLOW_UP_STYLES,
+  followUpState,
+  needsQualification,
+  pipelineStageLabel,
+  pipelineStageOf
+} from "@/lib/leads/lifecycleDefinitions";
+import { deadReasonLabel, type LeadRow, type PipelineStage } from "@/lib/leads/types";
+import { formatDueFriendly } from "@/lib/timezone";
 
-const MUTED = "bg-slate-100 text-slate-500";
-const FOLLOW_UP = "bg-amber-50 text-amber-900";
-const ACTIVE = "bg-blue-50 text-blue-800";
-const CLOSED = "bg-emerald-50 text-emerald-800";
-const NEUTRAL = "bg-slate-100 text-slate-700";
+const PILL = "inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium";
 
-const STYLES: Record<LeadStage, string> = {
-  created: NEUTRAL,
-  call_booked: ACTIVE,
-  qualified_call_booked: ACTIVE,
-  show_up: ACTIVE,
-  follow_up_call_booked: FOLLOW_UP,
-  awaiting_lead_response: FOLLOW_UP,
-  proposal_needed: FOLLOW_UP,
-  contract_shared: FOLLOW_UP,
-  awaiting_payment: FOLLOW_UP,
-  dead: MUTED,
-  closed: CLOSED
+const STAGE_STYLES: Record<PipelineStage, string> = {
+  new: "bg-slate-100 text-slate-700",
+  contacted: "bg-sky-50 text-sky-900",
+  qualified: "bg-indigo-50 text-indigo-800",
+  call_booked: "bg-blue-50 text-blue-800",
+  showed_up: "bg-emerald-50 text-emerald-800"
 };
 
-const LABELS: Record<LeadStage, string> = {
-  created: "Created",
-  call_booked: "Call Booked",
-  qualified_call_booked: "Qualified Call Booked",
-  show_up: "Show Up",
+const POST_CALL_LABELS: Record<PostCallStatus, string> = {
   follow_up_call_booked: "Follow-up Call Booked",
   awaiting_lead_response: "Awaiting Lead Response",
   proposal_needed: "Proposal Needed",
   contract_shared: "Contract Shared",
-  awaiting_payment: "Awaiting Payment",
-  dead: "Dead",
-  closed: "Closed"
+  awaiting_payment: "Awaiting Payment"
 };
 
-export function stageLabel(stage: string | null): string {
-  if (!stage) return LABELS.created;
-  if (stage in LABELS) return LABELS[stage as LeadStage];
-  return stage;
+export function postCallStatusLabel(status: string | null): string {
+  if (!status) return "—";
+  return POST_CALL_LABELS[status as PostCallStatus] ?? status;
 }
 
-export default function StageBadge({ stage }: { stage: string | null }) {
-  const key = (stage && stage in STYLES ? stage : "created") as LeadStage;
+type BadgeLead = Pick<
+  LeadRow,
+  | "call_showed"
+  | "call_booked_at"
+  | "qualified"
+  | "first_contacted_at"
+  | "is_dead"
+  | "dead_reason"
+  | "form_qualified"
+  | "next_action_at"
+>;
+
+export default function StageBadge({ lead }: { lead: BadgeLead }) {
+  // Derived, not lead.pipeline_stage: optimistic rows don't carry the generated column.
+  const stage = pipelineStageOf(lead);
+  return <span className={`${PILL} ${STAGE_STYLES[stage]}`}>{pipelineStageLabel(stage)}</span>;
+}
+
+/** Coloured next-action date (grey future, amber today, red past). Never stored. */
+export function FollowUpDate({
+  at,
+  todayISO,
+  pill = false
+}: {
+  at: string | null | undefined;
+  todayISO?: string;
+  pill?: boolean;
+}) {
+  if (!at) return <span>—</span>;
+  const state = followUpState(at, todayISO);
+  const text = formatDueFriendly(at);
+  if (!state) return <span>{text}</span>;
   return (
-    <span
-      className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STYLES[key]}`}
-    >
-      {stageLabel(stage)}
+    <span className={pill ? `${PILL} ${FOLLOW_UP_STYLES[state]}` : FOLLOW_UP_STYLES[state]}>
+      {text}
+    </span>
+  );
+}
+
+/** Stage + Dead tag + overlay badges (Needs qualification, Form Qualified, Follow-up). */
+export function LeadStatusBadges({
+  lead,
+  todayISO,
+  showFollowUp = true
+}: {
+  lead: BadgeLead;
+  todayISO?: string;
+  showFollowUp?: boolean;
+}) {
+  const followUp = showFollowUp ? followUpState(lead.next_action_at, todayISO) : null;
+  const reason = lead.is_dead ? deadReasonLabel(lead.dead_reason) : null;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      <StageBadge lead={lead} />
+      {lead.is_dead ? (
+        <span className={`${PILL} bg-slate-200 text-slate-600`} title={reason ?? undefined}>
+          Dead{reason ? ` · ${reason}` : ""}
+        </span>
+      ) : null}
+      {needsQualification(lead) ? (
+        <span className={`${PILL} bg-amber-50 text-amber-900`}>Needs qualification</span>
+      ) : null}
+      {lead.form_qualified !== null ? (
+        <span
+          className={`${PILL} ${
+            lead.form_qualified ? "bg-teal-50 text-teal-800" : "bg-slate-100 text-slate-500"
+          }`}
+        >
+          Form Qualified: {lead.form_qualified ? "Yes" : "No"}
+        </span>
+      ) : null}
+      {followUp ? <FollowUpDate at={lead.next_action_at} todayISO={todayISO} pill /> : null}
     </span>
   );
 }

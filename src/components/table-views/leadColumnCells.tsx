@@ -2,12 +2,11 @@
 
 import type { ReactNode } from "react";
 import CopyValue from "@/components/CopyValue";
-import ActionStatusBadge from "@/components/leads/ActionStatusBadge";
 import DueFollowUpBadge from "@/components/leads/DueFollowUpBadge";
 import InlineEditableValue from "@/components/leads/InlineEditableValue";
 import RecordingLinkBadge from "@/components/leads/RecordingLinkBadge";
 import ReviveLeadButton from "@/components/leads/ReviveLeadButton";
-import StageBadge from "@/components/leads/StageBadge";
+import { FollowUpDate, LeadStatusBadges } from "@/components/leads/StageBadge";
 import { formatCurrencyNullable } from "@/lib/format";
 import {
   displayLeadEmail,
@@ -178,12 +177,6 @@ export function renderLeadColumnCell(
       return (
         <td className="px-4 py-3 text-slate-700">{lead.lead_source || "—"}</td>
       );
-    case "action_status":
-      return (
-        <td className="px-4 py-3">
-          <ActionStatusBadge actionStatus={lead.action_status} />
-        </td>
-      );
     case "last_action":
       return (
         <td className="max-w-[160px] truncate px-4 py-3 text-slate-700">
@@ -193,7 +186,7 @@ export function renderLeadColumnCell(
     case "next_action":
       return (
         <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-          {lead.next_action_at ? formatDueFriendly(lead.next_action_at) : "—"}
+          <FollowUpDate at={lead.next_action_at} />
         </td>
       );
     case "contact_attempts":
@@ -210,7 +203,7 @@ export function renderLeadColumnCell(
     case "stage":
       return (
         <td className="px-4 py-3">
-          <StageBadge stage={lead.stage} />
+          <LeadStatusBadges lead={lead} />
         </td>
       );
     case "created_at":
@@ -242,12 +235,12 @@ export function renderLeadColumnCell(
           {fmtWhen(lead.call_booked_at)}
         </td>
       );
-    case "call_confirmed":
+    case "form_qualified":
       return (
         <td className="px-4 py-3 text-slate-700">
-          {lead.call_confirmed === true
+          {lead.form_qualified === true
             ? "Yes"
-            : lead.call_confirmed === false
+            : lead.form_qualified === false
               ? "No"
               : "—"}
         </td>
@@ -396,8 +389,6 @@ export function leadCardFieldValue(
       return lead.phone || "—";
     case "lead_source":
       return lead.lead_source || "—";
-    case "action_status":
-      return null;
     case "last_action":
       return lead.last_action || "—";
     case "next_action":
@@ -407,17 +398,17 @@ export function leadCardFieldValue(
     case "contact_attempts":
       return String(lead.contact_attempts ?? 0);
     case "stage":
-      return lead.stage || "—";
+      return null;
     case "created_at":
       return fmtWhen(lead.created_at);
     case "call_scheduled_for":
       return fmtWhen(lead.call_scheduled_for);
     case "call_booked_at":
       return fmtWhen(lead.call_booked_at);
-    case "call_confirmed":
-      return lead.call_confirmed === true
+    case "form_qualified":
+      return lead.form_qualified === true
         ? "Yes"
-        : lead.call_confirmed === false
+        : lead.form_qualified === false
           ? "No"
           : "—";
     case "qualified":

@@ -82,21 +82,21 @@ Spec: `docs/lead-lifecycle-spec.md`. Every milestone from the UI goes through `u
 - `disqualify` and `mark_no_show` also mark the lead dead (`dead_reason` `not_qualified` / `no_show`). Dead reason codes: `not_qualified`, `no_show`, `no_answer`, `not_interested`, `other`; older free-text reasons are shown via `deadReasonLabel`.
 - Plain field edits (notes, deal value, name/phone/email, custom fields) use `updateLeadFields` and log one `field_edited` activity with the changed keys. Inline "Call scheduled" edits route to `book_call` / `reschedule_call`.
 - `pipeline_stage` is a Postgres generated column (new → contacted → qualified → call_booked → showed_up; dead is the separate `is_dead` overlay). Never write it. `updateLead` sends only changed columns.
-- `setter_verified*` is no longer written (columns kept until Insights moves off it).
+- `setter_verified*`, `call_confirmed`, `action_status`, and `lifecycle_status` are no longer written or read (columns kept for a week of verification).
 - `/api/ingest/booking` logs a `schedule` activity on a lead's first booking. Repeat bookings update the time quietly; reschedules and cancellations are logged from the dashboard only.
 
 ## Leads / Work Queue filters
-- Every filter is in the URL. Source, Stage, and Action status are checkbox multi-selects written as comma-separated params (`?source=youtube,youtubemokshvideo`); repeated params are accepted too. OR within a field, AND across fields.
-- Chips above the table mirror the panel. × removes one filter; "Clear all" resets to `/leads?lifecycle=active` (rolling last 30 days).
-- Each user's last-used filters are remembered per page and per org in `table_views.config.filters[orgId]` (alongside `columns`). Opening `/leads` or `/leads/queue` with no filter params redirects to them. Any explicit filter param (shared links, cohort/event links) wins. Cohort/event deep links are never saved.
+- Every filter is in the URL. Source and Stage are checkbox multi-selects written as comma-separated params (`?source=youtube,youtubemokshvideo`); repeated params are accepted too. OR within a field, AND across fields. Stage is the five `pipeline_stage` values. Dead is hide / show / only. Follow-up is overdue / today / upcoming (IST, render-time).
+- Chips above the table mirror the panel. × removes one filter; "Clear all" resets to `/leads?dead=hide` (rolling last 30 days).
+- Each user's last-used filters are remembered per page and per org in `table_views.config.filters[orgId]` (alongside `columns`). Opening `/leads` or `/leads/queue` with no filter params redirects to them. Any explicit filter param (shared links, kpi/cohort/event links) wins. KPI/cohort/event deep links are never saved. Old saved `lifecycle` / `action_status` keys are rewritten on restore.
 - The rolling default date range isn't saved as fixed dates. Resetting columns keeps saved filters.
 
 ## Meta Ads → Funnel by ad (`/meta-ads`)
 Table above the trend charts, campaign → ad set → ad, same date range as the page.
 - Ads are classified by the `lead_source` of every lead ever attributed to them (same `utm_content` → ad id, then ad name resolver as the Campaigns table): `facebook` = landing page, `quickform_fb`/`quickform_ig` = Quickform. Other sources are ignored.
 - LP visitors = `meta_ads_daily.landing_page_views` (extracted from `actions` at ingest).
-- Landing-page-only metrics (facebook leads created in range): opt-ins = lead exists; qualified opt-ins = `form_qualified = true`; calls booked = `call_booked_at` set; qualified calls booked = `call_confirmed` (same as `/leads?cohort=qualified_call_booked`).
-- Qualified showups = `call_confirmed` and `call_showed` for landing-page and Quickform leads.
+- Landing-page-only metrics: opt-ins = `created_at` in range; form-qualified opt-ins = `form_qualified = true` (same timestamp).
+- Calls Booked / Showups / Qualified Showups use `lifecycleDefinitions` KPIs (milestone timestamp in range, same as Home, Slack, and `/leads?kpi=`). Quickform ads count bookings and showups too.
 - Cost = the row's adspend ÷ count. A dash means the metric doesn't apply to that ad type, or the count is zero (for cost).
 
 ## Insights → Setter activity (`/insights`)

@@ -148,8 +148,7 @@ export async function saveLeadActions(id: string, input: LeadActionInput) {
   return {
     id: updated.id,
     stage: updated.stage,
-    lifecycle_status: updated.lifecycle_status,
-    action_status: updated.action_status
+    pipeline_stage: updated.pipeline_stage ?? null
   };
 }
 

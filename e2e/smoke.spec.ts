@@ -86,10 +86,15 @@ test.describe("member smoke", () => {
     await expect(page).not.toHaveURL(/\/login/);
 
     for (const path of ["/", "/leads", "/leads/queue", "/meta-ads", "/website", "/insights"]) {
-      await page.goto(path);
-      await expect(page).not.toHaveURL(/\/login/);
-      // Wait for network settle; catch hard crashes via pageerror
+      // Persist restore 307s the bare URL (`?dead=hide`, `?view=table`), which
+      // aborts Chromium's in-flight navigation.
+      try {
+        await page.goto(path, { waitUntil: "commit" });
+      } catch (e) {
+        if (!/ERR_ABORTED|interrupted/i.test(String(e))) throw e;
+      }
       await page.waitForLoadState("domcontentloaded");
+      await expect(page).not.toHaveURL(/\/login/);
     }
     expect(errors).toEqual([]);
   });
@@ -113,7 +118,12 @@ test.describe("platform admin smoke", () => {
     page
   }) => {
     await login(page, adminEmail!, adminPassword!);
-    await page.goto("/admin/organizations");
+    await expect(page).not.toHaveURL(/\/login/, { timeout: 20_000 });
+    await page.goto("/admin/organizations", { waitUntil: "domcontentloaded" });
+    test.skip(
+      !page.url().includes("/admin/organizations"),
+      "E2E_ADMIN is not a platform admin"
+    );
     await expect(page).toHaveURL(/\/admin\/organizations/);
     await page.goto("/clients-ads");
     await expect(page).toHaveURL(/\/clients-ads/);

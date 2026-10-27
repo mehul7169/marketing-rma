@@ -28,6 +28,7 @@ function data(overrides: Partial<DailySummaryData> = {}): DailySummaryData {
     adSpend: 12345.6,
     leadsReceived: 23,
     callsBooked: 3,
+    showups: 2,
     metaLastRun: { ranAt: "2026-09-30T14:00:10Z", ok: true },
     ...overrides
   };
@@ -69,6 +70,7 @@ describe("buildDailySummaryMessage", () => {
     expect(same).toContain("Ad spend: *₹12,346*");
     expect(same).toContain("Leads received: *23*");
     expect(same).toContain("Calls booked: *3*");
+    expect(same).toContain("Showups: *2*");
     expect(same).not.toContain("Calls booked differ");
 
     const diff = allText(buildDailySummaryMessage(data({ callsBooked: 5 })).blocks);

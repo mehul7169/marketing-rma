@@ -1,3 +1,4 @@
+import { countKpi } from "@/lib/leads/lifecycleDefinitions";
 import type { LeadRow } from "@/lib/leads/types";
 import { addDaysISO } from "@/lib/utils/date";
 import { toISTDateString } from "@/lib/timezone";
@@ -37,7 +38,7 @@ export type InsightsDailyPoint = {
 
 export type InsightsMetrics = {
   formQualified: RateStat;
-  setterVerified: RateStat;
+  qualified: RateStat;
   showUp: RateStat;
   closure: RateStat;
   creatives: CreativeRow[];
@@ -54,7 +55,8 @@ export type InsightsMetrics = {
  * Spend stays period-based (money spent in the range).
  * Daily trend stays event-based (bucketed by event timestamp in range).
  *
- * Creative "Qualified" = setter_verified (column label historical meaning).
+ * Rate cards use lifecycleDefinitions KPIs (milestone timestamp in range).
+ * Creative "Qualified" = qualified = true among the created-in-range cohort.
  */
 function datePart(iso: string): string {
   return toISTDateString(iso);
@@ -162,12 +164,19 @@ export function computeInsights(
   const formFilled = cohort.filter((l) => Boolean(l.form_filled_at));
   const formQualifiedNum = formFilled.filter((l) => l.form_qualified === true).length;
 
-  const booked = cohort.filter((l) => Boolean(l.call_booked_at));
-  const setterVerifiedNum = booked.filter((l) => l.setter_verified === true).length;
-
-  const verified = cohort.filter((l) => l.setter_verified === true);
-  const showedVerified = verified.filter((l) => l.call_showed === true);
-  const closedFromShowed = showedVerified.filter((l) => l.deal_closed === true);
+  const qualifiedRate = rate(
+    countKpi(leads, "qualified", fromISO, toISO),
+    countKpi(leads, "contacted", fromISO, toISO)
+  );
+  const showUpRate = rate(
+    countKpi(leads, "showups", fromISO, toISO),
+    countKpi(leads, "calls_booked", fromISO, toISO)
+  );
+  // Post-call; stays deal_closed / qualified showups until the after-sales tab.
+  const closureRate = rate(
+    countKpi(leads, "deals_closed", fromISO, toISO),
+    countKpi(leads, "qualified_showups", fromISO, toISO)
+  );
 
   const dailyMap = new Map(emptyDaily(fromISO, toISO).map((p) => [p.date, p]));
   const sourceCounts = new Map<string, number>();
@@ -252,7 +261,7 @@ export function computeInsights(
       const src = lead.lead_source?.trim() || "(none)";
       sourceCounts.set(src, (sourceCounts.get(src) ?? 0) + 1);
     }
-    if (lead.setter_verified === true) acc.qualified += 1;
+    if (lead.qualified === true) acc.qualified += 1;
     if (lead.call_showed === true) acc.showed += 1;
     if (lead.deal_closed === true) {
       acc.dealsClosed += 1;
@@ -303,9 +312,9 @@ export function computeInsights(
 
   return {
     formQualified: rate(formQualifiedNum, formFilled.length),
-    setterVerified: rate(setterVerifiedNum, booked.length),
-    showUp: rate(showedVerified.length, verified.length),
-    closure: rate(closedFromShowed.length, showedVerified.length),
+    qualified: qualifiedRate,
+    showUp: showUpRate,
+    closure: closureRate,
     creatives,
     unmatchedLeadCount: unmatched.leadIds.size,
     sourceBooked,

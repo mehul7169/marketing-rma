@@ -17,13 +17,13 @@ type SortKey = "spend" | AdFunnelCountKey | `cost:${AdFunnelCountKey}`;
 const METRICS: Array<{ key: AdFunnelCountKey; label: string; costLabel: string }> = [
   { key: "landingPageViews", label: "LP Visitors", costLabel: "Cost / LP Visitor" },
   { key: "optIns", label: "Website Opt-ins", costLabel: "Cost / Opt-in" },
-  { key: "qualifiedOptIns", label: "Qualified Opt-ins", costLabel: "Cost / Qualified Opt-in" },
-  { key: "callsBooked", label: "Calls Booked", costLabel: "Cost / Call Booked" },
   {
-    key: "qualifiedCallsBooked",
-    label: "Qualified Calls Booked",
-    costLabel: "Cost / Qualified Call"
+    key: "qualifiedOptIns",
+    label: "Form-qualified Opt-ins",
+    costLabel: "Cost / Form-qualified Opt-in"
   },
+  { key: "callsBooked", label: "Calls Booked", costLabel: "Cost / Call Booked" },
+  { key: "showups", label: "Showups", costLabel: "Cost / Showup" },
   {
     key: "qualifiedShowups",
     label: "Qualified Showups",

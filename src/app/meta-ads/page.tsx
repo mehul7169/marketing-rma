@@ -55,17 +55,17 @@ export default async function MetaAdsPage({
   const accountIds = await getOrgMetaAdAccountIds(orgId);
   const hasAccounts = accountIds.length > 0;
 
-  const [totals, priorTotals, trendRaw, hierarchy, cohortLeads, knownAds, funnelLeads] =
+  const [totals, priorTotals, trendRaw, hierarchy, knownAds, allLeads] =
     hasAccounts
       ? await Promise.all([
           getMetaAdsTotals(fromISO, toISO, orgId, accountIds),
           getMetaAdsTotals(priorPeriod.fromISO, priorPeriod.toISO, orgId, accountIds),
           getMetaAdsTrend(fromISO, toISO, orgId, accountIds),
           getMetaAdsHierarchy(fromISO, toISO, orgId, accountIds),
-          listLeadsInRange(fromISO, toISO, orgId),
           listKnownAdsIndex(orgId),
-          // All-time: ad classification uses every lead ever attributed to an ad.
-          listAllLeads(orgId, [...AD_FUNNEL_LEAD_SOURCES])
+          // All-time: milestone KPIs bucket by their own date, and ad
+          // classification uses every lead ever attributed to an ad.
+          listAllLeads(orgId)
         ])
       : [
           {
@@ -82,14 +82,13 @@ export default async function MetaAdsPage({
           },
           [] as Awaited<ReturnType<typeof getMetaAdsTrend>>,
           [] as Awaited<ReturnType<typeof getMetaAdsHierarchy>>,
-          [] as Awaited<ReturnType<typeof listLeadsInRange>>,
           { byAdId: new Map(), byAdName: new Map() },
           [] as Awaited<ReturnType<typeof listAllLeads>>
         ];
 
   const { campaigns: table, unmatchedLeadCount } = attachMetaFunnelOutcomes(
     hierarchy,
-    cohortLeads,
+    allLeads,
     knownAds,
     fromISO,
     toISO
@@ -97,7 +96,7 @@ export default async function MetaAdsPage({
 
   const funnelBreakdown = buildAdFunnelBreakdown(
     hierarchy,
-    funnelLeads,
+    allLeads,
     knownAds,
     fromISO,
     toISO

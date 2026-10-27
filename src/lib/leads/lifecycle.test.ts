@@ -61,7 +61,6 @@ describe("log_call_attempt", () => {
       qualified_by: "setter@x.com",
       call_booked_at: NOW,
       call_scheduled_for: "2026-10-29T10:00:00.000Z",
-      call_confirmed: true,
       contact_attempts: 0,
       last_action: "Called — Qualified"
     });
@@ -187,7 +186,8 @@ describe("dead / revive / follow-up", () => {
 
   it("revive resets cadence and clears qualification only for not_qualified", () => {
     const p = ok({ is_dead: true, dead_reason: "not_qualified", qualified: false, contact_attempts: 3 }, "revive");
-    expect(p.patch).toMatchObject({ is_dead: false, dead_reason: null, contact_attempts: 0, action_status: "Untouched", qualified: null, qualified_at: null, qualified_by: null });
+    expect(p.patch).toMatchObject({ is_dead: false, dead_reason: null, contact_attempts: 0, qualified: null, qualified_at: null, qualified_by: null });
+    expect(p.patch).not.toHaveProperty("action_status");
     const legacy = ok({ is_dead: true, dead_reason: "reached lead, confirmed not qualified", qualified: false }, "revive");
     expect(legacy.patch.qualified).toBeNull();
     const noAnswer = ok({ is_dead: true, dead_reason: "no_answer", qualified: true }, "revive");
