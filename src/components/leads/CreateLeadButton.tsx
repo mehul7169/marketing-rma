@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { withLeadParam } from "@/lib/leads/leadHref";
 import { createManualLeadAction } from "@/app/leads/actions";
 import { ORG_PREVIEW_READ_ONLY_MESSAGE } from "@/lib/auth/orgPreviewConstants";
 import {
@@ -27,6 +29,8 @@ export default function CreateLeadButton({
   const [existingLeadId, setExistingLeadId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+  const search = useSearchParams();
 
   useEffect(() => {
     if (open) nameRef.current?.focus();
@@ -195,7 +199,11 @@ export default function CreateLeadButton({
                 {formError}{" "}
                 {existingLeadId ? (
                   <a
-                    href={`/leads/${existingLeadId}`}
+                    href={withLeadParam(
+                      pathname || "/leads",
+                      search?.toString() ?? "",
+                      existingLeadId
+                    )}
                     className="underline decoration-red-300 underline-offset-2"
                   >
                     Open existing lead

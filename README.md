@@ -80,7 +80,9 @@ Spec: `docs/lead-lifecycle-spec.md`. Every milestone from the UI goes through `u
 - Actions: `log_call_attempt`, `qualify`, `disqualify`, `clear_qualification`, `book_call`, `reschedule_call`, `cancel_call`, `mark_showed`, `mark_no_show`, `clear_show`, `mark_dead`, `revive`, `set_follow_up`. Work Queue "Qualified" = `qualify` + `book_call` in one step.
 - Hard blocks (no overrides): `book_call` needs `first_contacted_at` (cal.com / Quickform ingestion exempt); `mark_showed` needs `call_booked_at`. Clearing a milestone needs a reason.
 - `disqualify` and `mark_no_show` also mark the lead dead (`dead_reason` `not_qualified` / `no_show`). Dead reason codes: `not_qualified`, `no_show`, `no_answer`, `not_interested`, `other`; older free-text reasons are shown via `deadReasonLabel`.
-- Plain field edits (notes, deal value, name/phone/email, custom fields) use `updateLeadFields` and log one `field_edited` activity with the changed keys. Inline "Call scheduled" edits route to `book_call` / `reschedule_call`.
+- Plain field edits (notes, deal value, custom fields) use `updateLeadFields` and log one `field_edited` activity with the changed keys. Name, phone and email are locked. Inline "Call scheduled" edits route to `book_call` / `reschedule_call`.
+- `/leads` and the Work Queue share one inline-editable grid. The lead name opens a slide-over at `?lead=<id>` (activity, notes, booking history, post-call, follow-ups). `/leads/[id]` redirects there. Slack links use `?lead=`.
+- Vercel functions run in Tokyo (`hnd1` in `vercel.json`) to match Supabase `ap-northeast-1`.
 - `pipeline_stage` is a Postgres generated column (new → contacted → qualified → call_booked → showed_up; dead is the separate `is_dead` overlay). Never write it. `updateLead` sends only changed columns.
 - `setter_verified*`, `call_confirmed`, `action_status`, and `lifecycle_status` are no longer written or read (columns kept for a week of verification).
 - `/api/ingest/booking` logs a `schedule` activity on a lead's first booking. Repeat bookings update the time quietly; reschedules and cancellations are logged from the dashboard only.

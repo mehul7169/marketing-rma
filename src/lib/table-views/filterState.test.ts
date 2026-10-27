@@ -21,7 +21,9 @@ describe("hasExplicitFilterParams", () => {
     expect(hasExplicitFilterParams("leads", { source: "youtube" })).toBe(true);
     expect(hasExplicitFilterParams("leads", { lifecycle: "active" })).toBe(true);
     expect(hasExplicitFilterParams("leads", { cohort: "call_booked" })).toBe(true);
+    expect(hasExplicitFilterParams("leads", { lead: "abc" })).toBe(true);
     expect(hasExplicitFilterParams("leads-queue", { view: "table" })).toBe(true);
+    expect(hasExplicitFilterParams("leads-queue", { lead: "abc" })).toBe(true);
     expect(hasExplicitFilterParams("leads", new URLSearchParams("q=a"))).toBe(true);
   });
 });
@@ -57,6 +59,19 @@ describe("pickPersistableFilters", () => {
   it("never overwrites saved state from a cohort/event deep link", () => {
     const params = new URLSearchParams("cohort=call_booked&source=youtube");
     expect(pickPersistableFilters("leads", params, TODAY)).toBeNull();
+  });
+
+  it("never persists a lead drawer deep link", () => {
+    expect(
+      pickPersistableFilters("leads", new URLSearchParams("lead=abc&dead=hide"), TODAY)
+    ).toBeNull();
+    expect(
+      pickPersistableFilters(
+        "leads-queue",
+        new URLSearchParams("lead=abc&view=table"),
+        TODAY
+      )
+    ).toBeNull();
   });
 
   it("returns null for unknown pages", () => {

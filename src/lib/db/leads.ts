@@ -4,6 +4,11 @@ import {
   mergeCustomFields,
   omitLegacyLeadColumns
 } from "@/lib/leads/customFields";
+import {
+  peekCustomFieldKeysCache,
+  putCustomFieldKeysCache,
+  rememberCustomFieldKeys
+} from "@/lib/leads/customFieldKeysCache";
 import { KPI_DEFINITIONS } from "@/lib/leads/lifecycleDefinitions";
 import type {
   BookingHistoryEntry,
@@ -135,12 +140,121 @@ function firstSetAt(existing: string | null, nextValue: unknown, now: string): s
   return now;
 }
 
+/** Single-lead reads (drawer, writes). Explicit columns — never select("*"). */
+const LEAD_FULL_SELECT = [
+  "id",
+  "org_id",
+  "email",
+  "ghl_contact_id",
+  "name",
+  "phone",
+  "created_at",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "ad_set_id",
+  "lead_source",
+  "form_filled_at",
+  "custom_fields",
+  "form_qualified",
+  "first_contacted_at",
+  "pipeline_stage",
+  "qualified",
+  "qualified_at",
+  "qualified_by",
+  "call_booked_at",
+  "call_scheduled_for",
+  "cal_com_booking_id",
+  "booking_source",
+  "booking_history",
+  "verification_call_status",
+  "verification_call_attempts",
+  "last_verification_call_at",
+  "reminder_sent",
+  "reminder_sent_at",
+  "call_showed",
+  "call_showed_at",
+  "call_showed_by",
+  "deal_closed",
+  "deal_value",
+  "closed_at",
+  "closed_by",
+  "notes",
+  "recording_url",
+  "stage",
+  "requalification_attempted",
+  "requalification_called_at",
+  "requalification_result",
+  "requalification_notes",
+  "post_call_status",
+  "post_call_status_updated_at",
+  "post_call_status_updated_by",
+  "is_dead",
+  "dead_reason",
+  "contact_attempts",
+  "next_action_at",
+  "last_action",
+  "last_action_at",
+  "updated_at",
+  "slack_form_notified",
+  "slack_booking_notified",
+  "slack_no_booking_notified"
+].join(",");
+
+/** List/queue views — skip verification, requalification, slack, booking_history. */
+const LEAD_LIST_SELECT = [
+  "id",
+  "org_id",
+  "email",
+  "name",
+  "phone",
+  "created_at",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "ad_set_id",
+  "lead_source",
+  "form_filled_at",
+  "custom_fields",
+  "form_qualified",
+  "first_contacted_at",
+  "pipeline_stage",
+  "qualified",
+  "qualified_at",
+  "qualified_by",
+  "call_booked_at",
+  "call_scheduled_for",
+  "booking_source",
+  "reminder_sent",
+  "reminder_sent_at",
+  "call_showed",
+  "call_showed_at",
+  "call_showed_by",
+  "deal_closed",
+  "deal_value",
+  "notes",
+  "recording_url",
+  "stage",
+  "post_call_status",
+  "is_dead",
+  "dead_reason",
+  "contact_attempts",
+  "next_action_at",
+  "last_action",
+  "last_action_at",
+  "updated_at"
+].join(",");
+
 export async function getLeadByEmail(email: string, orgId: string): Promise<LeadRow | null> {
   if (!supabaseAdmin) return null;
   const db = requireDb();
   const { data, error } = await db
     .from("leads")
-    .select("*")
+    .select(LEAD_FULL_SELECT)
     .eq("org_id", orgId)
     .eq("email", email.toLowerCase().trim())
     .maybeSingle();
@@ -160,7 +274,7 @@ export async function getLeadByPhone(
 
   const { data: exact, error: exactError } = await db
     .from("leads")
-    .select("*")
+    .select(LEAD_FULL_SELECT)
     .eq("org_id", orgId)
     .eq("phone", trimmed)
     .limit(1)
@@ -201,7 +315,7 @@ export async function getLeadById(id: string, orgId: string): Promise<LeadRow | 
   const db = requireDb();
   const { data, error } = await db
     .from("leads")
-    .select("*")
+    .select(LEAD_FULL_SELECT)
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -281,10 +395,12 @@ export async function insertLead(
   const { data, error } = await db
     .from("leads")
     .insert(omitLegacyLeadColumns(insertable as unknown as Record<string, unknown>))
-    .select("*")
+    .select(LEAD_FULL_SELECT)
     .single();
   if (error) throw error;
-  return asLead(data);
+  const created = asLead(data);
+  rememberCustomFieldKeys(created.org_id, Object.keys(created.custom_fields ?? {}));
+  return created;
 }
 
 /** Sheet/form fields safe to refresh on re-ingest. Never includes workflow columns. */
@@ -365,11 +481,12 @@ export async function upsertLeadByOrgEmail(
   const { data, error } = await db
     .from("leads")
     .upsert(omitLegacyLeadColumns(payload), { onConflict: "org_id,email" })
-    .select("*")
+    .select(LEAD_FULL_SELECT)
     .single();
   if (error) throw error;
 
   let lead = asLead(data);
+  rememberCustomFieldKeys(lead.org_id, Object.keys(lead.custom_fields ?? {}));
   const action: "created" | "updated" = existing ? "updated" : "created";
 
   // Fresh insert has no stamped stage/lifecycle yet — recompute without touching sheet data.
@@ -476,7 +593,7 @@ export async function updateLead(existing: LeadRow, patch: Partial<LeadRow>): Pr
     .update(changes)
     .eq("id", existing.id)
     .eq("org_id", existing.org_id)
-    .select("*")
+    .select(LEAD_FULL_SELECT)
     .single();
   if (error) throw error;
   return asLead(data);
@@ -518,66 +635,6 @@ export async function commitLeadChange(
   if (error) throw error;
   return asLead(data);
 }
-
-/** Columns for CRM list/queue views — omits slack notification flags (not rendered). */
-const LEAD_LIST_SELECT = [
-  "id",
-  "org_id",
-  "email",
-  "ghl_contact_id",
-  "name",
-  "phone",
-  "created_at",
-  "utm_source",
-  "utm_medium",
-  "utm_campaign",
-  "utm_content",
-  "utm_term",
-  "ad_set_id",
-  "lead_source",
-  "form_filled_at",
-  "custom_fields",
-  "form_qualified",
-  "first_contacted_at",
-  "pipeline_stage",
-  "qualified",
-  "qualified_at",
-  "qualified_by",
-  "call_booked_at",
-  "call_scheduled_for",
-  "cal_com_booking_id",
-  "booking_source",
-  "booking_history",
-  "verification_call_status",
-  "verification_call_attempts",
-  "last_verification_call_at",
-  "reminder_sent",
-  "reminder_sent_at",
-  "call_showed",
-  "call_showed_at",
-  "call_showed_by",
-  "deal_closed",
-  "deal_value",
-  "closed_at",
-  "closed_by",
-  "notes",
-  "recording_url",
-  "stage",
-  "requalification_attempted",
-  "requalification_called_at",
-  "requalification_result",
-  "requalification_notes",
-  "post_call_status",
-  "post_call_status_updated_at",
-  "post_call_status_updated_by",
-  "is_dead",
-  "dead_reason",
-  "contact_attempts",
-  "next_action_at",
-  "last_action",
-  "last_action_at",
-  "updated_at"
-].join(",");
 
 /**
  * Shared WHERE clause for list + count so badges, totals and rows can't drift.
@@ -713,6 +770,8 @@ export async function listDistinctLeadSources(orgId: string): Promise<string[]> 
 export async function listDistinctCustomFieldKeys(
   orgId: string
 ): Promise<string[]> {
+  const cached = peekCustomFieldKeysCache(orgId);
+  if (cached) return cached;
   if (!supabaseAdmin) return [];
   const db = requireDb();
   const keys = new Set<string>();
@@ -736,7 +795,10 @@ export async function listDistinctCustomFieldKeys(
     if (rows.length < pageSize) break;
     offset += pageSize;
   }
-  return Array.from(keys).sort((a, b) => a.localeCompare(b));
+  return putCustomFieldKeysCache(
+    orgId,
+    Array.from(keys).sort((a, b) => a.localeCompare(b))
+  );
 }
 
 export async function listLeadsInRange(
@@ -758,7 +820,7 @@ export async function listAllLeads(orgId: string, sources?: string[]): Promise<L
   for (;;) {
     let query = db
       .from("leads")
-      .select("*")
+      .select(LEAD_FULL_SELECT)
       .eq("org_id", orgId)
       .range(offset, offset + pageSize - 1);
     if (sources && sources.length > 0) query = query.in("lead_source", sources);
@@ -781,7 +843,7 @@ export async function listLeadsNeedingSlackNoBookingNudge(
   const cutoff = new Date(Date.now() - delayMinutes * 60_000).toISOString();
   const { data, error } = await db
     .from("leads")
-    .select("*")
+    .select(LEAD_FULL_SELECT)
     .eq("org_id", orgId)
     .or("form_qualified.eq.true,qualified.eq.true")
     .is("call_booked_at", null)

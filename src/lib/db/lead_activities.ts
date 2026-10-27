@@ -51,7 +51,7 @@ export async function insertLeadActivity(input: {
       note: input.note?.trim() ? input.note.trim() : null,
       created_by: input.created_by ?? null
     })
-    .select("*")
+    .select("id,org_id,lead_id,type,outcome,note,created_at,created_by")
     .single();
   if (error) throw error;
   return asActivity(data);
@@ -66,7 +66,7 @@ export async function listLeadActivities(
   const db = requireDb();
   let query = db
     .from("lead_activities")
-    .select("*")
+    .select("id,org_id,lead_id,type,outcome,note,created_at,created_by")
     .eq("org_id", orgId)
     .eq("lead_id", leadId)
     .order("created_at", { ascending: false });
@@ -88,7 +88,7 @@ export async function listRecentLeadActivitiesForLeads(
   const db = requireDb();
   const { data, error } = await db
     .from("lead_activities")
-    .select("*")
+    .select("id,org_id,lead_id,type,outcome,note,created_at,created_by")
     .eq("org_id", orgId)
     .in("lead_id", leadIds)
     .order("created_at", { ascending: false })

@@ -24,6 +24,7 @@ export default function WorkQueueCard({
   extraFields,
   editDisabled = false,
   saveStatus = "idle",
+  onOpen,
   onPlainField,
   onCustomField,
   onLeadPatched,
@@ -37,14 +38,9 @@ export default function WorkQueueCard({
   extraFields?: Array<{ id: string; label: string; value: string }>;
   editDisabled?: boolean;
   saveStatus?: "idle" | "saving" | "saved";
+  onOpen?: () => void;
   onPlainField?: (
-    field:
-      | "name"
-      | "email"
-      | "phone"
-      | "notes"
-      | "deal_value"
-      | "call_scheduled_for",
+    field: "notes" | "deal_value" | "call_scheduled_for",
     value: string
   ) => void;
   onCustomField?: (key: string, value: string) => void;
@@ -61,47 +57,39 @@ export default function WorkQueueCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1 text-sm font-semibold text-slate-900">
-              <InlineEditableValue
-                className="font-semibold"
-                value={lead.name ?? ""}
-                displayValue={lead.name || lead.email}
-                disabled={editDisabled || !onPlainField}
-                onCommit={(next) => onPlainField?.("name", next)}
-              />
-            </div>
+            <button
+              type="button"
+              className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-slate-900 hover:underline"
+              onClick={onOpen}
+            >
+              {lead.name || lead.email}
+            </button>
             <AsyncStatusIndicator status={saveStatus} />
-            <a
-              href={`/leads/${lead.id}`}
+            <button
+              type="button"
+              onClick={onOpen}
               className="shrink-0 text-xs text-slate-400 hover:text-slate-700 hover:underline"
             >
               Open
-            </a>
+            </button>
           </div>
           <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-slate-600">
-            <InlineEditableValue
-              value={lead.phone ?? ""}
-              displayValue={lead.phone || "—"}
-              inputType="tel"
-              disabled={editDisabled || !onPlainField}
-              onCommit={(next) => onPlainField?.("phone", next)}
-            />
+            <span>{lead.phone || "—"}</span>
             <span>·</span>
-            {isSyntheticQuickformEmail(lead.email) ? (
-              <span
-                className="italic text-slate-400"
-                title="Phone-only Quickform lead — no real email"
-              >
-                {displayLeadEmail(lead.email)}
-              </span>
-            ) : (
-              <InlineEditableValue
-                value={lead.email}
-                inputType="email"
-                disabled={editDisabled || !onPlainField}
-                onCommit={(next) => onPlainField?.("email", next)}
-              />
-            )}
+            <span
+              className={
+                isSyntheticQuickformEmail(lead.email)
+                  ? "italic text-slate-400"
+                  : undefined
+              }
+              title={
+                isSyntheticQuickformEmail(lead.email)
+                  ? "Phone-only Quickform lead — no real email"
+                  : undefined
+              }
+            >
+              {displayLeadEmail(lead.email)}
+            </span>
           </div>
         </div>
         <LeadStatusBadges lead={lead} />
@@ -182,13 +170,7 @@ function renderEditableExtra(
   lead: LeadRow,
   editDisabled: boolean,
   onPlainField?: (
-    field:
-      | "name"
-      | "email"
-      | "phone"
-      | "notes"
-      | "deal_value"
-      | "call_scheduled_for",
+    field: "notes" | "deal_value" | "call_scheduled_for",
     value: string
   ) => void,
   onCustomField?: (key: string, value: string) => void
@@ -216,35 +198,6 @@ function renderEditableExtra(
     );
   }
 
-  if (f.id === "email" && onPlainField) {
-    if (isSyntheticQuickformEmail(lead.email)) {
-      return (
-        <span
-          className="italic text-slate-400"
-          title="Phone-only Quickform lead — no real email"
-        >
-          {displayLeadEmail(lead.email)}
-        </span>
-      );
-    }
-    return (
-      <InlineEditableValue
-        value={lead.email}
-        inputType="email"
-        onCommit={(next) => onPlainField("email", next)}
-      />
-    );
-  }
-  if (f.id === "phone" && onPlainField) {
-    return (
-      <InlineEditableValue
-        value={lead.phone ?? ""}
-        displayValue={lead.phone || "—"}
-        inputType="tel"
-        onCommit={(next) => onPlainField("phone", next)}
-      />
-    );
-  }
   if (f.id === "notes" && onPlainField) {
     return (
       <InlineEditableValue

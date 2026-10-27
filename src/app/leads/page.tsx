@@ -50,22 +50,19 @@ export default async function LeadsPage({
 
   const scopeFilters = leadListFiltersFromState(orgId, filterState);
 
-  const [total, rows, allSources, org, tableViewBootstrap] = await Promise.all([
-    countLeads(scopeFilters),
-    listLeads({
-      ...scopeFilters,
-      limit: LEAD_LIST_PAGE_SIZE,
-      offset: pageOffset(page)
-    }),
-    listDistinctLeadSources(orgId),
-    getOrganizationById(orgId),
-    loadTableViewBootstrap("leads", { orgId })
-  ]);
-
-  const dueReminders = await listDueFollowUps(
-    orgId,
-    rows.map((r) => r.id)
-  );
+  const [total, rows, allSources, org, tableViewBootstrap, dueReminders] =
+    await Promise.all([
+      countLeads(scopeFilters),
+      listLeads({
+        ...scopeFilters,
+        limit: LEAD_LIST_PAGE_SIZE,
+        offset: pageOffset(page)
+      }),
+      listDistinctLeadSources(orgId),
+      getOrganizationById(orgId),
+      loadTableViewBootstrap("leads", { orgId }),
+      listDueFollowUps(orgId)
+    ]);
   const dueByLead: Record<string, LeadReminder[]> = {};
   for (const r of dueReminders) {
     const list = dueByLead[r.lead_id] ?? [];

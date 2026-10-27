@@ -17,10 +17,12 @@ function sortActive(a: LeadReminder, b: LeadReminder): number {
 
 export default function LeadFollowUps({
   leadId,
-  reminders
+  reminders,
+  onChanged
 }: {
   leadId: string;
   reminders: LeadReminder[];
+  onChanged?: () => void;
 }) {
   const router = useRouter();
   const preview = useOrgPreview();
@@ -50,7 +52,8 @@ export default function LeadFollowUps({
       await addLeadFollowUp(leadId, text, due || null);
       setText("");
       setDue("");
-      router.refresh();
+      if (onChanged) onChanged();
+      else router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -64,7 +67,8 @@ export default function LeadFollowUps({
     setSaving(true);
     try {
       await markLeadFollowUpResolved(id, leadId);
-      router.refresh();
+      if (onChanged) onChanged();
+      else router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {

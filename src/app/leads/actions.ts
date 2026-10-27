@@ -61,10 +61,10 @@ async function actor(): Promise<LifecycleActor> {
   return { userId: await actorId(), email: await actorEmail() };
 }
 
-function revalidateLead(id: string) {
+/** Full-page revalidate only after creating a lead (grid/drawer saves patch the row). */
+function revalidateLeadLists() {
   revalidatePath("/leads");
   revalidatePath("/leads/queue");
-  revalidatePath(`/leads/${id}`);
   revalidatePath("/");
 }
 
@@ -84,11 +84,9 @@ export async function leadLifecycleAction(
   action: LifecycleAction,
   payload: LifecyclePayload = {}
 ): Promise<LifecycleResult> {
-  const result = await asResult(async () =>
+  return asResult(async () =>
     updateLeadLifecycle(leadId, action, payload, await actor())
   );
-  if (result.ok) revalidateLead(leadId);
-  return result;
 }
 
 export async function saveLeadActions(id: string, input: LeadActionInput) {
@@ -144,12 +142,7 @@ export async function saveLeadActions(id: string, input: LeadActionInput) {
   } else {
     updated = await updateLead(existing, patch);
   }
-  revalidateLead(id);
-  return {
-    id: updated.id,
-    stage: updated.stage,
-    pipeline_stage: updated.pipeline_stage ?? null
-  };
+  return updated;
 }
 
 /**
@@ -165,7 +158,7 @@ export async function saveLeadPlainFieldsAction(
     const who = await actor();
     if (call_scheduled_for !== undefined) {
       if (!call_scheduled_for) {
-        return { ok: false, error: "Use Cancel call on the lead page to clear a booking." };
+        return { ok: false, error: "Use Cancel call to clear a booking." };
       }
       const orgId = await requireWritableOrgId();
       const lead = await getLeadById(id, orgId);
@@ -180,7 +173,6 @@ export async function saveLeadPlainFieldsAction(
     }
     return updateLeadFields(id, fields, who);
   });
-  if (result.ok) revalidateLead(id);
   return result;
 }
 
@@ -203,7 +195,6 @@ export async function addLeadFollowUp(
     due_at,
     created_by: await actorId()
   });
-  revalidateLead(leadId);
 }
 
 export async function markLeadFollowUpResolved(
@@ -212,7 +203,6 @@ export async function markLeadFollowUpResolved(
 ) {
   const orgId = await requireWritableOrgId();
   await resolveLeadReminder(reminderId, orgId);
-  revalidateLead(leadId);
 }
 
 export async function addLeadNoteAction(leadId: string, note: string): Promise<LifecycleResult> {
@@ -229,7 +219,6 @@ export async function addLeadNoteAction(leadId: string, note: string): Promise<L
     );
     return { ok: true, lead: updated };
   });
-  if (result.ok) revalidateLead(leadId);
   return result;
 }
 
@@ -311,6 +300,6 @@ export async function createManualLeadAction(
     console.error("[createManualLeadAction] activity log failed", lead.id, e);
   }
 
-  revalidateLead(lead.id);
+  revalidateLeadLists();
   return { ok: true, lead };
 }

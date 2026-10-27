@@ -64,7 +64,7 @@ describe("CreateLeadButton", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("already exists (Vaidik U)");
     expect(screen.getByRole("link", { name: "Open existing lead" })).toHaveAttribute(
       "href",
-      "/leads/old-1"
+      "/leads?lead=old-1"
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });

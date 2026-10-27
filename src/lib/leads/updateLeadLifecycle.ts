@@ -1,5 +1,6 @@
 import { requireWritableOrgId } from "@/lib/auth/getCurrentOrgId";
 import { commitLeadChange, getLeadById } from "@/lib/db/leads";
+import { rememberCustomFieldKeys } from "@/lib/leads/customFieldKeysCache";
 import {
   planLifecycle,
   type LifecycleAction,
@@ -45,11 +46,8 @@ export async function applyLeadLifecycle(
   return { ok: true, lead: updated };
 }
 
-/** Plain field edits allowed outside the lifecycle (Work Queue inline cells, notes). */
+/** Plain field edits allowed outside the lifecycle (notes, deal value, custom fields). */
 export type LeadFieldsPatch = {
-  name?: string | null;
-  phone?: string | null;
-  email?: string;
   notes?: string | null;
   deal_value?: number | null;
   /** Shallow-merged into existing custom_fields. */
@@ -67,13 +65,6 @@ export async function updateLeadFields(
   if (!lead) return { ok: false, error: "Lead not found" };
 
   const patch: Partial<LeadRow> = {};
-  if (input.name !== undefined) patch.name = input.name?.trim() || null;
-  if (input.phone !== undefined) patch.phone = input.phone?.trim() || null;
-  if (input.email !== undefined) {
-    const email = input.email.trim();
-    if (!email) return { ok: false, error: "Email is required" };
-    patch.email = email;
-  }
   if (input.notes !== undefined) patch.notes = input.notes?.trim() || null;
   if (input.deal_value !== undefined) patch.deal_value = input.deal_value;
   if (input.custom_fields !== undefined) {
@@ -96,5 +87,8 @@ export async function updateLeadFields(
   const updated = await commitLeadChange(lead, patch, [
     { type: "field_edited", outcome: null, note: keys.join(", "), created_by: actor.userId }
   ]);
+  if (input.custom_fields) {
+    rememberCustomFieldKeys(lead.org_id, Object.keys(input.custom_fields));
+  }
   return { ok: true, lead: updated };
 }

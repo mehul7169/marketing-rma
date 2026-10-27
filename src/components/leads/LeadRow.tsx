@@ -1,19 +1,26 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-
 export default function LeadRow({
-  href,
+  onOpen,
   children
 }: {
-  href: string;
+  onOpen?: () => void;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   return (
     <tr
       className="group cursor-pointer hover:bg-slate-50/60"
-      onClick={() => router.push(href)}
+      onClick={(e) => {
+        const t = e.target as HTMLElement;
+        if (
+          t.closest(
+            "a, button, input, textarea, select, label, [data-no-row-nav]"
+          )
+        ) {
+          return;
+        }
+        onOpen?.();
+      }}
     >
       {children}
     </tr>

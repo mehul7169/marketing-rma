@@ -30,7 +30,7 @@ export async function listRemindersForLead(
   const db = requireDb();
   const { data, error } = await db
     .from("lead_reminders")
-    .select("*")
+    .select("id,org_id,lead_id,text,due_at,created_at,created_by,resolved,resolved_at")
     .eq("org_id", orgId)
     .eq("lead_id", leadId)
     .order("created_at", { ascending: true });
@@ -48,7 +48,7 @@ export async function listDueFollowUps(
   const until = istDayEndUtcIso(todayISTDateString());
   let query = db
     .from("lead_reminders")
-    .select("*")
+    .select("id,org_id,lead_id,text,due_at,created_at,created_by,resolved,resolved_at")
     .eq("org_id", orgId)
     .eq("resolved", false)
     .not("due_at", "is", null)
@@ -87,7 +87,7 @@ export async function insertLeadReminder(input: {
       created_by: input.created_by,
       resolved: false
     })
-    .select("*")
+    .select("id,org_id,lead_id,text,due_at,created_at,created_by,resolved,resolved_at")
     .single();
   if (error) throw error;
   return asReminder(data);
@@ -106,7 +106,7 @@ export async function resolveLeadReminder(
     })
     .eq("id", id)
     .eq("org_id", orgId)
-    .select("*")
+    .select("id,org_id,lead_id,text,due_at,created_at,created_by,resolved,resolved_at")
     .single();
   if (error) throw error;
   return asReminder(data);

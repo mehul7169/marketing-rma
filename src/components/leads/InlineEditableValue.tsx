@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+  type ReactNode
+} from "react";
 
 /**
  * Airtable-style click-to-edit value. Blur or Enter commits; Escape cancels.
@@ -17,7 +24,7 @@ export default function InlineEditableValue({
 }: {
   value: string;
   /** Shown when not editing (defaults to value or placeholder). */
-  displayValue?: string;
+  displayValue?: ReactNode;
   placeholder?: string;
   multiline?: boolean;
   inputType?: "text" | "email" | "tel" | "number" | "datetime-local";

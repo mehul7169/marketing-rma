@@ -12,7 +12,9 @@
 - `stamp()` still writes `stage` (post-call values for StageBadge). It does not write `action_status`, `lifecycle_status`, or `call_confirmed`. Those columns stay until a drop migration after a week of verification.
 - Lifecycle writes go only through `updateLeadLifecycle` / `planLifecycle` (README "Lead lifecycle writes"). Lead + activity are atomic via the `apply_lead_change` RPC (migration 009 — must exist in prod before deploying code that calls it). Field edits log `field_edited`; post-call fields (deal, recording, post_call_status, reminder) stay on `saveLeadActions`.
 - `pipeline_stage` is GENERATED: writing it fails with 428C9 (broke all prod updates for ~1h on 2026-10-27). `updateLead` sends only changed columns and strips it.
-- Default `/leads` URL is `?dead=hide`. In-app links must keep at least one filter param or the restore redirect fires. Saved `lifecycle` / `action_status` keys rewrite on restore via `migratePersistedState`.
+- Default `/leads` URL is `?dead=hide`. In-app links must keep at least one filter param or the restore redirect fires. Saved `lifecycle` / `action_status` keys rewrite on restore via `migratePersistedState`. `?lead=` is a deep-link (blocks restore, never persisted) and opens the slide-over on `/leads` and `/leads/queue`. `/leads/[id]` redirects to `/leads?lead=`.
+- Grid cell saves patch the local row only (no `revalidatePath` + `router.refresh`). Name/phone/email are locked. Setter column is read-only `qualified_by` (no assigned_to column). Custom-field keys are cached per org for 5 minutes and refreshed on ingest / field edit.
+- Vercel `regions: ["hnd1"]` (Tokyo) to match Supabase `ap-northeast-1`. After-region TTFB needs a deploy to measure.
 
 - Actor UUIDs live in `lead_activities.created_by`; do NOT add `*_by` UUID columns to `leads` (user decision). Legacy `leads.*_by` are text emails.
 - Manual lead sources: `referral` / `manual` / `other` (`MANUAL_LEAD_SOURCES`). Placeholder email `manual-phone-<digits>@manual.invalid`.

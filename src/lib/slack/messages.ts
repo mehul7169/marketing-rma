@@ -9,7 +9,7 @@ import { sendSlackMessage } from "@/lib/slack/notify";
 const LEAD_BASE_URL = "https://tracking.runmoreads.in/leads";
 
 function leadLink(lead: LeadRow): string {
-  return `${LEAD_BASE_URL}/${lead.id}`;
+  return `${LEAD_BASE_URL}?lead=${encodeURIComponent(lead.id)}`;
 }
 
 function field(label: string, value: string | null | undefined): { type: "mrkdwn"; text: string } {

@@ -38,8 +38,8 @@ const PERSISTED_KEYS: Record<string, readonly string[]> = {
 
 /** Deep-link params: explicit (block restore) but never remembered. */
 const DEEP_LINK_KEYS: Record<string, readonly string[]> = {
-  leads: ["kpi", "cohort", "event"],
-  "leads-queue": []
+  leads: ["kpi", "cohort", "event", "lead"],
+  "leads-queue": ["lead"]
 };
 
 const MAX_VALUE_LENGTH = 500;

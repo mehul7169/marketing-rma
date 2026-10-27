@@ -24,7 +24,11 @@ export type LeadActivityType =
   | "setter_verification"
   | "deal_outcome"
   | "schedule"
-  | "lead_created";
+  | "lead_created"
+  | "field_edited"
+  | "call_cancelled"
+  | "marked_dead"
+  | "follow_up_set";
 
 /** Default calling windows (IST): Morning / Afternoon / Evening. */
 export const TOUCHPOINT_HOURS_IST = [10, 13, 16] as const;

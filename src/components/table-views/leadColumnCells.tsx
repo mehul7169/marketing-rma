@@ -6,14 +6,20 @@ import DueFollowUpBadge from "@/components/leads/DueFollowUpBadge";
 import InlineEditableValue from "@/components/leads/InlineEditableValue";
 import RecordingLinkBadge from "@/components/leads/RecordingLinkBadge";
 import ReviveLeadButton from "@/components/leads/ReviveLeadButton";
+import StageActionMenu, {
+  type StageMenuConfirm
+} from "@/components/leads/StageActionMenu";
 import { FollowUpDate, LeadStatusBadges } from "@/components/leads/StageBadge";
+import type { GridConfirmSpec } from "@/components/leads/useLeadGrid";
 import { formatCurrencyNullable } from "@/lib/format";
 import {
   displayLeadEmail,
   isSyntheticQuickformEmail
 } from "@/lib/leads/contactNormalize";
+import type { LifecycleAction, LifecyclePayload } from "@/lib/leads/lifecycle";
 import type { LeadReminder } from "@/lib/leads/types";
 import type { LeadRow as Lead } from "@/lib/leads/types";
+import { deadReasonLabel } from "@/lib/leads/types";
 import {
   customFieldKeyFromColumnId,
   isCustomFieldColumnId
@@ -21,6 +27,7 @@ import {
 import {
   formatDueFriendly,
   formatISTDateTime,
+  fromDatetimeLocalIST,
   toDatetimeLocalIST
 } from "@/lib/timezone";
 
@@ -42,17 +49,70 @@ function formatCustomValue(value: unknown): string {
 export type LeadCellEditHandlers = {
   disabled?: boolean;
   onPlainField?: (
-    field:
-      | "name"
-      | "email"
-      | "phone"
-      | "notes"
-      | "deal_value"
-      | "call_scheduled_for",
+    field: "notes" | "deal_value" | "call_scheduled_for",
     value: string
   ) => void;
   onCustomField?: (key: string, value: string) => void;
+  onLifecycle?: (action: LifecycleAction, payload?: LifecyclePayload) => void;
+  onConfirm?: (spec: GridConfirmSpec) => void;
+  onOpenDrawer?: () => void;
+  cellError?: (columnId: string) => string | null;
 };
+
+function Cell({
+  columnId,
+  edit,
+  className,
+  children
+}: {
+  columnId: string;
+  edit?: LeadCellEditHandlers;
+  className?: string;
+  children: ReactNode;
+}) {
+  const err = edit?.cellError?.(columnId);
+  return (
+    <td className={className ?? "px-4 py-3 text-slate-700"}>
+      {children}
+      {err ? <div className="mt-0.5 text-[11px] text-red-600">{err}</div> : null}
+    </td>
+  );
+}
+
+function YesNoDash({
+  value,
+  disabled,
+  onChange
+}: {
+  value: boolean | null;
+  disabled?: boolean;
+  onChange: (v: boolean | null) => void;
+}) {
+  const opt = (v: boolean | null, label: string) => (
+    <button
+      type="button"
+      disabled={disabled}
+      className={`rounded px-1.5 py-0.5 text-[11px] ${
+        value === v
+          ? "bg-slate-900 text-white"
+          : "text-slate-600 hover:bg-slate-100 disabled:hover:bg-transparent"
+      }`}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (value !== v) onChange(v);
+      }}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="inline-flex gap-0.5" data-no-row-nav>
+      {opt(true, "Yes")}
+      {opt(false, "No")}
+      {opt(null, "—")}
+    </div>
+  );
+}
 
 export function renderLeadColumnCell(
   columnId: string,
@@ -77,7 +137,11 @@ export function renderLeadColumnCell(
           ? raw
           : String(raw);
     return (
-      <td className="max-w-[180px] px-4 py-3 text-slate-700">
+      <Cell
+        columnId={columnId}
+        edit={edit}
+        className="max-w-[180px] px-4 py-3 text-slate-700"
+      >
         {canEdit && key ? (
           <InlineEditableValue
             value={asText}
@@ -87,134 +151,172 @@ export function renderLeadColumnCell(
         ) : (
           <span className="truncate">{formatCustomValue(raw)}</span>
         )}
-      </td>
+      </Cell>
     );
   }
 
   switch (columnId) {
     case "name":
       return (
-        <td className="px-4 py-3 font-medium text-slate-900">
-          {ctx.compactName ? (
-            canEdit ? (
-              <InlineEditableValue
-                className="font-medium"
-                value={lead.name ?? ""}
-                displayValue={lead.name || "—"}
-                onCommit={(next) => edit?.onPlainField?.("name", next)}
-              />
-            ) : (
-              <span>{lead.name || "—"}</span>
-            )
-          ) : (
+        <Cell
+          columnId={columnId}
+          edit={edit}
+          className="px-4 py-3 font-medium text-slate-900"
+        >
+          <button
+            type="button"
+            className="text-left hover:underline"
+            onClick={(e) => {
+              e.stopPropagation();
+              edit?.onOpenDrawer?.();
+            }}
+          >
+            {lead.name || "—"}
+          </button>
+          {ctx.compactName ? null : (
             <>
-              {canEdit ? (
-                <InlineEditableValue
-                  value={lead.name ?? ""}
-                  displayValue={lead.name || "—"}
-                  onCommit={(next) => edit?.onPlainField?.("name", next)}
-                />
-              ) : (
-                lead.name || "—"
-              )}
               <DueFollowUpBadge reminders={ctx.dueReminders ?? []} />
               <RecordingLinkBadge url={lead.recording_url} />
             </>
           )}
-        </td>
+        </Cell>
       );
     case "email":
       return (
-        <td className="px-4 py-3 text-slate-700">
+        <Cell columnId={columnId} edit={edit}>
           <span className="inline-flex w-full items-center gap-1">
-            {canEdit && !isSyntheticQuickformEmail(lead.email) ? (
-              <InlineEditableValue
-                value={lead.email}
-                inputType="email"
-                onCommit={(next) => edit?.onPlainField?.("email", next)}
-              />
-            ) : (
-              <span
-                className={
-                  isSyntheticQuickformEmail(lead.email)
-                    ? "italic text-slate-400"
-                    : undefined
-                }
-                title={
-                  isSyntheticQuickformEmail(lead.email)
-                    ? "Phone-only Quickform lead — no real email"
-                    : undefined
-                }
-              >
-                {displayLeadEmail(lead.email)}
-              </span>
-            )}
+            <span
+              className={
+                isSyntheticQuickformEmail(lead.email)
+                  ? "italic text-slate-400"
+                  : undefined
+              }
+              title={
+                isSyntheticQuickformEmail(lead.email)
+                  ? "Phone-only Quickform lead — no real email"
+                  : undefined
+              }
+            >
+              {displayLeadEmail(lead.email)}
+            </span>
             {!isSyntheticQuickformEmail(lead.email) ? (
               <CopyValue value={lead.email} hoverReveal />
             ) : null}
           </span>
-        </td>
+        </Cell>
       );
     case "phone":
       return (
-        <td className="px-4 py-3 text-slate-700">
+        <Cell columnId={columnId} edit={edit}>
           <span className="inline-flex w-full items-center gap-1">
-            {canEdit ? (
-              <InlineEditableValue
-                value={lead.phone ?? ""}
-                displayValue={lead.phone || "—"}
-                inputType="tel"
-                onCommit={(next) => edit?.onPlainField?.("phone", next)}
-              />
-            ) : (
-              lead.phone || "—"
-            )}
+            {lead.phone || "—"}
             <CopyValue value={lead.phone} hoverReveal />
           </span>
-        </td>
+        </Cell>
       );
     case "lead_source":
-      return (
-        <td className="px-4 py-3 text-slate-700">{lead.lead_source || "—"}</td>
-      );
+      return <Cell columnId={columnId} edit={edit}>{lead.lead_source || "—"}</Cell>;
     case "last_action":
       return (
-        <td className="max-w-[160px] truncate px-4 py-3 text-slate-700">
+        <Cell
+          columnId={columnId}
+          edit={edit}
+          className="max-w-[160px] truncate px-4 py-3 text-slate-700"
+        >
           {lead.last_action || "—"}
-        </td>
+        </Cell>
       );
     case "next_action":
       return (
-        <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-          <FollowUpDate at={lead.next_action_at} />
-        </td>
+        <Cell
+          columnId={columnId}
+          edit={edit}
+          className="whitespace-nowrap px-4 py-3 text-slate-700"
+        >
+          {canEdit ? (
+            <InlineEditableValue
+              value={toDatetimeLocalIST(lead.next_action_at)}
+              displayValue={
+                lead.next_action_at ? (
+                  <FollowUpDate at={lead.next_action_at} />
+                ) : (
+                  "—"
+                )
+              }
+              inputType="datetime-local"
+              onCommit={(next) => {
+                const trimmed = next.trim();
+                if (!trimmed) return;
+                try {
+                  edit?.onLifecycle?.("set_follow_up", {
+                    followUpAt: fromDatetimeLocalIST(trimmed)
+                  });
+                } catch {
+                  /* invalid datetime-local is ignored */
+                }
+              }}
+            />
+          ) : (
+            <FollowUpDate at={lead.next_action_at} />
+          )}
+        </Cell>
       );
     case "contact_attempts":
       return (
-        <td className="px-4 py-3 text-slate-700">
+        <Cell columnId={columnId} edit={edit}>
           {lead.contact_attempts ?? 0}
           {ctx.compactName && lead.last_action_at ? (
             <div className="text-xs text-slate-400">
               {formatISTDateTime(lead.last_action_at)}
             </div>
           ) : null}
-        </td>
+        </Cell>
       );
     case "stage":
       return (
-        <td className="px-4 py-3">
-          <LeadStatusBadges lead={lead} />
-        </td>
+        <Cell columnId={columnId} edit={edit} className="px-4 py-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <LeadStatusBadges lead={lead} />
+            {canEdit ? (
+              <StageActionMenu
+                lead={lead}
+                onRun={(action, payload) =>
+                  edit?.onLifecycle?.(action, payload)
+                }
+                onConfirm={(spec: StageMenuConfirm) =>
+                  edit?.onConfirm?.({
+                    columnId: "stage",
+                    action: spec.action,
+                    payload: spec.payload,
+                    title: spec.title,
+                    message: spec.message,
+                    reasonRequired: spec.reasonRequired,
+                    showDeadReason: spec.showDeadReason,
+                    confirmLabel: spec.confirmLabel
+                  })
+                }
+              />
+            ) : null}
+          </div>
+        </Cell>
       );
     case "created_at":
       return (
-        <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+        <Cell
+          columnId={columnId}
+          edit={edit}
+          className="whitespace-nowrap px-4 py-3 text-slate-700"
+        >
           {fmtWhen(lead.created_at)}
-        </td>
+        </Cell>
       );
     case "call_scheduled_for":
       return (
-        <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+        <Cell
+          columnId={columnId}
+          edit={edit}
+          className="whitespace-nowrap px-4 py-3 text-slate-700"
+        >
           {canEdit ? (
             <InlineEditableValue
               value={toDatetimeLocalIST(lead.call_scheduled_for)}
@@ -227,43 +329,159 @@ export function renderLeadColumnCell(
           ) : (
             fmtWhen(lead.call_scheduled_for)
           )}
-        </td>
+        </Cell>
       );
     case "call_booked_at":
       return (
-        <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+        <Cell
+          columnId={columnId}
+          edit={edit}
+          className="whitespace-nowrap px-4 py-3 text-slate-700"
+        >
           {fmtWhen(lead.call_booked_at)}
-        </td>
+        </Cell>
       );
     case "form_qualified":
       return (
-        <td className="px-4 py-3 text-slate-700">
+        <Cell columnId={columnId} edit={edit}>
           {lead.form_qualified === true
             ? "Yes"
             : lead.form_qualified === false
               ? "No"
               : "—"}
-        </td>
+        </Cell>
       );
     case "qualified":
       return (
-        <td className="px-4 py-3 text-slate-700">
-          {lead.qualified === true
-            ? "Yes"
-            : lead.qualified === false
-              ? "No"
-              : "—"}
-        </td>
+        <Cell columnId={columnId} edit={edit}>
+          {canEdit ? (
+            <YesNoDash
+              value={lead.qualified}
+              onChange={(v) => {
+                if (v === true) edit?.onLifecycle?.("qualify");
+                else if (v === false) {
+                  edit?.onConfirm?.({
+                    columnId: "qualified",
+                    action: "disqualify",
+                    payload: {},
+                    title: "Mark unqualified",
+                    message: "Marking Unqualified also moves this lead to Dead.",
+                    confirmLabel: "Mark unqualified"
+                  });
+                } else {
+                  edit?.onConfirm?.({
+                    columnId: "qualified",
+                    action: "clear_qualification",
+                    payload: {},
+                    title: "Clear qualification",
+                    message: "Clear the setter qualification on this lead?",
+                    reasonRequired: true,
+                    confirmLabel: "Clear"
+                  });
+                }
+              }}
+            />
+          ) : lead.qualified === true ? (
+            "Yes"
+          ) : lead.qualified === false ? (
+            "No"
+          ) : (
+            "—"
+          )}
+        </Cell>
+      );
+    case "call_showed":
+      return (
+        <Cell columnId={columnId} edit={edit}>
+          {canEdit ? (
+            <YesNoDash
+              value={lead.call_showed}
+              onChange={(v) => {
+                if (v === true) edit?.onLifecycle?.("mark_showed");
+                else if (v === false) {
+                  edit?.onConfirm?.({
+                    columnId: "call_showed",
+                    action: "mark_no_show",
+                    payload: {},
+                    title: "Mark no-show",
+                    message: "Marking No-show also moves this lead to Dead.",
+                    confirmLabel: "Mark no-show"
+                  });
+                } else {
+                  edit?.onConfirm?.({
+                    columnId: "call_showed",
+                    action: "clear_show",
+                    payload: {},
+                    title: "Clear show outcome",
+                    message: "Clear the show outcome on this lead?",
+                    reasonRequired: true,
+                    confirmLabel: "Clear"
+                  });
+                }
+              }}
+            />
+          ) : lead.call_showed === true ? (
+            "Yes"
+          ) : lead.call_showed === false ? (
+            "No"
+          ) : (
+            "—"
+          )}
+        </Cell>
       );
     case "is_dead":
       return (
-        <td className="px-4 py-3 text-slate-700">
-          {lead.is_dead ? "Yes" : "No"}
-        </td>
+        <Cell columnId={columnId} edit={edit}>
+          {lead.is_dead ? (
+            <span className="inline-flex items-center gap-1">
+              <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px] text-white">
+                Dead
+              </span>
+              {lead.dead_reason ? (
+                <span className="text-xs text-slate-500">
+                  {deadReasonLabel(lead.dead_reason)}
+                </span>
+              ) : null}
+            </span>
+          ) : canEdit ? (
+            <button
+              type="button"
+              className="text-[11px] text-slate-500 hover:text-slate-800"
+              onClick={(e) => {
+                e.stopPropagation();
+                edit?.onConfirm?.({
+                  columnId: "is_dead",
+                  action: "mark_dead",
+                  payload: {},
+                  title: "Mark dead",
+                  message: lead.call_booked_at
+                    ? "This lead has a booked call. Mark it dead anyway?"
+                    : "Mark this lead dead?",
+                  showDeadReason: true,
+                  confirmLabel: "Mark dead"
+                });
+              }}
+            >
+              —
+            </button>
+          ) : (
+            "—"
+          )}
+        </Cell>
+      );
+    case "qualified_by":
+      return (
+        <Cell columnId={columnId} edit={edit}>
+          {lead.qualified_by || "—"}
+        </Cell>
       );
     case "notes":
       return (
-        <td className="max-w-[180px] px-4 py-3 text-slate-700">
+        <Cell
+          columnId={columnId}
+          edit={edit}
+          className="max-w-[180px] px-4 py-3 text-slate-700"
+        >
           {canEdit ? (
             <InlineEditableValue
               value={lead.notes ?? ""}
@@ -274,11 +492,11 @@ export function renderLeadColumnCell(
           ) : (
             <span className="truncate">{lead.notes || "—"}</span>
           )}
-        </td>
+        </Cell>
       );
     case "deal_value":
       return (
-        <td className="px-4 py-3 text-slate-700">
+        <Cell columnId={columnId} edit={edit}>
           {canEdit ? (
             <InlineEditableValue
               value={
@@ -293,17 +511,19 @@ export function renderLeadColumnCell(
           ) : (
             formatCurrencyNullable(lead.deal_value) || "—"
           )}
-        </td>
+        </Cell>
       );
     case "recording_url":
       return (
-        <td className="px-4 py-3">
+        <Cell columnId={columnId} edit={edit} className="px-4 py-3">
           <RecordingLinkBadge url={lead.recording_url} />
-        </td>
+        </Cell>
       );
     case "org_name":
       return (
-        <td className="px-4 py-3 text-slate-700">{ctx.orgName || "—"}</td>
+        <Cell columnId={columnId} edit={edit}>
+          {ctx.orgName || "—"}
+        </Cell>
       );
     case "actions":
       return (
@@ -377,7 +597,9 @@ export function leadCardFieldValue(
   lead: Lead,
   orgName?: string | null
 ): string | null {
-  if (columnId === "name" || columnId === "actions") return null;
+  if (columnId === "name" || columnId === "actions" || columnId === "stage") {
+    return null;
+  }
   if (isCustomFieldColumnId(columnId)) {
     const key = customFieldKeyFromColumnId(columnId);
     return formatCustomValue(key ? lead.custom_fields?.[key] : undefined);
@@ -392,13 +614,9 @@ export function leadCardFieldValue(
     case "last_action":
       return lead.last_action || "—";
     case "next_action":
-      return lead.next_action_at
-        ? formatDueFriendly(lead.next_action_at)
-        : "—";
+      return lead.next_action_at ? formatDueFriendly(lead.next_action_at) : "—";
     case "contact_attempts":
       return String(lead.contact_attempts ?? 0);
-    case "stage":
-      return null;
     case "created_at":
       return fmtWhen(lead.created_at);
     case "call_scheduled_for":
@@ -417,8 +635,18 @@ export function leadCardFieldValue(
         : lead.qualified === false
           ? "No"
           : "—";
+    case "call_showed":
+      return lead.call_showed === true
+        ? "Yes"
+        : lead.call_showed === false
+          ? "No"
+          : "—";
     case "is_dead":
-      return lead.is_dead ? "Yes" : "No";
+      return lead.is_dead
+        ? `Dead${lead.dead_reason ? ` · ${deadReasonLabel(lead.dead_reason)}` : ""}`
+        : "—";
+    case "qualified_by":
+      return lead.qualified_by || "—";
     case "notes":
       return lead.notes || "—";
     case "deal_value":
@@ -433,11 +661,13 @@ export function leadCardFieldValue(
 export function isInlineEditableColumn(columnId: string): boolean {
   if (isCustomFieldColumnId(columnId)) return true;
   return (
-    columnId === "name" ||
-    columnId === "email" ||
-    columnId === "phone" ||
     columnId === "notes" ||
     columnId === "deal_value" ||
-    columnId === "call_scheduled_for"
+    columnId === "call_scheduled_for" ||
+    columnId === "next_action" ||
+    columnId === "qualified" ||
+    columnId === "call_showed" ||
+    columnId === "is_dead" ||
+    columnId === "stage"
   );
 }

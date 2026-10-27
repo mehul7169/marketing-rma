@@ -16,6 +16,7 @@ vi.mock("@/lib/reports/gatherDailySummary", () => ({
     adSpend: 100,
     leadsReceived: 4,
     callsBooked: 1,
+    showups: 0,
     metaLastRun: null,
     orgId
   })
