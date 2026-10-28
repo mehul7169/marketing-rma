@@ -5,6 +5,8 @@ import { saveLeadActions } from "@/app/leads/actions";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
 import { postCallStatusLabel } from "@/components/leads/StageBadge";
+import { toastError } from "@/components/ui/Toast";
+import { leadErrorToast } from "@/lib/leads/leadErrorToast";
 import { formatCurrencyNullable } from "@/lib/format";
 import {
   POST_CALL_STATUSES,
@@ -98,7 +100,6 @@ export default function PostCallSection({
   onLeadPatched?: (lead: LeadRow) => void;
 }) {
   const preview = useOrgPreview();
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState(lead.recording_url ?? "");
   const [editingRecording, setEditingRecording] = useState(!lead.recording_url);
@@ -110,13 +111,14 @@ export default function PostCallSection({
   const [dealClosed, setDealClosed] = useState(lead.deal_closed);
 
   async function patch(input: Parameters<typeof saveLeadActions>[1]) {
-    setError(null);
     setSaving(true);
     try {
       const updated = await saveLeadActions(lead.id, input);
       onLeadPatched?.(updated);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      toastError(
+        leadErrorToast(lead, e instanceof Error ? e.message : "Save failed")
+      );
     } finally {
       setSaving(false);
     }
@@ -265,7 +267,6 @@ export default function PostCallSection({
             ) : null}
           </div>
         </div>
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
       </fieldset>
     </div>
   );

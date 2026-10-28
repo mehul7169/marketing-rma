@@ -5,6 +5,8 @@ import { addLeadNoteAction, leadLifecycleAction } from "@/app/leads/actions";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
 import ActionPopover from "@/components/leads/ActionPopover";
+import { toastError } from "@/components/ui/Toast";
+import { leadErrorToast } from "@/lib/leads/leadErrorToast";
 import { needsQualification, pipelineStageOf } from "@/lib/leads/lifecycleDefinitions";
 import type { LogCallOutcome } from "@/lib/leads/lifecycle";
 import type { LifecycleResult } from "@/lib/leads/updateLeadLifecycle";
@@ -130,7 +132,7 @@ export default function WorkQueueLeadActions({
   }
 
   function fail(msg: string) {
-    setError(msg);
+    toastError(leadErrorToast(lead, msg));
     onError?.(msg);
   }
 
@@ -251,6 +253,7 @@ export default function WorkQueueLeadActions({
           onChange={(e) => setNote(e.target.value)}
         />
       </label>
+      {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>
   );
 
@@ -439,8 +442,6 @@ export default function WorkQueueLeadActions({
           </button>
         ) : null}
       </div>
-
-      {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>
   );
 }

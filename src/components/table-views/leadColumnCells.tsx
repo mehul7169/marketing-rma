@@ -11,6 +11,7 @@ import StageActionMenu, {
 } from "@/components/leads/StageActionMenu";
 import { FollowUpDate, LeadStatusBadges } from "@/components/leads/StageBadge";
 import type { GridConfirmSpec } from "@/components/leads/useLeadGrid";
+import { lifecycleBlockReason } from "@/lib/leads/gridGuards";
 import { formatCurrencyNullable } from "@/lib/format";
 import {
   displayLeadEmail,
@@ -56,12 +57,9 @@ export type LeadCellEditHandlers = {
   onLifecycle?: (action: LifecycleAction, payload?: LifecyclePayload) => void;
   onConfirm?: (spec: GridConfirmSpec) => void;
   onOpenDrawer?: () => void;
-  cellError?: (columnId: string) => string | null;
 };
 
 function Cell({
-  columnId,
-  edit,
   className,
   children
 }: {
@@ -70,11 +68,9 @@ function Cell({
   className?: string;
   children: ReactNode;
 }) {
-  const err = edit?.cellError?.(columnId);
   return (
     <td className={className ?? "px-4 py-3 text-slate-700"}>
       {children}
-      {err ? <div className="mt-0.5 text-[11px] text-red-600">{err}</div> : null}
     </td>
   );
 }
@@ -82,31 +78,41 @@ function Cell({
 function YesNoDash({
   value,
   disabled,
-  onChange
+  reasonFor,
+  onChange,
+  testId
 }: {
   value: boolean | null;
   disabled?: boolean;
+  reasonFor?: (v: boolean | null) => string | null;
   onChange: (v: boolean | null, el: HTMLElement) => void;
+  testId?: string;
 }) {
-  const opt = (v: boolean | null, label: string) => (
+  const opt = (v: boolean | null, label: string) => {
+    const reason = disabled ? undefined : reasonFor?.(v) ?? undefined;
+    return (
     <button
       type="button"
-      disabled={disabled}
+      disabled={disabled || Boolean(reason)}
+      title={reason}
+      data-value={v === null ? "dash" : v ? "yes" : "no"}
       className={`rounded px-1.5 py-0.5 text-[11px] ${
         value === v
           ? "bg-slate-900 text-white"
-          : "text-slate-600 hover:bg-slate-100 disabled:hover:bg-transparent"
+          : "text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:hover:bg-transparent"
       }`}
       onClick={(e) => {
         e.stopPropagation();
+        if (reason) return;
         if (value !== v) onChange(v, e.currentTarget);
       }}
     >
       {label}
     </button>
-  );
+    );
+  };
   return (
-    <div className="inline-flex gap-0.5" data-no-row-nav>
+    <div className="inline-flex gap-0.5" data-no-row-nav data-testid={testId}>
       {opt(true, "Yes")}
       {opt(false, "No")}
       {opt(null, "—")}
@@ -358,6 +364,11 @@ export function renderLeadColumnCell(
             {canEdit ? (
               <YesNoDash
                 value={lead.qualified}
+                reasonFor={(v) => {
+                  if (v === true) return lifecycleBlockReason(lead, "qualify");
+                  if (v === false) return lifecycleBlockReason(lead, "disqualify");
+                  return null;
+                }}
                 onChange={(v, el) => {
                   if (v === true) edit?.onLifecycle?.("qualify");
                   else if (v === false) {
@@ -399,6 +410,12 @@ export function renderLeadColumnCell(
             {canEdit ? (
               <YesNoDash
                 value={lead.call_showed}
+                testId="call-showed-yesno"
+                reasonFor={(v) => {
+                  if (v === true) return lifecycleBlockReason(lead, "mark_showed");
+                  if (v === false) return lifecycleBlockReason(lead, "mark_no_show");
+                  return null;
+                }}
                 onChange={(v, el) => {
                   if (v === true) edit?.onLifecycle?.("mark_showed");
                   else if (v === false) {
@@ -534,7 +551,7 @@ export function renderLeadColumnCell(
     case "actions":
       return (
         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-          {lead.is_dead ? <ReviveLeadButton leadId={lead.id} /> : null}
+          {lead.is_dead ? <ReviveLeadButton leadId={lead.id} lead={lead} /> : null}
         </td>
       );
     default:

@@ -17,7 +17,9 @@ import {
   postCallStatusLabel
 } from "@/components/leads/StageBadge";
 import { useLeadDrawerParam } from "@/components/leads/useLeadDrawerParam";
+import { toastError } from "@/components/ui/Toast";
 import { formatCurrencyNullable } from "@/lib/format";
+import { leadErrorToast } from "@/lib/leads/leadErrorToast";
 import { activityTypeLabel } from "@/lib/leads/activityLabels";
 import { displayLeadEmail } from "@/lib/leads/contactNormalize";
 import type { BookingHistoryEntry, LeadRow } from "@/lib/leads/types";
@@ -79,7 +81,6 @@ function LeadDrawerBody({
   const preview = useOrgPreview();
   const { lead, activities, reminders } = data;
   const [note, setNote] = useState("");
-  const [noteError, setNoteError] = useState<string | null>(null);
   const [savingNote, setSavingNote] = useState(false);
 
   async function addNote() {
@@ -87,17 +88,18 @@ function LeadDrawerBody({
     const trimmed = note.trim();
     if (!trimmed) return;
     setSavingNote(true);
-    setNoteError(null);
     try {
       const res = await addLeadNoteAction(lead.id, trimmed);
       if (!res.ok) {
-        setNoteError(res.error);
+        toastError(leadErrorToast(lead, res.error));
         return;
       }
       setNote("");
       onReload();
     } catch (e) {
-      setNoteError(e instanceof Error ? e.message : "Save failed");
+      toastError(
+        leadErrorToast(lead, e instanceof Error ? e.message : "Save failed")
+      );
     } finally {
       setSavingNote(false);
     }
@@ -159,7 +161,6 @@ function LeadDrawerBody({
           >
             {savingNote ? "Saving…" : "Add note"}
           </button>
-          {noteError ? <p className="text-sm text-red-600">{noteError}</p> : null}
         </fieldset>
       </section>
 
@@ -177,6 +178,7 @@ function LeadDrawerBody({
         <h3 className="text-sm font-medium text-slate-900">Follow-ups</h3>
         <LeadFollowUps
           leadId={lead.id}
+          leadName={lead.name || lead.email}
           reminders={reminders}
           onChanged={onReload}
         />

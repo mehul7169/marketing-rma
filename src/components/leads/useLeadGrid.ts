@@ -8,7 +8,9 @@ import {
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import type { LeadCellEditHandlers } from "@/components/table-views/leadColumnCells";
 import { useLeadDrawerParam } from "@/components/leads/useLeadDrawerParam";
+import { toastError } from "@/components/ui/Toast";
 import { lifecycleBlockReason } from "@/lib/leads/gridGuards";
+import { leadErrorToast } from "@/lib/leads/leadErrorToast";
 import {
   planLifecycle,
   type LifecycleAction,
@@ -34,10 +36,6 @@ export type GridConfirm = {
 
 export type GridConfirmSpec = Omit<GridConfirm, "lead">;
 
-function cellKey(leadId: string, columnId: string): string {
-  return `${leadId}:${columnId}`;
-}
-
 export function useLeadGrid(
   initialRows: LeadRow[],
   opts?: { belongs?: (lead: LeadRow) => boolean }
@@ -45,7 +43,6 @@ export function useLeadGrid(
   const preview = useOrgPreview();
   const drawer = useLeadDrawerParam();
   const [rows, setRows] = useState(initialRows);
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState<GridConfirm | null>(null);
 
   useEffect(() => {
@@ -85,21 +82,9 @@ export function useLeadGrid(
     });
   }, []);
 
-  const setCellError = useCallback(
-    (leadId: string, columnId: string, message: string | null) => {
-      setErrors((prev) => {
-        const key = cellKey(leadId, columnId);
-        if (!message) {
-          if (!(key in prev)) return prev;
-          const next = { ...prev };
-          delete next[key];
-          return next;
-        }
-        return { ...prev, [key]: message };
-      });
-    },
-    []
-  );
+  const fail = useCallback((lead: LeadRow, message: string) => {
+    toastError(leadErrorToast(lead, message));
+  }, []);
 
   const runLifecycle = useCallback(
     (
@@ -111,7 +96,7 @@ export function useLeadGrid(
       if (preview.active) return;
       const blocked = lifecycleBlockReason(lead, action, payload);
       if (blocked) {
-        setCellError(lead.id, columnId, blocked);
+        fail(lead, blocked);
         return;
       }
       let optimistic: Partial<LeadRow> | null = null;
@@ -128,26 +113,21 @@ export function useLeadGrid(
         if (plan.ok) optimistic = plan.patch;
       }
       if (optimistic) applyLead(lead.id, optimistic);
-      setCellError(lead.id, columnId, null);
       void leadLifecycleAction(lead.id, action, payload)
         .then((res) => {
           if (!res.ok) {
             restore(lead);
-            setCellError(lead.id, columnId, res.error);
+            fail(lead, res.error);
             return;
           }
           applyLead(lead.id, res.lead);
         })
         .catch((err) => {
           restore(lead);
-          setCellError(
-            lead.id,
-            columnId,
-            err instanceof Error ? err.message : "Save failed"
-          );
+          fail(lead, err instanceof Error ? err.message : "Save failed");
         });
     },
-    [applyLead, preview.active, restore, setCellError]
+    [applyLead, fail, preview.active, restore]
   );
 
   const requestConfirm = useCallback((lead: LeadRow, spec: GridConfirmSpec) => {
@@ -188,7 +168,7 @@ export function useLeadGrid(
         const trimmed = raw.trim();
         const num = trimmed === "" ? null : Number(trimmed);
         if (trimmed !== "" && !Number.isFinite(num)) {
-          setCellError(lead.id, field, "Deal value must be a number");
+          fail(lead, "Deal value must be a number");
           return;
         }
         patch = { deal_value: num };
@@ -218,7 +198,7 @@ export function useLeadGrid(
         try {
           iso = fromDatetimeLocalIST(trimmed);
         } catch {
-          setCellError(lead.id, field, "Invalid date/time");
+          fail(lead, "Invalid date/time");
           return;
         }
         patch = { call_scheduled_for: iso };
@@ -230,26 +210,21 @@ export function useLeadGrid(
       }
 
       applyLead(lead.id, patch);
-      setCellError(lead.id, field, null);
       void saveLeadPlainFieldsAction(lead.id, serverInput)
         .then((res) => {
           if (!res.ok) {
             restore(previous);
-            setCellError(lead.id, field, res.error);
+            fail(lead, res.error);
             return;
           }
           applyLead(lead.id, res.lead);
         })
         .catch((err) => {
           restore(previous);
-          setCellError(
-            lead.id,
-            field,
-            err instanceof Error ? err.message : "Save failed"
-          );
+          fail(lead, err instanceof Error ? err.message : "Save failed");
         });
     },
-    [applyLead, preview.active, requestConfirm, restore, setCellError]
+    [applyLead, fail, preview.active, requestConfirm, restore]
   );
 
   const commitCustomField = useCallback(
@@ -261,29 +236,23 @@ export function useLeadGrid(
         [key]: raw.trim() || null
       };
       applyLead(lead.id, { custom_fields });
-      const columnId = `custom_fields.${key}`;
-      setCellError(lead.id, columnId, null);
       void saveLeadPlainFieldsAction(lead.id, {
         custom_fields: { [key]: raw.trim() || null }
       })
         .then((res) => {
           if (!res.ok) {
             restore(previous);
-            setCellError(lead.id, columnId, res.error);
+            fail(lead, res.error);
             return;
           }
           applyLead(lead.id, res.lead);
         })
         .catch((err) => {
           restore(previous);
-          setCellError(
-            lead.id,
-            columnId,
-            err instanceof Error ? err.message : "Save failed"
-          );
+          fail(lead, err instanceof Error ? err.message : "Save failed");
         });
     },
-    [applyLead, preview.active, restore, setCellError]
+    [applyLead, fail, preview.active, restore]
   );
 
   const editHandlersFor = useCallback(
@@ -301,14 +270,12 @@ export function useLeadGrid(
       onCustomField: (key, value) => commitCustomField(lead, key, value),
       onLifecycle: (action, payload) => runLifecycle(lead, action, payload),
       onConfirm: (spec) => requestConfirm(lead, spec),
-      onOpenDrawer: () => drawer.open(lead.id),
-      cellError: (columnId) => errors[cellKey(lead.id, columnId)] ?? null
+      onOpenDrawer: () => drawer.open(lead.id)
     }),
     [
       commitCustomField,
       commitPlainField,
       drawer,
-      errors,
       preview.active,
       requestConfirm,
       runLifecycle

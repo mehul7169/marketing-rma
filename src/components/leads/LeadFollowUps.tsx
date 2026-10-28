@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { addLeadFollowUp, markLeadFollowUpResolved } from "@/app/leads/actions";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
+import { toastError } from "@/components/ui/Toast";
+import { leadErrorToast } from "@/lib/leads/leadErrorToast";
 import type { LeadReminder } from "@/lib/leads/types";
 import { formatDueFriendly } from "@/lib/timezone";
 
@@ -17,10 +19,12 @@ function sortActive(a: LeadReminder, b: LeadReminder): number {
 
 export default function LeadFollowUps({
   leadId,
+  leadName,
   reminders,
   onChanged
 }: {
   leadId: string;
+  leadName?: string | null;
   reminders: LeadReminder[];
   onChanged?: () => void;
 }) {
@@ -30,7 +34,6 @@ export default function LeadFollowUps({
   const [due, setDue] = useState("");
   const [showResolved, setShowResolved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const active = useMemo(
     () => reminders.filter((r) => !r.resolved).sort(sortActive),
@@ -46,7 +49,6 @@ export default function LeadFollowUps({
 
   async function add() {
     if (preview.active) return;
-    setError(null);
     setSaving(true);
     try {
       await addLeadFollowUp(leadId, text, due || null);
@@ -55,7 +57,12 @@ export default function LeadFollowUps({
       if (onChanged) onChanged();
       else router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      toastError(
+        leadErrorToast(
+          { name: leadName },
+          e instanceof Error ? e.message : "Save failed"
+        )
+      );
     } finally {
       setSaving(false);
     }
@@ -63,14 +70,18 @@ export default function LeadFollowUps({
 
   async function resolve(id: string) {
     if (preview.active) return;
-    setError(null);
     setSaving(true);
     try {
       await markLeadFollowUpResolved(id, leadId);
       if (onChanged) onChanged();
       else router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      toastError(
+        leadErrorToast(
+          { name: leadName },
+          e instanceof Error ? e.message : "Save failed"
+        )
+      );
     } finally {
       setSaving(false);
     }
@@ -141,8 +152,6 @@ export default function LeadFollowUps({
           ) : null}
         </div>
       ) : null}
-
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </div>
   );
 }

@@ -243,6 +243,7 @@ export default function StageActionMenu({
                 role="menuitem"
                 disabled={Boolean(item.disabledReason)}
                 title={item.disabledReason ?? undefined}
+                data-testid={`stage-action-${item.id}`}
                 className="block w-full px-3 py-1.5 text-left text-xs text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
                 onClick={() => {
                   if (item.disabledReason) return;

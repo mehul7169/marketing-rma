@@ -9,6 +9,7 @@ import {
 } from "react";
 import OrgPreviewBanner from "@/components/admin/OrgPreviewBanner";
 import OrgPreviewSwitcher from "@/components/admin/OrgPreviewSwitcher";
+import { Toaster } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
 
 const SIDEBAR_KEY = "sidebar-collapsed";
@@ -247,6 +248,7 @@ export default function AppShellClient({
           </div>
         </main>
       </div>
+      <Toaster />
     </div>
   );
 }

@@ -1,14 +1,14 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import ConfirmPopover from "@/components/leads/ConfirmPopover";
 import CreateLeadButton from "@/components/leads/CreateLeadButton";
 import LeadDrawerHost from "@/components/leads/LeadDrawer";
+import { useFilterSearch } from "@/components/leads/useFilterSearch";
 import { useLeadGrid } from "@/components/leads/useLeadGrid";
 import WorkQueueCard from "@/components/leads/WorkQueueCard";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
-import WorkQueueToast from "@/components/leads/WorkQueueToast";
 import ColumnPicker from "@/components/table-views/ColumnPicker";
 import ScrollableDataTable from "@/components/table-views/ScrollableDataTable";
 import {
@@ -17,6 +17,8 @@ import {
   renderLeadColumnCell
 } from "@/components/table-views/leadColumnCells";
 import AsyncStatusIndicator from "@/components/ui/AsyncStatusIndicator";
+import Spinner from "@/components/ui/Spinner";
+import { toastSuccess } from "@/components/ui/Toast";
 import Pagination from "@/components/ui/Pagination";
 import { useTableView } from "@/hooks/useTableView";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
@@ -29,8 +31,6 @@ import { DEFAULT_COLUMNS } from "@/lib/table-views/registry";
 import type { TableColumnConfig, TableViewBootstrap } from "@/lib/table-views/types";
 import type { LeadRow } from "@/lib/leads/types";
 import { useRouter } from "next/navigation";
-
-const SEARCH_DEBOUNCE_MS = 300;
 
 export default function WorkQueueView({
   initialViewMode = "table",
@@ -61,10 +61,24 @@ export default function WorkQueueView({
 }) {
   const router = useRouter();
   const preview = useOrgPreview();
+  const [pending, start] = useTransition();
   const [viewMode, setViewMode] = useState<"cards" | "table">(initialViewMode);
-  const [searchInput, setSearchInput] = useState(initialSearch);
-  const [toast, setToast] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const search = useFilterSearch({
+    urlValue: initialSearch,
+    onCommit: (q, { isLatest, immediate }) => {
+      start(() => {
+        if (!isLatest()) return;
+        const url = new URL(window.location.href);
+        url.searchParams.set("view", viewMode);
+        url.searchParams.delete("page");
+        if (q) url.searchParams.set("search", q);
+        else url.searchParams.delete("search");
+        const href = url.pathname + url.search;
+        if (immediate) router.push(href);
+        else router.replace(href);
+      });
+    }
+  });
   const belongs = useCallback(
     (lead: LeadRow) =>
       leadBelongsInView(lead, activeTabId, statusFilterId, showFormUnqualified),
@@ -101,25 +115,6 @@ export default function WorkQueueView({
       return next;
     });
   }, []);
-
-  useEffect(() => {
-    setSearchInput(initialSearch);
-  }, [initialSearch]);
-
-  /** Server-side search: navigate so RSC reloads the scoped page of results. */
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      const next = searchInput.trim();
-      if (next === initialSearch.trim()) return;
-      const url = new URL(window.location.href);
-      url.searchParams.set("view", viewMode);
-      url.searchParams.delete("page");
-      if (next) url.searchParams.set("search", next);
-      else url.searchParams.delete("search");
-      router.push(url.pathname + url.search);
-    }, SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(handle);
-  }, [searchInput, initialSearch, viewMode, router]);
 
   const paginationQuery = useMemo(() => {
     const q: Record<string, string> = { view: viewMode };
@@ -159,9 +154,9 @@ export default function WorkQueueView({
     (lead: LeadRow) => {
       if (leadBelongsInView(lead, activeTabId, statusFilterId, showFormUnqualified)) {
         grid.applyLead(lead.id, lead);
-        setNotice(`Created ${lead.name ?? "lead"}`);
+        toastSuccess(`Created ${lead.name ?? "lead"}`);
       } else {
-        setNotice(
+        toastSuccess(
           `Created ${lead.name ?? "lead"} — it's in the default Work Queue view (New), not this tab.`
         );
       }
@@ -194,18 +189,36 @@ export default function WorkQueueView({
 
   const toolbar = (
     <div className="flex w-full flex-wrap items-center justify-between gap-2">
-      <label className="sr-only" htmlFor="work-queue-search">
-        Search leads
+      <label className="relative w-full max-w-xs shrink-0">
+        <span className="sr-only" id="work-queue-search-label">
+          Search leads
+        </span>
+        <input
+          id="work-queue-search"
+          data-testid="work-queue-search"
+          type="search"
+          aria-labelledby="work-queue-search-label"
+          value={search.draft}
+          onChange={(e) => search.onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              search.onEnter();
+            }
+          }}
+          placeholder="Search name, email, or phone"
+          className="w-full rounded border border-slate-200 px-3 py-1.5 pr-8 text-sm text-slate-900"
+          autoComplete="off"
+        />
+        {pending ? (
+          <span
+            className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+            data-testid="search-pending"
+          >
+            <Spinner size="xs" label="Searching" />
+          </span>
+        ) : null}
       </label>
-      <input
-        id="work-queue-search"
-        type="search"
-        value={searchInput}
-        onChange={(e) => setSearchInput(e.target.value)}
-        placeholder="Search name, email, or phone"
-        className="w-full max-w-xs shrink-0 rounded border border-slate-200 px-3 py-1.5 text-sm text-slate-900"
-        autoComplete="off"
-      />
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex gap-2">
           <button
@@ -241,26 +254,19 @@ export default function WorkQueueView({
     ? "No leads match your search in this view."
     : "Nothing in this queue view.";
 
-  const toastEl = (
-    <>
-      <WorkQueueToast message={toast} onDismiss={() => setToast(null)} />
-      <WorkQueueToast
-        message={toast ? null : notice}
-        onDismiss={() => setNotice(null)}
-        tone="success"
-      />
-    </>
-  );
+  const pendingClass = pending ? "pointer-events-none opacity-60" : "";
 
   if (filteredRows.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         {toolbar}
-        <p className="rounded border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+        <p
+          className={`rounded border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500 ${pendingClass}`}
+          aria-busy={pending}
+        >
           {emptyMessage}
         </p>
         {pagination}
-        {toastEl}
         <LeadDrawerHost onLeadPatched={(lead) => grid.applyLead(lead.id, lead)} />
       </div>
     );
@@ -270,7 +276,7 @@ export default function WorkQueueView({
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
         <div className="shrink-0">{toolbar}</div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className={`min-h-0 flex-1 overflow-y-auto ${pendingClass}`} aria-busy={pending}>
           <div className="grid gap-4 lg:grid-cols-2">
             {filteredRows.map((lead) => (
               <WorkQueueCard
@@ -287,7 +293,6 @@ export default function WorkQueueView({
                 onSaveEnd={(ok) =>
                   ok ? markSaved(lead.id) : clearRowStatus(lead.id)
                 }
-                onError={(msg) => setToast(msg)}
                 extraFields={visibleCardFields(
                   view.visibleColumns,
                   view.labelFor,
@@ -300,7 +305,6 @@ export default function WorkQueueView({
           </div>
         </div>
         {pagination}
-        {toastEl}
         {grid.confirm ? (
           <ConfirmPopover
             title={grid.confirm.title}
@@ -322,6 +326,7 @@ export default function WorkQueueView({
   return (
     <>
       <ScrollableDataTable toolbar={toolbar}>
+        <div className={pendingClass} aria-busy={pending}>
         <table
           className="w-full border-collapse text-sm"
           style={{ tableLayout: "fixed", minWidth: tableMinWidth }}
@@ -384,7 +389,6 @@ export default function WorkQueueView({
                             onSaveEnd={(ok) =>
                               ok ? markSaved(lead.id) : clearRowStatus(lead.id)
                             }
-                            onError={(msg) => setToast(msg)}
                           />
                         </div>
                         <div className="pt-1.5">
@@ -408,9 +412,9 @@ export default function WorkQueueView({
             ))}
           </tbody>
         </table>
+        </div>
       </ScrollableDataTable>
       <div className="shrink-0 pt-2">{pagination}</div>
-      {toastEl}
       {grid.confirm ? (
         <ConfirmPopover
           title={grid.confirm.title}

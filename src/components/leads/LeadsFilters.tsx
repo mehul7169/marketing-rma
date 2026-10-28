@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   FOLLOW_UP_LABELS,
@@ -17,6 +17,9 @@ import {
 } from "@/lib/leads/listFilterParams";
 import type { DeadFilter, PipelineStage } from "@/lib/leads/types";
 import CheckboxMultiSelect from "@/components/ui/CheckboxMultiSelect";
+import Spinner from "@/components/ui/Spinner";
+import { useFilterPending } from "@/components/leads/FilterPending";
+import { useFilterSearch } from "@/components/leads/useFilterSearch";
 
 const STAGE_OPTIONS = PIPELINE_STAGES.map((s) => ({ value: s, label: PIPELINE_STAGE_LABELS[s] }));
 const FOLLOW_UP_OPTIONS = (Object.keys(FOLLOW_UP_LABELS) as FollowUpState[]).map((s) => ({
@@ -49,7 +52,7 @@ function YesNoSelect({
   );
 }
 
-/** Filter panel + chips — both render the same (optimistic) state. */
+/** Filter panel + chips. Search `q` always follows the URL; other filters stay optimistic. */
 export default function LeadsFilters({
   sources,
   state: serverState
@@ -58,8 +61,12 @@ export default function LeadsFilters({
   state: LeadsFilterState;
 }) {
   const router = useRouter();
+  const { pending, start } = useFilterPending();
   const [state, setState] = useState(serverState);
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const serverKey = leadsHref(serverState);
+  const urlQ = serverState.q;
 
   useEffect(() => {
     setState(serverState);
@@ -67,42 +74,63 @@ export default function LeadsFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverKey]);
 
-  function apply(next: LeadsFilterState) {
+  const search = useFilterSearch({
+    urlValue: urlQ,
+    onCommit: (q, { isLatest, immediate }) => {
+      start(() => {
+        if (!isLatest()) return;
+        const href = leadsHref({ ...stateRef.current, q });
+        if (immediate) router.push(href);
+        else router.replace(href);
+      });
+    }
+  });
+
+  function apply(next: LeadsFilterState, mode: "push" | "replace" = "push") {
     setState(next);
-    router.push(leadsHref(next));
+    start(() => {
+      if (mode === "replace") router.replace(leadsHref(next));
+      else router.push(leadsHref(next));
+    });
   }
 
   function patch(p: Partial<LeadsFilterState>) {
-    apply({ ...state, ...p });
+    apply({ ...state, q: urlQ, ...p });
   }
 
   const sourceOptions = Array.from(new Set([...sources, ...state.sources])).map((s) => ({
     value: s,
     label: s
   }));
-  const chips = leadsFilterChips(state);
+  const chips = leadsFilterChips({ ...state, q: urlQ });
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-4">
-        <label className="flex min-w-[220px] flex-1 flex-col text-xs text-slate-600">
+        <label className="relative flex min-w-[220px] flex-1 flex-col text-xs text-slate-600">
           Search name or email
           <input
-            key={serverState.q}
-            defaultValue={state.q}
-            className="mt-1 rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
-            placeholder="Search"
+            data-testid="leads-search"
+            value={search.draft}
+            onChange={(e) => search.onChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
-                const q = (e.target as HTMLInputElement).value.trim();
-                if (q !== state.q) patch({ q });
+                e.preventDefault();
+                search.onEnter();
               }
             }}
-            onBlur={(e) => {
-              const q = e.target.value.trim();
-              if (q !== state.q) patch({ q });
-            }}
+            className="mt-1 rounded border border-slate-200 px-3 py-2 pr-8 text-sm text-slate-900"
+            placeholder="Search"
+            autoComplete="off"
           />
+          {pending ? (
+            <span
+              className="pointer-events-none absolute right-2 top-[1.85rem]"
+              data-testid="search-pending"
+            >
+              <Spinner size="xs" label="Searching" />
+            </span>
+          ) : null}
         </label>
 
         <CheckboxMultiSelect
@@ -178,7 +206,7 @@ export default function LeadsFilters({
                 type="button"
                 aria-label={`Remove ${chip.label}`}
                 className="rounded-full px-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900"
-                onClick={() => apply(chip.without)}
+                onClick={() => apply({ ...chip.without, q: chip.id === "q" ? "" : urlQ })}
               >
                 ×
               </button>

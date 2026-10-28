@@ -1,16 +1,24 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { leadLifecycleAction } from "@/app/leads/actions";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import OrgPreviewReadOnlyNotice from "@/components/admin/OrgPreviewReadOnlyNotice";
+import { toastError } from "@/components/ui/Toast";
+import { leadErrorToast } from "@/lib/leads/leadErrorToast";
+import type { LeadRow } from "@/lib/leads/types";
 
-export default function ReviveLeadButton({ leadId }: { leadId: string }) {
+export default function ReviveLeadButton({
+  leadId,
+  lead
+}: {
+  leadId: string;
+  lead?: Pick<LeadRow, "name" | "email">;
+}) {
   const router = useRouter();
   const preview = useOrgPreview();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
 
   if (preview.active) {
     return <OrgPreviewReadOnlyNotice />;
@@ -19,11 +27,10 @@ export default function ReviveLeadButton({ leadId }: { leadId: string }) {
   function onRevive(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    setError(null);
     startTransition(async () => {
       const res = await leadLifecycleAction(leadId, "revive");
       if (res.ok) router.refresh();
-      else setError(res.error);
+      else toastError(leadErrorToast(lead ?? {}, res.error));
     });
   }
 
@@ -37,7 +44,6 @@ export default function ReviveLeadButton({ leadId }: { leadId: string }) {
       >
         {pending ? "Reviving…" : "Revive"}
       </button>
-      {error ? <span className="text-xs text-red-600">{error}</span> : null}
     </div>
   );
 }

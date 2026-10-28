@@ -1,6 +1,10 @@
 import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import { redirect } from "next/navigation";
 import DateRangePicker from "@/components/DateRangePicker";
+import {
+  FilterPendingRoot,
+  FilterPendingSurface
+} from "@/components/leads/FilterPending";
 import LeadsFilters from "@/components/leads/LeadsFilters";
 import ConfigurableLeadsTable from "@/components/table-views/ConfigurableLeadsTable";
 import PersistFilterState from "@/components/table-views/PersistFilterState";
@@ -78,56 +82,60 @@ export default async function LeadsPage({
   return (
     <DataTablePageShell className="gap-6">
       <PersistFilterState pageKey="leads" />
-      <div className="shrink-0 space-y-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="page-title">Leads</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              {`${total} in ${fromISO} to ${toISO}`}
-              {" · "}
-              <a
-                href="/leads/queue"
-                className="underline decoration-slate-300 hover:text-slate-900"
-              >
-                Work Queue
-              </a>
-            </p>
+      <FilterPendingRoot>
+        <div className="shrink-0 space-y-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h1 className="page-title">Leads</h1>
+              <p className="mt-1 text-sm text-slate-600">
+                {`${total} in ${fromISO} to ${toISO}`}
+                {" · "}
+                <a
+                  href="/leads/queue"
+                  className="underline decoration-slate-300 hover:text-slate-900"
+                >
+                  Work Queue
+                </a>
+              </p>
+            </div>
+            <DateRangePicker
+              key={`${fromISO}:${toISO}`}
+              fromISO={fromISO}
+              toISO={toISO}
+              hasCustomRange={!filterState.isDefaultRange}
+              pathname="/leads"
+              extraParams={dateExtraParams}
+            />
           </div>
-          <DateRangePicker
-            key={`${fromISO}:${toISO}`}
-            fromISO={fromISO}
-            toISO={toISO}
-            hasCustomRange={!filterState.isDefaultRange}
-            pathname="/leads"
-            extraParams={dateExtraParams}
-          />
+
+          {kpi ? (
+            <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              {kpiBannerCopy(kpi)}
+            </p>
+          ) : null}
+
+          <LeadsFilters sources={allSources} state={filterState} />
         </div>
 
-        {kpi ? (
-          <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            {kpiBannerCopy(kpi)}
-          </p>
-        ) : null}
-
-        <LeadsFilters sources={allSources} state={filterState} />
-      </div>
-
-      <ConfigurableLeadsTable
-        pageKey="leads"
-        rows={rows}
-        dueByLead={dueByLead}
-        orgName={org?.name ?? null}
-        tableViewBootstrap={tableViewBootstrap}
-      />
-      <div className="shrink-0">
-        <Pagination
-          page={page}
-          total={total}
-          pageSize={LEAD_LIST_PAGE_SIZE}
-          pathname="/leads"
-          query={query}
-        />
-      </div>
+        <FilterPendingSurface className="flex min-h-0 flex-1 flex-col">
+          <ConfigurableLeadsTable
+            pageKey="leads"
+            rows={rows}
+            dueByLead={dueByLead}
+            orgName={org?.name ?? null}
+            tableViewBootstrap={tableViewBootstrap}
+          />
+          <div className="shrink-0">
+            <Pagination
+              page={page}
+              total={total}
+              pageSize={LEAD_LIST_PAGE_SIZE}
+              pathname="/leads"
+              query={query}
+            />
+          </div>
+        </FilterPendingSurface>
+      </FilterPendingRoot>
     </DataTablePageShell>
   );
 }
