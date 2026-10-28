@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { addLeadNoteAction } from "@/app/leads/actions";
 import {
   loadLeadDrawer,
@@ -29,6 +29,37 @@ function fmtWhen(iso: string | null | undefined): string {
   return formatISTDateTime(iso);
 }
 
+const NOTE_WRAP = "break-words [overflow-wrap:anywhere]";
+const CACHE_MAX = 12;
+const drawerCache = new Map<string, LeadDrawerPayload>();
+
+export function resetLeadDrawerCache() {
+  drawerCache.clear();
+}
+
+function putCache(id: string, data: LeadDrawerPayload) {
+  drawerCache.delete(id);
+  drawerCache.set(id, data);
+  while (drawerCache.size > CACHE_MAX) {
+    const oldest = drawerCache.keys().next().value;
+    if (oldest) drawerCache.delete(oldest);
+  }
+}
+
+function ActivitySkeleton() {
+  return (
+    <div
+      className="space-y-2"
+      data-testid="lead-drawer-activity-skeleton"
+      aria-busy
+    >
+      <div className="h-12 animate-pulse rounded bg-slate-100" />
+      <div className="h-12 animate-pulse rounded bg-slate-100" />
+      <div className="h-12 animate-pulse rounded bg-slate-100" />
+    </div>
+  );
+}
+
 function Field({
   label,
   value,
@@ -41,8 +72,8 @@ function Field({
   return (
     <div>
       <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-0.5 inline-flex items-center gap-1 text-sm text-slate-900">
-        <span>{value || "—"}</span>
+      <div className={`mt-0.5 inline-flex min-w-0 items-center gap-1 text-sm text-slate-900 ${NOTE_WRAP}`}>
+        <span className={NOTE_WRAP}>{value || "—"}</span>
         {copyable ? <CopyValue value={value} /> : null}
       </div>
     </div>
@@ -82,6 +113,13 @@ function LeadDrawerBody({
   const { lead, activities, reminders } = data;
   const [note, setNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const liveRef = useRef(true);
+  useEffect(() => {
+    liveRef.current = true;
+    return () => {
+      liveRef.current = false;
+    };
+  }, []);
 
   async function addNote() {
     if (preview.active) return;
@@ -94,14 +132,16 @@ function LeadDrawerBody({
         toastError(leadErrorToast(lead, res.error));
         return;
       }
-      setNote("");
-      onReload();
+      if (liveRef.current) {
+        setNote("");
+        onReload();
+      }
     } catch (e) {
       toastError(
         leadErrorToast(lead, e instanceof Error ? e.message : "Save failed")
       );
     } finally {
-      setSavingNote(false);
+      if (liveRef.current) setSavingNote(false);
     }
   }
 
@@ -109,7 +149,7 @@ function LeadDrawerBody({
     <div className="space-y-8 pb-8">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold text-slate-900">
+          <h2 className={`text-lg font-semibold text-slate-900 ${NOTE_WRAP}`}>
             {lead.name || lead.email}
           </h2>
           <LeadStatusBadges lead={lead} />
@@ -121,7 +161,10 @@ function LeadDrawerBody({
 
       <section className="space-y-3">
         <h3 className="text-sm font-medium text-slate-900">Activity</h3>
-        <ul className="max-h-72 space-y-2 overflow-y-auto">
+        <ul
+          className="max-h-72 space-y-2 overflow-y-auto overflow-x-hidden"
+          data-testid="lead-drawer-activity"
+        >
           {activities.length === 0 ? (
             <li className="text-sm text-slate-500">No activities yet.</li>
           ) : (
@@ -138,7 +181,14 @@ function LeadDrawerBody({
                   <span>{fmtWhen(a.created_at)}</span>
                   {a.actor_email ? <span>by {a.actor_email}</span> : null}
                 </div>
-                {a.note ? <p className="mt-1 text-sm text-slate-800">{a.note}</p> : null}
+                {a.note ? (
+                  <p
+                    className={`mt-1 text-sm text-slate-800 ${NOTE_WRAP}`}
+                    data-testid="lead-drawer-note-text"
+                  >
+                    {a.note}
+                  </p>
+                ) : null}
               </li>
             ))
           )}
@@ -150,7 +200,7 @@ function LeadDrawerBody({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={3}
-              className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+              className={`mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900 ${NOTE_WRAP}`}
             />
           </label>
           <button
@@ -269,26 +319,35 @@ export default function LeadDrawerHost({
   const { leadId, close } = useLeadDrawerParam();
   const [payload, setPayload] = useState<LeadDrawerPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const seqRef = useRef(0);
+  const onPatchedRef = useRef(onLeadPatched);
+  onPatchedRef.current = onLeadPatched;
 
   const load = useCallback(async (id: string) => {
-    setLoading(true);
+    const seq = ++seqRef.current;
     setError(null);
     const res = await loadLeadDrawer(id);
+    if (seq !== seqRef.current) return;
     if (!res.ok) {
-      setPayload(null);
+      if (!drawerCache.get(id)) setPayload(null);
       setError(res.error);
     } else {
+      putCache(id, res.data);
       setPayload(res.data);
-      onLeadPatched?.(res.data.lead);
+      onPatchedRef.current?.(res.data.lead);
     }
-    setLoading(false);
-  }, [onLeadPatched]);
+  }, []);
 
   useEffect(() => {
     if (!leadId) {
-      setPayload(null);
       setError(null);
+      return;
+    }
+    const cached = drawerCache.get(leadId);
+    if (cached) {
+      setPayload(cached);
+      setError(null);
+      void load(leadId);
       return;
     }
     void load(leadId);
@@ -297,7 +356,9 @@ export default function LeadDrawerHost({
   useEffect(() => {
     if (!leadId) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") close();
+      if (e.key !== "Escape") return;
+      if (document.querySelector("[data-action-popover]")) return;
+      close();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -305,37 +366,58 @@ export default function LeadDrawerHost({
 
   if (!leadId) return null;
 
+  const shown =
+    payload?.lead.id === leadId ? payload : drawerCache.get(leadId) ?? null;
+
+  function onBackdrop(e: MouseEvent) {
+    const t = e.target as HTMLElement;
+    if (t.closest("[data-action-popover]")) return;
+    close();
+  }
+
   return (
-    <div className="fixed inset-0 z-40 flex justify-end">
+    <div className="fixed inset-0 z-50 flex justify-end">
       <button
         type="button"
+        data-testid="lead-drawer-backdrop"
         aria-label="Close lead"
         className="absolute inset-0 bg-slate-900/30"
-        onClick={close}
+        onClick={onBackdrop}
       />
       <aside
         role="dialog"
         aria-modal="true"
-        className="relative z-10 flex h-full w-full max-w-xl flex-col border-l border-slate-200 bg-white shadow-xl"
+        data-testid="lead-drawer"
+        className="relative z-10 flex h-full w-full min-w-0 max-w-xl flex-col overflow-x-hidden border-l border-slate-200 bg-white shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <span className="text-sm font-medium text-slate-800">Lead</span>
+          <span className="min-w-0 truncate text-sm font-medium text-slate-800">
+            {shown?.lead.name || shown?.lead.email || "Lead"}
+          </span>
           <button
             type="button"
+            data-testid="lead-drawer-close"
             onClick={close}
             className="rounded px-2 py-1 text-sm text-slate-600 hover:bg-slate-50"
           >
             Close
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          {loading && !payload ? (
-            <p className="text-sm text-slate-500">Loading…</p>
-          ) : error ? (
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4">
+          {error && !shown ? (
             <p className="text-sm text-red-600">{error}</p>
-          ) : payload ? (
-            <LeadDrawerBody data={payload} onReload={() => void load(payload.lead.id)} />
-          ) : null}
+          ) : shown && shown.lead.id === leadId ? (
+            <LeadDrawerBody
+              data={shown}
+              onReload={() => void load(shown.lead.id)}
+            />
+          ) : (
+            <div className="space-y-3">
+              <div className="h-6 w-40 animate-pulse rounded bg-slate-100" />
+              <h3 className="text-sm font-medium text-slate-900">Activity</h3>
+              <ActivitySkeleton />
+            </div>
+          )}
         </div>
       </aside>
     </div>

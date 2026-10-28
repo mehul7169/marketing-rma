@@ -17,6 +17,7 @@
 - Action popovers use `src/components/leads/ActionPopover.tsx` (`@floating-ui/react`: offset 6, flip, shift padding 8, size max-height, autoUpdate, FloatingPortal). No Radix/shadcn in this repo. Do not hand-roll getBoundingClientRect placement.
 - Toasts: module emitter in `src/components/ui/Toast.tsx` (`toastError` / `toastSuccess`), `<Toaster />` in `AppShellClient`, bottom-left, max 3, errors 4s / success 3s. Do not add sonner. WorkQueueToast was removed. Format via `leadErrorToast(lead, message)`.
 - `/leads` search: `useFilterSearch` + `FilterPendingRoot`/`useTransition`. URL `q` is source of truth; typing `replace`, Enter `push`. Same hook on Work Queue `search`. `makeLatestWins` drops stale commits.
+- Lead drawer: `useLeadDrawerParam` holds `openLeadId` in a module store. Open = `history.pushState`, close = `replaceState` (Next 14.2 syncs `useSearchParams` without refetching RSC). Never `router.push` to toggle `?lead=`. Overlay / Esc / Close all call `close()`. Cache in `LeadDrawer.tsx`.
 - Vercel `regions: ["hnd1"]` (Tokyo) to match Supabase `ap-northeast-1`. After-region TTFB needs a deploy to measure.
 
 - Actor UUIDs live in `lead_activities.created_by`; do NOT add `*_by` UUID columns to `leads` (user decision). Legacy `leads.*_by` are text emails.
