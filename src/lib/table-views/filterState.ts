@@ -33,7 +33,7 @@ const PERSISTED_KEYS: Record<string, readonly string[]> = {
     "action_status",
     "is_dead"
   ],
-  "leads-queue": ["view", "tab", "filter", "search", "show_unqualified"]
+  "leads-queue": ["view", "tab", "filter", "search", "show_unqualified", "sort"]
 };
 
 /** Deep-link params: explicit (block restore) but never remembered. */
@@ -110,8 +110,16 @@ export function migratePersistedState(
   todayISO: string = todayISTDateString()
 ): PersistedFilterState {
   if (pageKey === "leads") return migratePersistedLeadsParams(state, todayISO);
-  if (pageKey === "leads-queue" && state.filter && QUEUE_FILTER_ALIASES[state.filter]) {
-    return { ...state, filter: QUEUE_FILTER_ALIASES[state.filter] };
+  if (pageKey === "leads-queue") {
+    const next = { ...state };
+    if (next.filter && QUEUE_FILTER_ALIASES[next.filter]) {
+      next.filter = QUEUE_FILTER_ALIASES[next.filter];
+    }
+    if (next.sort === "queue") next.sort = "follow_up";
+    // Defaults are omitted from the URL; drop them so restore stays "newest / All".
+    if (next.sort === "newest") delete next.sort;
+    if (next.tab === "all") delete next.tab;
+    return next;
   }
   return state;
 }

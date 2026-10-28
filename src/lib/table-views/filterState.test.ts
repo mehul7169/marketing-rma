@@ -23,6 +23,8 @@ describe("hasExplicitFilterParams", () => {
     expect(hasExplicitFilterParams("leads", { cohort: "call_booked" })).toBe(true);
     expect(hasExplicitFilterParams("leads", { lead: "abc" })).toBe(true);
     expect(hasExplicitFilterParams("leads-queue", { view: "table" })).toBe(true);
+    expect(hasExplicitFilterParams("leads-queue", { sort: "oldest" })).toBe(true);
+    expect(hasExplicitFilterParams("leads-queue", { sort: "newest" })).toBe(true);
     expect(hasExplicitFilterParams("leads-queue", { lead: "abc" })).toBe(true);
     expect(hasExplicitFilterParams("leads", new URLSearchParams("q=a"))).toBe(true);
   });
@@ -78,12 +80,15 @@ describe("pickPersistableFilters", () => {
     expect(pickPersistableFilters("meta-ads", new URLSearchParams("a=1"), TODAY)).toBeNull();
   });
 
-  it("keeps Work Queue keys", () => {
-    const params = new URLSearchParams("view=cards&tab=follow_ups_due&search=raj&page=2");
+  it("keeps Work Queue keys including sort", () => {
+    const params = new URLSearchParams(
+      "view=cards&tab=follow_ups_due&search=raj&sort=oldest&page=2"
+    );
     expect(pickPersistableFilters("leads-queue", params, TODAY)).toEqual({
       view: "cards",
       tab: "follow_ups_due",
-      search: "raj"
+      search: "raj",
+      sort: "oldest"
     });
   });
 });
@@ -111,6 +116,15 @@ describe("parsePersistedFilterState / restoreHref", () => {
   it("rewrites a saved Work Queue untouched filter to new", () => {
     expect(restoreHref("/leads/queue", { filter: "untouched", view: "table" })).toBe(
       "/leads/queue?filter=new&view=table"
+    );
+  });
+
+  it("rewrites a saved Work Queue sort=queue to follow_up and drops newest/all", () => {
+    expect(restoreHref("/leads/queue", { sort: "queue", view: "table" })).toBe(
+      "/leads/queue?sort=follow_up&view=table"
+    );
+    expect(restoreHref("/leads/queue", { sort: "newest", tab: "all", view: "table" })).toBe(
+      "/leads/queue?view=table"
     );
   });
 

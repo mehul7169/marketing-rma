@@ -53,7 +53,13 @@ export default function WorkQueueCard({
   const [historyOpen, setHistoryOpen] = useState(false);
 
   return (
-    <article className="rounded border border-slate-200 bg-white p-4 shadow-sm">
+    <article
+      data-testid="work-queue-card"
+      data-lead-id={lead.id}
+      data-created-at={lead.created_at}
+      data-next-action-at={lead.next_action_at ?? ""}
+      className="rounded border border-slate-200 bg-white p-4 shadow-sm"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">

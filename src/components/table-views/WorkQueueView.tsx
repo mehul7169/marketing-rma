@@ -1,10 +1,11 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import ConfirmPopover from "@/components/leads/ConfirmPopover";
 import CreateLeadButton from "@/components/leads/CreateLeadButton";
 import LeadDrawerHost from "@/components/leads/LeadDrawer";
+import { useFilterPending } from "@/components/leads/FilterPending";
 import { useFilterSearch } from "@/components/leads/useFilterSearch";
 import { useLeadGrid } from "@/components/leads/useLeadGrid";
 import WorkQueueCard from "@/components/leads/WorkQueueCard";
@@ -30,6 +31,7 @@ import {
 import { DEFAULT_COLUMNS } from "@/lib/table-views/registry";
 import type { TableColumnConfig, TableViewBootstrap } from "@/lib/table-views/types";
 import type { LeadRow } from "@/lib/leads/types";
+import { queueQueryParams, type QueueSort } from "@/lib/leads/workQueueParams";
 import { useRouter } from "next/navigation";
 
 export default function WorkQueueView({
@@ -38,6 +40,7 @@ export default function WorkQueueView({
   activeTabId,
   statusFilterId = null,
   showFormUnqualified = false,
+  sort = "newest",
   page = 1,
   total = 0,
   pageSize = 50,
@@ -51,6 +54,7 @@ export default function WorkQueueView({
   activeTabId: string;
   statusFilterId?: string | null;
   showFormUnqualified?: boolean;
+  sort?: QueueSort;
   page?: number;
   total?: number;
   pageSize?: number;
@@ -61,7 +65,7 @@ export default function WorkQueueView({
 }) {
   const router = useRouter();
   const preview = useOrgPreview();
-  const [pending, start] = useTransition();
+  const { pending, start } = useFilterPending();
   const [viewMode, setViewMode] = useState<"cards" | "table">(initialViewMode);
   const search = useFilterSearch({
     urlValue: initialSearch,
@@ -116,14 +120,18 @@ export default function WorkQueueView({
     });
   }, []);
 
-  const paginationQuery = useMemo(() => {
-    const q: Record<string, string> = { view: viewMode };
-    if (activeTabId && activeTabId !== "all") q.tab = activeTabId;
-    if (statusFilterId) q.filter = statusFilterId;
-    if (showFormUnqualified) q.show_unqualified = "1";
-    if (initialSearch.trim()) q.search = initialSearch.trim();
-    return q;
-  }, [activeTabId, statusFilterId, showFormUnqualified, initialSearch, viewMode]);
+  const paginationQuery = useMemo(
+    () =>
+      queueQueryParams({
+        view: viewMode,
+        tab: activeTabId,
+        filter: statusFilterId,
+        showFormUnqualified,
+        search: initialSearch,
+        sort
+      }),
+    [activeTabId, statusFilterId, showFormUnqualified, initialSearch, viewMode, sort]
+  );
 
   useEffect(() => {
     // Keep view mode in the URL without a full navigation when toggling cards/table.
@@ -176,7 +184,7 @@ export default function WorkQueueView({
   const editHandlersFor = grid.editHandlersFor;
 
   const pagination = (
-    <div className="shrink-0">
+    <div className="shrink-0" data-testid="queue-pagination" data-total={total}>
       <Pagination
         page={page}
         total={total}
@@ -350,6 +358,10 @@ export default function WorkQueueView({
             {filteredRows.map((lead) => (
               <tr
                 key={lead.id}
+                data-testid="work-queue-row"
+                data-lead-id={lead.id}
+                data-created-at={lead.created_at}
+                data-next-action-at={lead.next_action_at ?? ""}
                 className="cursor-pointer hover:bg-slate-50/60"
                 onClick={(e) => {
                   const t = e.target as HTMLElement;

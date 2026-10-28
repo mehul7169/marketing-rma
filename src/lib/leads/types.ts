@@ -148,8 +148,13 @@ export type LeadListFilters = {
   search?: string;
   /** call_scheduled_for set and still in the future. */
   meetingsBookedOnly?: boolean;
-  /** "queue" = next_action_at asc (nulls last), then created_at desc. */
-  sort?: "date" | "queue";
+  /**
+   * newest = created_at desc (Work Queue default).
+   * oldest = created_at asc.
+   * follow_up / queue = next_action_at asc (nulls last), then created_at desc.
+   * date / omitted = dateField desc (`/leads` KPI lists).
+   */
+  sort?: "date" | "queue" | "newest" | "oldest" | "follow_up";
   /** Page size (e.g. 50). Omit for unbounded (admin/scripts). */
   limit?: number;
   /** 0-based offset into the ordered result set. */

@@ -16,6 +16,7 @@ import type {
   LeadListFilters,
   LeadRow
 } from "@/lib/leads/types";
+import { leadListSortClauses } from "@/lib/leads/leadListSort";
 import { istDayEndUtcIso, istDayStartUtcIso, todayISTDateString } from "@/lib/timezone";
 
 function requireDb() {
@@ -715,12 +716,11 @@ export async function listLeads(filters: LeadListFilters): Promise<LeadRow[]> {
   if (!filters.orgId) throw new Error("listLeads requires orgId");
 
   let { query, dateField } = leadsQuery(filters, LEAD_LIST_SELECT);
-  if (filters.sort === "queue") {
-    query = query
-      .order("next_action_at", { ascending: true, nullsFirst: false })
-      .order("created_at", { ascending: false });
-  } else {
-    query = query.order(dateField, { ascending: false });
+  for (const clause of leadListSortClauses(filters.sort, dateField)) {
+    query = query.order(clause.column, {
+      ascending: clause.ascending,
+      ...(clause.nullsFirst === undefined ? {} : { nullsFirst: clause.nullsFirst })
+    });
   }
 
   if (
