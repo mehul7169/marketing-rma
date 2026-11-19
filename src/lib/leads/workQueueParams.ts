@@ -3,6 +3,13 @@
  * persistence so the All count, pagination and saved view can't drift.
  */
 
+import {
+  customFilterYields,
+  encodeCustomFilter,
+  isCustomFilterEmpty,
+  parseCustomFilterParam,
+  type CustomFilter
+} from "@/lib/leads/customFilter";
 import type { LeadListFilters } from "@/lib/leads/types";
 
 export const QUEUE_TABS = [
@@ -70,6 +77,7 @@ export type QueueHrefOpts = {
   showFormUnqualified?: boolean;
   sort?: QueueSort | string | null;
   page?: number;
+  customFilter?: CustomFilter | null;
 };
 
 export function queueHref(opts: QueueHrefOpts): string {
@@ -83,6 +91,8 @@ export function queueHref(opts: QueueHrefOpts): string {
   const sort = parseQueueSort(opts.sort ?? null);
   if (sort !== "newest") params.set("sort", sort);
   if (opts.page && opts.page > 1) params.set("page", String(opts.page));
+  const cf = opts.customFilter ? encodeCustomFilter(opts.customFilter) : null;
+  if (cf) params.set("cf", cf);
   return `/leads/queue?${params.toString()}`;
 }
 
@@ -99,12 +109,16 @@ export function listFiltersForView(opts: {
   search: string;
   showFormUnqualified: boolean;
   sort: QueueSort;
+  customFilter?: CustomFilter | null;
 }): LeadListFilters {
+  const custom = isCustomFilterEmpty(opts.customFilter) ? undefined : opts.customFilter ?? undefined;
+  const yieldBase = customFilterYields(custom);
   const base: LeadListFilters = {
     orgId: opts.orgId,
-    dead: "hide",
+    dead: yieldBase.dead ? "show" : "hide",
     sort: opts.sort,
-    search: opts.search || undefined
+    search: opts.search || undefined,
+    customFilter: custom
   };
   if (opts.tabId === "meetings_booked") return { ...base, meetingsBookedOnly: true };
   if (opts.tabId === "follow_ups_due") {
@@ -113,7 +127,10 @@ export function listFiltersForView(opts: {
   const filter = QUEUE_STATUS_FILTERS.find((f) => f.id === opts.filterId);
   return {
     ...base,
-    hideFormUnqualified: !opts.showFormUnqualified,
+    hideFormUnqualified:
+      yieldBase.formQualified || yieldBase.dead ? false : !opts.showFormUnqualified,
     ...filter?.filters
   };
 }
+
+export { parseCustomFilterParam };

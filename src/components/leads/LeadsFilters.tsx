@@ -8,14 +8,19 @@ import {
   PIPELINE_STAGE_LABELS,
   type FollowUpState
 } from "@/lib/leads/lifecycleDefinitions";
+import CustomFilterBuilder from "@/components/leads/CustomFilterBuilder";
 import {
   DEAD_FILTER_LABELS,
+  buildLeadsQuery,
   clearedLeadsFilterState,
   leadsFilterChips,
   leadsHref,
   type LeadsFilterState
 } from "@/lib/leads/listFilterParams";
+import { customFilterYields, yieldNote } from "@/lib/leads/customFilter";
 import type { DeadFilter, PipelineStage } from "@/lib/leads/types";
+import type { FilterEnumValueMap } from "@/lib/db/filterEnumValues";
+import type { NamedLeadFilter } from "@/lib/leads/namedFilters";
 import CheckboxMultiSelect from "@/components/ui/CheckboxMultiSelect";
 import Spinner from "@/components/ui/Spinner";
 import { useFilterPending } from "@/components/leads/FilterPending";
@@ -55,10 +60,18 @@ function YesNoSelect({
 /** Filter panel + chips. Search `q` always follows the URL; other filters stay optimistic. */
 export default function LeadsFilters({
   sources,
-  state: serverState
+  state: serverState,
+  customKeys = [],
+  enumValues = {},
+  namedFilters = [],
+  canManageShared = false
 }: {
   sources: string[];
   state: LeadsFilterState;
+  customKeys?: string[];
+  enumValues?: FilterEnumValueMap;
+  namedFilters?: NamedLeadFilter[];
+  canManageShared?: boolean;
 }) {
   const router = useRouter();
   const { pending, start } = useFilterPending();
@@ -191,6 +204,18 @@ export default function LeadsFilters({
         >
           Needs qualification
         </button>
+
+        <CustomFilterBuilder
+          pageKey="leads"
+          filter={state.customFilter}
+          customKeys={customKeys}
+          enumValues={enumValues}
+          namedFilters={namedFilters}
+          canManageShared={canManageShared}
+          currentQuery={buildLeadsQuery({ ...state, q: urlQ })}
+          yieldNoteText={yieldNote(customFilterYields(state.customFilter))}
+          onApply={(next) => patch({ customFilter: next })}
+        />
       </div>
 
       {chips.length > 0 ? (

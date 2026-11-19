@@ -3,6 +3,7 @@ import {
   buildLeadsQuery,
   clearedLeadsFilterState,
   hasLegacyLeadsParams,
+  leadListFiltersFromState,
   leadsFilterChips,
   leadsHref,
   parseLeadsFilterParams
@@ -132,5 +133,36 @@ describe("leadsFilterChips", () => {
       TODAY
     );
     expect(leadsHref(clearedLeadsFilterState(state))).toBe("/leads?dead=hide");
+  });
+});
+
+describe("leadListFiltersFromState yield", () => {
+  it("shows dead leads when a Deal condition is present", () => {
+    const encoded = parseLeadsFilterParams(
+      {
+        dead: "hide",
+        cf: "e30"
+      },
+      TODAY
+    );
+    expect(encoded.customFilter).toBeNull();
+
+    const withDeal = parseLeadsFilterParams(
+      {
+        dead: "hide",
+        cf: Buffer.from(
+          JSON.stringify({ m: "all", c: [{ f: "deal", o: "is_any", v: ["lost"] }] })
+        )
+          .toString("base64")
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "")
+      },
+      TODAY
+    );
+    expect(withDeal.customFilter?.conditions[0]?.field).toBe("deal");
+    const filters = leadListFiltersFromState("org1", withDeal);
+    expect(filters.dead).toBe("show");
+    expect(filters.customFilter?.conditions).toHaveLength(1);
   });
 });

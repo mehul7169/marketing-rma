@@ -28,12 +28,13 @@ const PERSISTED_KEYS: Record<string, readonly string[]> = {
     "follow_up",
     "source",
     "q",
+    "cf",
     // Retired keys: still read so old saved state restores (then migrates).
     "lifecycle",
     "action_status",
     "is_dead"
   ],
-  "leads-queue": ["view", "tab", "filter", "search", "show_unqualified", "sort"]
+  "leads-queue": ["view", "tab", "filter", "search", "show_unqualified", "sort", "cf"]
 };
 
 /** Deep-link params: explicit (block restore) but never remembered. */
@@ -43,6 +44,7 @@ const DEEP_LINK_KEYS: Record<string, readonly string[]> = {
 };
 
 const MAX_VALUE_LENGTH = 500;
+const MAX_CF_LENGTH = 8000;
 
 type ParamsLike = Record<string, string | string[] | undefined> | URLSearchParams;
 
@@ -80,7 +82,7 @@ export function pickPersistableFilters(
   const out: PersistedFilterState = {};
   for (const key of keys) {
     const value = readParam(params, key)?.trim();
-    if (value) out[key] = value.slice(0, MAX_VALUE_LENGTH);
+    if (value) out[key] = value.slice(0, key === "cf" ? MAX_CF_LENGTH : MAX_VALUE_LENGTH);
   }
   if (out.from === defaultFromISO(todayISO) && out.to === todayISO) {
     delete out.from;
@@ -98,7 +100,9 @@ export function parsePersistedFilterState(
   const out: PersistedFilterState = {};
   for (const key of keys) {
     const v = (raw as Record<string, unknown>)[key];
-    if (typeof v === "string" && v.trim()) out[key] = v.trim().slice(0, MAX_VALUE_LENGTH);
+    if (typeof v === "string" && v.trim()) {
+      out[key] = v.trim().slice(0, key === "cf" ? MAX_CF_LENGTH : MAX_VALUE_LENGTH);
+    }
   }
   return out;
 }

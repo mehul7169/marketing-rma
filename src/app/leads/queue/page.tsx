@@ -15,11 +15,12 @@ import {
 } from "@/lib/leads/pagination";
 import PersistFilterState from "@/components/table-views/PersistFilterState";
 import {
+  loadFilterBuilderContext,
   loadTableViewBootstrap,
   restorePersistedFilters,
 } from "@/lib/table-views/loadBootstrap";
+import { parseCustomFilterParam } from "@/lib/leads/customFilter";
 import {
-  isQueuePrimaryTab,
   LEGACY_QUEUE_FILTER_IDS,
   listFiltersForView,
   parseQueueFilter,
@@ -39,6 +40,7 @@ export default async function WorkQueuePage({
     page?: string;
     show_unqualified?: string;
     sort?: string;
+    cf?: string;
   };
 }) {
   const orgId = await getCurrentOrgId();
@@ -52,6 +54,7 @@ export default async function WorkQueuePage({
   const rawFilter = searchParams.filter?.trim() ?? "";
   const filterId = parseQueueFilter(rawFilter, tabId);
   const sort = parseQueueSort(searchParams.sort);
+  const customFilter = parseCustomFilterParam(searchParams.cf);
   const showFormUnqualified = searchParams.show_unqualified === "1";
   const initialViewMode = searchParams.view === "cards" ? "cards" : "table";
   const initialSearch = (searchParams.search ?? "").trim();
@@ -65,11 +68,12 @@ export default async function WorkQueuePage({
         search: initialSearch,
         showFormUnqualified,
         sort,
+        customFilter,
       }),
     );
   }
 
-  const countBase = { orgId, dead: "hide" as const };
+  const countBase = { orgId, dead: "hide" as const, customFilter: customFilter ?? undefined };
   const allScope = listFiltersForView({
     orgId,
     tabId: "all",
@@ -77,6 +81,7 @@ export default async function WorkQueuePage({
     search: initialSearch,
     showFormUnqualified,
     sort,
+    customFilter,
   });
   const scopeFilters = listFiltersForView({
     orgId,
@@ -85,6 +90,7 @@ export default async function WorkQueuePage({
     search: initialSearch,
     showFormUnqualified,
     sort,
+    customFilter,
   });
   const listFilters = {
     ...scopeFilters,
@@ -102,14 +108,26 @@ export default async function WorkQueuePage({
     tableViewBootstrap,
   ] = await Promise.all([
     tabId === "all" ? Promise.resolve(-1) : countLeads(allScope),
-    // Badge counts for Meetings / Follow-ups: same as before (no search, no hideFormUnqualified).
-    countLeads({ ...countBase, meetingsBookedOnly: true }),
-    countLeads({ ...countBase, followUp: ["overdue", "today"] }),
+    countLeads({
+      ...countBase,
+      dead: scopeFilters.dead,
+      meetingsBookedOnly: true
+    }),
+    countLeads({
+      ...countBase,
+      dead: scopeFilters.dead,
+      followUp: ["overdue", "today"]
+    }),
     countLeads(scopeFilters),
     listLeads(listFilters),
     getOrganizationById(orgId),
     loadTableViewBootstrap("leads-queue", { orgId }),
   ]);
+  const filterBuilder = await loadFilterBuilderContext(
+    "leads-queue",
+    orgId,
+    org?.slug ?? null
+  );
 
   const counts: Record<string, number> = {
     all: tabId === "all" ? total : allCount,
@@ -144,17 +162,23 @@ export default async function WorkQueuePage({
             showFormUnqualified={showFormUnqualified}
             sort={sort}
             counts={counts}
+            customFilter={customFilter}
+            customKeys={filterBuilder.customKeys}
+            enumValues={filterBuilder.enumValues}
+            namedFilters={filterBuilder.namedFilters}
+            canManageShared={filterBuilder.canManageShared}
           />
         </div>
 
         <WorkQueueView
-          key={`${tabId}:${filterId ?? ""}:${showFormUnqualified}:${page}:${initialSearch}:${sort}`}
+          key={`${tabId}:${filterId ?? ""}:${showFormUnqualified}:${page}:${initialSearch}:${sort}:${searchParams.cf ?? ""}`}
           initialViewMode={initialViewMode}
           initialSearch={initialSearch}
           activeTabId={tabId}
           statusFilterId={filterId}
           showFormUnqualified={showFormUnqualified}
           sort={sort}
+          customFilter={customFilter}
           page={page}
           total={total}
           pageSize={LEAD_LIST_PAGE_SIZE}

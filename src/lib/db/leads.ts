@@ -16,6 +16,7 @@ import type {
   LeadListFilters,
   LeadRow
 } from "@/lib/leads/types";
+import { applyCustomFilter } from "@/lib/leads/customFilterQuery";
 import { leadListSortClauses } from "@/lib/leads/leadListSort";
 import { istDayEndUtcIso, istDayStartUtcIso, todayISTDateString } from "@/lib/timezone";
 
@@ -708,6 +709,7 @@ function leadsQuery(
       .not("call_scheduled_for", "is", null)
       .gt("call_scheduled_for", new Date().toISOString());
   }
+  query = applyCustomFilter(query, filters.customFilter);
   return { query, dateField };
 }
 

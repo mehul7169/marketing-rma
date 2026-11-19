@@ -28,6 +28,7 @@ import {
   parsePageParam
 } from "@/lib/leads/pagination";
 import {
+  loadFilterBuilderContext,
   loadTableViewBootstrap,
   restorePersistedFilters
 } from "@/lib/table-views/loadBootstrap";
@@ -67,6 +68,7 @@ export default async function LeadsPage({
       loadTableViewBootstrap("leads", { orgId }),
       listDueFollowUps(orgId)
     ]);
+  const filterBuilder = await loadFilterBuilderContext("leads", orgId, org?.slug ?? null);
   const dueByLead: Record<string, LeadReminder[]> = {};
   for (const r of dueReminders) {
     const list = dueByLead[r.lead_id] ?? [];
@@ -114,7 +116,14 @@ export default async function LeadsPage({
             </p>
           ) : null}
 
-          <LeadsFilters sources={allSources} state={filterState} />
+          <LeadsFilters
+            sources={allSources}
+            state={filterState}
+            customKeys={filterBuilder.customKeys}
+            enumValues={filterBuilder.enumValues}
+            namedFilters={filterBuilder.namedFilters}
+            canManageShared={filterBuilder.canManageShared}
+          />
         </div>
 
         <FilterPendingSurface className="flex min-h-0 flex-1 flex-col">

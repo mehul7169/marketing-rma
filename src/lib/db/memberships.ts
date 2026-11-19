@@ -122,3 +122,33 @@ export async function inviteMember(input: {
     status: r.user_id ? "active" : "invited"
   };
 }
+
+export async function getMembershipRole(
+  userId: string,
+  orgId: string
+): Promise<Role | null> {
+  const db = requireDb();
+  const { data, error } = await db
+    .from("memberships")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const role = typeof data.role === "string" ? data.role : "";
+  return isRole(role) ? role : "viewer";
+}
+
+export async function firstAdminUserIdForOrg(orgId: string): Promise<string | null> {
+  const db = requireDb();
+  const { data, error } = await db
+    .from("memberships")
+    .select("user_id")
+    .eq("org_id", orgId)
+    .eq("role", "admin")
+    .not("user_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.user_id) return null;
+  return String(data.user_id);
+}

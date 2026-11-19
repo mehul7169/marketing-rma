@@ -27,6 +27,8 @@ describe("hasExplicitFilterParams", () => {
     expect(hasExplicitFilterParams("leads-queue", { sort: "newest" })).toBe(true);
     expect(hasExplicitFilterParams("leads-queue", { lead: "abc" })).toBe(true);
     expect(hasExplicitFilterParams("leads", new URLSearchParams("q=a"))).toBe(true);
+    expect(hasExplicitFilterParams("leads", { cf: "abc" })).toBe(true);
+    expect(hasExplicitFilterParams("leads-queue", { cf: "abc" })).toBe(true);
   });
 });
 
@@ -154,5 +156,29 @@ describe("parseTableViewConfig with filters", () => {
       filters: { orgA: { q: "a" } }
     });
     expect(parseTableViewConfig({})).toBeNull();
+  });
+
+  it("keeps namedFilters when parsing a saved row", () => {
+    const named = [
+      {
+        id: "seed-lost-reactivate",
+        name: "Lost — reactivate",
+        shared: true,
+        ownerUserId: "u1",
+        query: { cf: "abc" },
+        updatedAt: "2026-11-19T00:00:00.000Z"
+      }
+    ];
+    expect(
+      parseTableViewConfig({
+        columns: [{ id: "email", visible: true }],
+        filters: { orgA: { q: "a" } },
+        namedFilters: { orgA: named }
+      })
+    ).toEqual({
+      columns: [{ id: "email", visible: true, width: null }],
+      filters: { orgA: { q: "a" } },
+      namedFilters: { orgA: named }
+    });
   });
 });

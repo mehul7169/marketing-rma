@@ -36,6 +36,11 @@ beforeEach(() => {
 });
 
 describe("LeadsFilters search", () => {
+  it("shows + Filter on the filter row", () => {
+    renderFilters(state(""));
+    expect(screen.getByTestId("cf-add")).toHaveTextContent("+ Filter");
+  });
+
   it("keeps the input and chip in sync with URL q", () => {
     const { rerender } = renderFilters(state("kunal"));
     const input = screen.getByTestId("leads-search") as HTMLInputElement;

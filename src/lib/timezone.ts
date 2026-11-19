@@ -1,3 +1,4 @@
+import { addDays } from "date-fns/addDays";
 import { differenceInCalendarDays } from "date-fns/differenceInCalendarDays";
 import { format } from "date-fns/format";
 import { fromZonedTime } from "date-fns-tz/fromZonedTime";
@@ -47,6 +48,12 @@ export function istDayStartUtcIso(yyyyMmDd: string): string {
 /** Inclusive end of an IST calendar day, as a UTC ISO string. */
 export function istDayEndUtcIso(yyyyMmDd: string): string {
   return fromZonedTime(`${yyyyMmDd}T23:59:59.999`, IST_TIMEZONE).toISOString();
+}
+
+/** Shift a YYYY-MM-DD IST calendar date by N days (negative = past). */
+export function addIstCalendarDays(yyyyMmDd: string, days: number): string {
+  const utc = fromZonedTime(`${yyyyMmDd}T12:00:00`, IST_TIMEZONE);
+  return toISTDateString(addDays(utc, days));
 }
 
 /** Display helper for CRM/dashboard timestamps. Empty/invalid → em dash. */

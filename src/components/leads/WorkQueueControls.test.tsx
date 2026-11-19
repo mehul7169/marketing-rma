@@ -92,4 +92,11 @@ describe("WorkQueueControls", () => {
       "/leads/queue?view=table&tab=follow_ups_due&sort=oldest"
     );
   });
+
+  it("puts + Filter on the controls row next to Sort", () => {
+    renderControls();
+    expect(screen.getByTestId("cf-add")).toHaveTextContent("+ Filter");
+    expect(screen.getByTestId("cf-saved")).toBeInTheDocument();
+    expect(screen.getByTestId("queue-sort")).toBeInTheDocument();
+  });
 });

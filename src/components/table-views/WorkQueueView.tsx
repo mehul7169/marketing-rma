@@ -31,6 +31,7 @@ import {
 import { DEFAULT_COLUMNS } from "@/lib/table-views/registry";
 import type { TableColumnConfig, TableViewBootstrap } from "@/lib/table-views/types";
 import type { LeadRow } from "@/lib/leads/types";
+import { customFilterYields, type CustomFilter } from "@/lib/leads/customFilter";
 import { queueQueryParams, type QueueSort } from "@/lib/leads/workQueueParams";
 import { useRouter } from "next/navigation";
 
@@ -41,6 +42,7 @@ export default function WorkQueueView({
   statusFilterId = null,
   showFormUnqualified = false,
   sort = "newest",
+  customFilter = null,
   page = 1,
   total = 0,
   pageSize = 50,
@@ -55,6 +57,7 @@ export default function WorkQueueView({
   statusFilterId?: string | null;
   showFormUnqualified?: boolean;
   sort?: QueueSort;
+  customFilter?: CustomFilter | null;
   page?: number;
   total?: number;
   pageSize?: number;
@@ -83,10 +86,11 @@ export default function WorkQueueView({
       });
     }
   });
+  const yieldBase = customFilterYields(customFilter);
   const belongs = useCallback(
     (lead: LeadRow) =>
-      leadBelongsInView(lead, activeTabId, statusFilterId, showFormUnqualified),
-    [activeTabId, statusFilterId, showFormUnqualified]
+      leadBelongsInView(lead, activeTabId, statusFilterId, showFormUnqualified, yieldBase),
+    [activeTabId, statusFilterId, showFormUnqualified, yieldBase.dead, yieldBase.formQualified]
   );
   const grid = useLeadGrid(rows, { belongs });
   const localRows = grid.rows;
@@ -128,9 +132,10 @@ export default function WorkQueueView({
         filter: statusFilterId,
         showFormUnqualified,
         search: initialSearch,
-        sort
+        sort,
+        customFilter
       }),
-    [activeTabId, statusFilterId, showFormUnqualified, initialSearch, viewMode, sort]
+    [activeTabId, statusFilterId, showFormUnqualified, initialSearch, viewMode, sort, customFilter]
   );
 
   useEffect(() => {
@@ -160,7 +165,7 @@ export default function WorkQueueView({
 
   const onLeadCreated = useCallback(
     (lead: LeadRow) => {
-      if (leadBelongsInView(lead, activeTabId, statusFilterId, showFormUnqualified)) {
+      if (leadBelongsInView(lead, activeTabId, statusFilterId, showFormUnqualified, yieldBase)) {
         grid.applyLead(lead.id, lead);
         toastSuccess(`Created ${lead.name ?? "lead"}`);
       } else {
@@ -169,7 +174,7 @@ export default function WorkQueueView({
         );
       }
     },
-    [activeTabId, statusFilterId, showFormUnqualified, grid]
+    [activeTabId, statusFilterId, showFormUnqualified, yieldBase, grid]
   );
 
   const tableColumns = view.visibleColumns;
@@ -467,9 +472,10 @@ function leadBelongsInView(
   lead: LeadRow,
   tabId: string,
   statusFilterId: string | null | undefined,
-  showFormUnqualified: boolean
+  showFormUnqualified: boolean,
+  yieldBase: { dead: boolean; formQualified: boolean }
 ): boolean {
-  if (lead.is_dead) return false;
+  if (lead.is_dead && !yieldBase.dead) return false;
 
   if (tabId === "meetings_booked") {
     if (!lead.call_scheduled_for) return false;
@@ -480,7 +486,14 @@ function leadBelongsInView(
     return state === "overdue" || state === "today";
   }
 
-  if (!showFormUnqualified && isFormUnqualified(lead)) return false;
+  if (
+    !yieldBase.formQualified &&
+    !yieldBase.dead &&
+    !showFormUnqualified &&
+    isFormUnqualified(lead)
+  ) {
+    return false;
+  }
   if (statusFilterId === "new" || statusFilterId === "contacted") {
     return pipelineStageOf(lead) === statusFilterId;
   }

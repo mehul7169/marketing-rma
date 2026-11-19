@@ -83,6 +83,13 @@ export async function saveTableViewColumns(
   });
 }
 
+export async function listTableViewsForPage(pageKey: string): Promise<TableViewRow[]> {
+  const db = requireDb();
+  const { data, error } = await db.from("table_views").select("*").eq("page_key", pageKey);
+  if (error) throw error;
+  return (data ?? []).map(asRow).filter((r): r is TableViewRow => Boolean(r));
+}
+
 /** Remembers last-used filters for one org, keeping column layout intact. */
 export async function saveTableViewFilters(
   userId: string,
@@ -93,7 +100,8 @@ export async function saveTableViewFilters(
   const existing = await getTableViewForUser(userId, pageKey);
   const config: TableViewConfig = {
     columns: existing?.config.columns ?? [],
-    filters: { ...existing?.config.filters, [orgId]: filters }
+    filters: { ...existing?.config.filters, [orgId]: filters },
+    namedFilters: existing?.config.namedFilters
   };
   await upsertTableViewForUser(userId, pageKey, config);
 }
@@ -114,10 +122,11 @@ export async function deleteTableViewForUser(
 ): Promise<void> {
   const db = requireDb();
   const existing = await getTableViewForUser(userId, pageKey);
-  if (existing?.config.filters) {
+  if (existing?.config.filters || existing?.config.namedFilters) {
     await upsertTableViewForUser(userId, pageKey, {
       columns: [],
-      filters: existing.config.filters
+      filters: existing.config.filters,
+      namedFilters: existing.config.namedFilters
     });
     return;
   }

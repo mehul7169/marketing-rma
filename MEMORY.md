@@ -1,7 +1,7 @@
 # MEMORY
 
 ## Commands
-- Tests: `npx vitest run` (single file: `npx vitest run <path>`).
+- Tests: `npx vitest run` (single file: `npx vitest run <path>`). Live SQL checks: `LIVE_DB=1 npx vitest run src/lib/leads/customFilter.live.test.ts` (needs network + service role).
 - Typecheck: `npx tsc --noEmit` — one pre-existing error in `src/app/authForms.test.tsx` (`beforeEach` not imported).
 - Lint: `npx next lint` is not configured (opens interactive ESLint setup). No ruff — repo is TypeScript.
 - Read-only live DB: node script with `node --env-file=.env` + supabase-js service role; catalog queries via psql pooler `aws-0-ap-northeast-1.pooler.supabase.com:6543`, user `postgres.<ref>` (direct `db.<ref>` host is IPv6-only).
@@ -40,14 +40,14 @@
 - `call_showed` is manual only. Recordings are Fathom share links (`fathom.video/share/...`). There's no Fathom or cal.com integration or key in `.env`.
 
 - There's no booking activity type. Work Queue "Qualified" = qualify + book_call. Self-serve cal.com bookings never write a `call_attempt`. Setter "Calls Booked" (Insights setter table) = qualified row within 5 min of `call_booked_at`, once per lead (user decision 2026-09-29). Headline Calls Booked KPI is `call_booked_at` in range.
-- Filter persistence lives in `table_views.config.filters[orgId]` (user chose no new table). Named saved views should go in another config key. Don't add a `filters` column. `src/lib/leads/listFilterParams.ts` is the single parse/build path for `/leads` URLs.
+- Filter persistence lives in `table_views.config.filters[orgId]` (user chose no new table). Named saved views live in `config.namedFilters[orgId]` (personal + `shared: true` for the org; admins edit shared). Don't add a `filters` column. `src/lib/leads/listFilterParams.ts` is the single parse/build path for `/leads` URLs. Custom filter: `?cf=` base64url JSON, registry in `filterFields.ts`, query translation in `customFilterQuery.ts`. Deal/Dead/Dead reason yield hide-dead; Form Qualified yields hide-form-unqualified. "Is not" is null-safe. JSON `custom_fields->>key` filters may scan (~2k rows is fine; no extra index added).
 - Crons: Vercel Cron in `vercel.json` (UTC schedules). Auth is `assertCronSecret`, and Vercel sends `Authorization: Bearer $CRON_SECRET`. Runs are logged via `logCronRun`. The daily digest `30 14 * * *` (8 PM IST) reuses page query functions. Don't write parallel queries. Test with `?dry_run=1` and don't post to the live webhook.
 - `form_qualified` = the website form's verdict (tag only). `qualified*` = the setter's decision only. The backfill ran in prod on 2026-10-27, 11:16–11:51 UTC, as raw SQL with no `updated_at` trigger, so rows don't show the change. The Slack no-booking nudge is RMA-only (org filter) and uses form_qualified OR qualified.
 - The org table is `organizations` (not `orgs`). `profiles` has id, email, role, is_platform_admin, and no name column.
 
 ## Deferred
 - Leads with null `lead_source` (~77) can't be picked in the Source filter. It needs an `is.null` OR branch in `listLeads`/`countLeads`.
-- Saved named views (filters phase 2).
+- Nested custom-filter groups (OR of AND groups). Current builder is a single AND/OR set.
 - Historic leftover `call_attempt` rows from failed saves before 2026-10-27 (e.g. Aishavryaa, 3 extra `qualified` rows on 14 Sep) still inflate old Total Dials slightly. New writes are atomic.
 - Automatic call-showed detection: the proposal is a Fathom webhook that matches the invitee email and sets `call_showed`/`recording_url`. Blocked on the user providing a Fathom API key/webhook secret.
 - Ask the website to put the ad ID (`{{ad.id}}`) in `utm_content` so attribution isn't name-based.

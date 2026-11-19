@@ -13,6 +13,15 @@ import {
   type FollowUpState,
   type KpiKey
 } from "@/lib/leads/lifecycleDefinitions";
+import {
+  customConditionChipLabel,
+  customFilterYields,
+  encodeCustomFilter,
+  isCustomFilterEmpty,
+  parseCustomFilterParam,
+  removeCondition,
+  type CustomFilter
+} from "@/lib/leads/customFilter";
 import type {
   DeadFilter,
   LeadListFilters,
@@ -36,6 +45,7 @@ export type LeadsFilterState = {
   followUp: FollowUpState[];
   sources: string[];
   q: string;
+  customFilter: CustomFilter | null;
 };
 
 export type LeadsSearchParams = Record<string, string | string[] | undefined>;
@@ -212,7 +222,8 @@ export function parseLeadsFilterParams(
       first(params.needs_qualification) === "1" || Boolean(legacy.needsQualification),
     followUp,
     sources: parseList(params.source),
-    q: first(params.q)?.trim() ?? ""
+    q: first(params.q)?.trim() ?? "",
+    customFilter: parseCustomFilterParam(params.cf)
   };
 }
 
@@ -232,6 +243,8 @@ export function buildLeadsQuery(state: LeadsFilterState): Record<string, string>
   if (state.followUp.length) q.follow_up = state.followUp.join(",");
   if (state.sources.length) q.source = state.sources.join(",");
   if (state.q) q.q = state.q;
+  const cf = state.customFilter ? encodeCustomFilter(state.customFilter) : null;
+  if (cf) q.cf = cf;
   return q;
 }
 
@@ -244,19 +257,21 @@ export function leadListFiltersFromState(
   orgId: string,
   state: LeadsFilterState
 ): LeadListFilters {
+  const yieldBase = customFilterYields(state.customFilter);
   return {
     orgId,
     fromISO: state.fromISO,
     toISO: state.toISO,
     kpi: state.kpi,
     pipelineStages: state.stages.length ? state.stages : undefined,
-    dead: state.dead,
+    dead: yieldBase.dead && state.dead === "hide" ? "show" : state.dead,
     formQualified: state.formQualified || undefined,
     qualified: state.qualified || undefined,
     needsQualification: state.needsQualification || undefined,
     followUp: state.followUp.length ? state.followUp : undefined,
     sources: state.sources.length ? state.sources : undefined,
-    search: state.q || undefined
+    search: state.q || undefined,
+    customFilter: isCustomFilterEmpty(state.customFilter) ? undefined : state.customFilter ?? undefined
   };
 }
 
@@ -288,7 +303,8 @@ export function clearedLeadsFilterState(state: LeadsFilterState): LeadsFilterSta
     needsQualification: false,
     followUp: [],
     sources: [],
-    q: ""
+    q: "",
+    customFilter: null
   };
 }
 
@@ -372,6 +388,18 @@ export function leadsFilterChips(state: LeadsFilterState): LeadsFilterChip[] {
       label: `Search: ${state.q}`,
       without: { ...state, q: "" }
     });
+  }
+  if (state.customFilter && !isCustomFilterEmpty(state.customFilter)) {
+    for (const c of state.customFilter.conditions) {
+      chips.push({
+        id: `cf:${c.id}`,
+        label: customConditionChipLabel(c),
+        without: {
+          ...state,
+          customFilter: removeCondition(state.customFilter, c.id)
+        }
+      });
+    }
   }
   return chips;
 }

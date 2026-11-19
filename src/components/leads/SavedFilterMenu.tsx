@@ -1,0 +1,234 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useFilterPending } from "@/components/leads/FilterPending";
+import type { NamedLeadFilter } from "@/lib/leads/namedFilters";
+
+export default function SavedFilterMenu({
+  pageKey,
+  items,
+  canManageShared,
+  currentQuery
+}: {
+  pageKey: "leads" | "leads-queue";
+  items: NamedLeadFilter[];
+  canManageShared: boolean;
+  currentQuery: Record<string, string>;
+}) {
+  const router = useRouter();
+  const { start } = useFilterPending();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState("");
+  const [shared, setShared] = useState(false);
+  const [list, setList] = useState(items);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const path = pageKey === "leads-queue" ? "/leads/queue" : "/leads";
+
+  useEffect(() => setList(items), [items]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setSaving(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  function applyItem(item: NamedLeadFilter) {
+    const params = new URLSearchParams(item.query);
+    start(() => router.push(`${path}?${params.toString()}`));
+    setOpen(false);
+  }
+
+  async function saveNew() {
+    const res = await fetch(`/api/table-views/${pageKey}/named-filters`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, shared: canManageShared && shared, query: currentQuery })
+    });
+    if (!res.ok) return;
+    const json = (await res.json()) as { item: NamedLeadFilter };
+    setList((prev) => [...prev, json.item].sort((a, b) => a.name.localeCompare(b.name)));
+    setSaving(false);
+    setName("");
+    setShared(false);
+  }
+
+  async function remove(item: NamedLeadFilter) {
+    const res = await fetch(
+      `/api/table-views/${pageKey}/named-filters?id=${encodeURIComponent(item.id)}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) return;
+    setList((prev) => prev.filter((f) => f.id !== item.id));
+  }
+
+  async function rename(item: NamedLeadFilter) {
+    const next = window.prompt("Rename filter", item.name);
+    if (!next || next.trim() === item.name) return;
+    const res = await fetch(`/api/table-views/${pageKey}/named-filters`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: item.id, name: next.trim() })
+    });
+    if (!res.ok) return;
+    const json = (await res.json()) as { item: NamedLeadFilter };
+    setList((prev) => prev.map((f) => (f.id === item.id ? json.item : f)));
+  }
+
+  async function update(item: NamedLeadFilter) {
+    const res = await fetch(`/api/table-views/${pageKey}/named-filters`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: item.id, query: currentQuery })
+    });
+    if (!res.ok) return;
+    const json = (await res.json()) as { item: NamedLeadFilter };
+    setList((prev) => prev.map((f) => (f.id === item.id ? json.item : f)));
+  }
+
+  const personal = list.filter((f) => !f.shared);
+  const team = list.filter((f) => f.shared);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        data-testid="cf-saved"
+        className="rounded-sm border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50"
+        onClick={() => setOpen((v) => !v)}
+      >
+        Saved filters
+      </button>
+      {open ? (
+        <div className="absolute z-30 mt-1 w-72 rounded border border-slate-200 bg-white p-2 text-xs shadow-sm">
+          {personal.length === 0 && team.length === 0 ? (
+            <p className="px-1 py-2 text-slate-500">No saved filters yet.</p>
+          ) : null}
+          {personal.length > 0 ? (
+            <p className="px-1 text-[10px] font-medium uppercase text-slate-400">Yours</p>
+          ) : null}
+          {personal.map((item) => (
+            <SavedRow
+              key={item.id}
+              item={item}
+              canEdit
+              onApply={() => applyItem(item)}
+              onRename={() => void rename(item)}
+              onUpdate={() => void update(item)}
+              onDelete={() => void remove(item)}
+            />
+          ))}
+          {team.length > 0 ? (
+            <p className="mt-2 px-1 text-[10px] font-medium uppercase text-slate-400">
+              Shared with team
+            </p>
+          ) : null}
+          {team.map((item) => (
+            <SavedRow
+              key={item.id}
+              item={item}
+              canEdit={canManageShared}
+              onApply={() => applyItem(item)}
+              onRename={() => void rename(item)}
+              onUpdate={() => void update(item)}
+              onDelete={() => void remove(item)}
+            />
+          ))}
+          <div className="mt-2 border-t border-slate-100 pt-2">
+            {saving ? (
+              <div className="space-y-2">
+                <input
+                  autoFocus
+                  data-testid="cf-save-name"
+                  className="w-full rounded-sm border border-slate-200 px-2 py-1"
+                  placeholder="Filter name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void saveNew();
+                  }}
+                />
+                {canManageShared ? (
+                  <label className="flex items-center gap-1.5 text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={shared}
+                      onChange={(e) => setShared(e.target.checked)}
+                    />
+                    Shared with team
+                  </label>
+                ) : null}
+                <button
+                  type="button"
+                  data-testid="cf-save-confirm"
+                  className="rounded-sm bg-sky-100 px-2 py-1 font-medium text-sky-950"
+                  onClick={() => void saveNew()}
+                >
+                  Save
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                data-testid="cf-save-as"
+                className="text-slate-600 underline decoration-slate-300 hover:text-slate-900"
+                onClick={() => setSaving(true)}
+              >
+                Save as…
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SavedRow({
+  item,
+  canEdit,
+  onApply,
+  onRename,
+  onUpdate,
+  onDelete
+}: {
+  item: NamedLeadFilter;
+  canEdit: boolean;
+  onApply: () => void;
+  onRename: () => void;
+  onUpdate: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-1 py-0.5">
+      <button
+        type="button"
+        data-testid={`cf-saved-item-${item.id}`}
+        className="min-w-0 flex-1 truncate rounded-sm px-1 py-1 text-left text-slate-800 hover:bg-slate-50"
+        onClick={onApply}
+      >
+        {item.name}
+      </button>
+      {canEdit ? (
+        <>
+          <button type="button" className="text-slate-400 hover:text-slate-700" onClick={onRename}>
+            Rename
+          </button>
+          <button type="button" className="text-slate-400 hover:text-slate-700" onClick={onUpdate}>
+            Update
+          </button>
+          <button type="button" className="text-slate-400 hover:text-slate-700" onClick={onDelete}>
+            Delete
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
+}

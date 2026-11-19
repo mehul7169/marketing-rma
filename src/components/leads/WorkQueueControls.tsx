@@ -1,14 +1,26 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import CustomFilterBuilder from "@/components/leads/CustomFilterBuilder";
 import { useFilterPending } from "@/components/leads/FilterPending";
 import WorkQueueStatusFilter from "@/components/leads/WorkQueueStatusFilter";
+import type { FilterEnumValueMap } from "@/lib/db/filterEnumValues";
+import {
+  customConditionChipLabel,
+  customFilterYields,
+  isCustomFilterEmpty,
+  removeCondition,
+  yieldNote,
+  type CustomFilter
+} from "@/lib/leads/customFilter";
+import type { NamedLeadFilter } from "@/lib/leads/namedFilters";
 import {
   QUEUE_SORT_LABELS,
   QUEUE_SORTS,
   QUEUE_TABS,
   isQueuePrimaryTab,
   queueHref,
+  queueQueryParams,
   type QueueSort,
   type QueueTabId
 } from "@/lib/leads/workQueueParams";
@@ -28,7 +40,12 @@ export default function WorkQueueControls({
   search = "",
   showFormUnqualified,
   sort,
-  counts
+  counts,
+  customFilter = null,
+  customKeys = [],
+  enumValues = {},
+  namedFilters = [],
+  canManageShared = false
 }: {
   view: string;
   tabId: QueueTabId;
@@ -37,6 +54,11 @@ export default function WorkQueueControls({
   showFormUnqualified: boolean;
   sort: QueueSort;
   counts: Record<string, number>;
+  customFilter?: CustomFilter | null;
+  customKeys?: string[];
+  enumValues?: FilterEnumValueMap;
+  namedFilters?: NamedLeadFilter[];
+  canManageShared?: boolean;
 }) {
   const router = useRouter();
   const { start } = useFilterPending();
@@ -46,7 +68,8 @@ export default function WorkQueueControls({
     filter: tabId === "all" ? filterId : null,
     search,
     showFormUnqualified,
-    sort
+    sort,
+    customFilter
   };
 
   function go(
@@ -55,14 +78,18 @@ export default function WorkQueueControls({
       filter: string | null;
       sort: QueueSort;
       showFormUnqualified: boolean;
+      customFilter: CustomFilter | null;
+      search: string;
     }>
   ) {
     start(() => router.push(queueHref({ ...current, ...patch })));
   }
 
   const filterDisabled = isQueuePrimaryTab(tabId);
+  const note = yieldNote(customFilterYields(customFilter));
 
   return (
+    <div className="space-y-2">
     <div
       data-testid="queue-controls"
       className="flex flex-wrap items-center gap-x-4 gap-y-2"
@@ -130,6 +157,21 @@ export default function WorkQueueControls({
 
       <div className="inline-flex items-center gap-x-4">
         <Dot />
+        <CustomFilterBuilder
+          pageKey="leads-queue"
+          filter={customFilter}
+          customKeys={customKeys}
+          enumValues={enumValues}
+          namedFilters={namedFilters}
+          canManageShared={canManageShared}
+          currentQuery={queueQueryParams(current)}
+          yieldNoteText={null}
+          onApply={(next) => go({ customFilter: next })}
+        />
+      </div>
+
+      <div className="inline-flex items-center gap-x-4">
+        <Dot />
         <label className="inline-flex items-center gap-1.5 text-xs text-slate-600">
           <span className="whitespace-nowrap">Sort</span>
           <select
@@ -182,6 +224,62 @@ export default function WorkQueueControls({
           </a>
         </div>
       )}
+    </div>
+    {!isCustomFilterEmpty(customFilter) || search ? (
+      <div className="flex flex-wrap items-center gap-2" aria-label="Active filters">
+        {search ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-3 pr-1 text-xs">
+            Search: {search}
+            <button
+              type="button"
+              className="rounded-full px-1.5 text-slate-500 hover:bg-slate-200"
+              onClick={() => go({ search: "" })}
+            >
+              ×
+            </button>
+          </span>
+        ) : null}
+        {(customFilter?.conditions ?? []).map((c) => (
+          <span
+            key={c.id}
+            data-testid={`filter-chip-cf:${c.id}`}
+            className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-3 pr-1 text-xs text-slate-800"
+          >
+            <span className="truncate">{customConditionChipLabel(c)}</span>
+            <button
+              type="button"
+              aria-label={`Remove ${customConditionChipLabel(c)}`}
+              className="rounded-full px-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900"
+              onClick={() => {
+                const next = removeCondition(customFilter!, c.id);
+                go({ customFilter: isCustomFilterEmpty(next) ? null : next });
+              }}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <button
+          type="button"
+          className="text-xs text-slate-500 underline decoration-slate-300 hover:text-slate-900"
+          onClick={() =>
+            go({
+              filter: null,
+              customFilter: null,
+              showFormUnqualified: false,
+              search: ""
+            })
+          }
+        >
+          Clear all
+        </button>
+      </div>
+    ) : null}
+    {note ? (
+      <p className="text-xs text-slate-500" data-testid="cf-yield-note">
+        {note}
+      </p>
+    ) : null}
     </div>
   );
 }

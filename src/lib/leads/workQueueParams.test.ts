@@ -86,7 +86,8 @@ describe("listFiltersForView", () => {
       dead: "hide",
       sort: "newest",
       search: undefined,
-      hideFormUnqualified: true
+      hideFormUnqualified: true,
+      customFilter: undefined
     });
   });
 
@@ -131,5 +132,37 @@ describe("listFiltersForView", () => {
     });
     expect(followUps.followUp).toEqual(["overdue", "today"]);
     expect(followUps.hideFormUnqualified).toBeUndefined();
+  });
+
+  it("Deal / Form Qualified conditions drop the Work Queue base exclusions", () => {
+    const lost = listFiltersForView({
+      orgId: "o1",
+      tabId: "all",
+      filterId: null,
+      search: "",
+      showFormUnqualified: false,
+      sort: "newest",
+      customFilter: {
+        match: "all",
+        conditions: [{ id: "1", field: "deal", op: "is_any", value: ["lost"] }]
+      }
+    });
+    expect(lost.dead).toBe("show");
+    expect(lost.hideFormUnqualified).toBe(false);
+
+    const fq = listFiltersForView({
+      orgId: "o1",
+      tabId: "all",
+      filterId: null,
+      search: "",
+      showFormUnqualified: false,
+      sort: "newest",
+      customFilter: {
+        match: "all",
+        conditions: [{ id: "1", field: "form_qualified", op: "is_yes" }]
+      }
+    });
+    expect(fq.dead).toBe("hide");
+    expect(fq.hideFormUnqualified).toBe(false);
   });
 });

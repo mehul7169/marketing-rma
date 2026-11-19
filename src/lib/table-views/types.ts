@@ -1,5 +1,10 @@
 /** Shared table-view config — per-user, per page_key. */
 
+import {
+  parseNamedLeadFilterList,
+  type NamedLeadFilter
+} from "@/lib/leads/namedFilters";
+
 export type TableColumnConfig = {
   /** Stable id, e.g. "email" or "custom_fields.what_describes_you_best?" */
   id: string;
@@ -13,9 +18,11 @@ export type TableViewConfig = {
   columns: TableColumnConfig[];
   /**
    * Last-used filter URL params, keyed by org id (filter values are
-   * org-specific). Named saved views can later sit alongside as another key.
+   * org-specific). Named saved views sit in namedFilters.
    */
   filters?: Record<string, Record<string, string>>;
+  /** Named filters keyed by org id. Shared flags live on each item. */
+  namedFilters?: Record<string, NamedLeadFilter[]>;
 };
 
 export type AvailableColumn = {
@@ -56,12 +63,26 @@ export function customFieldColumnId(key: string): string {
   return `${CUSTOM_FIELD_PREFIX}${key}`;
 }
 
+function parseNamedFiltersByOrg(
+  raw: unknown
+): Record<string, NamedLeadFilter[]> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: Record<string, NamedLeadFilter[]> = {};
+  for (const [orgId, list] of Object.entries(raw as Record<string, unknown>)) {
+    const parsed = parseNamedLeadFilterList(list);
+    if (parsed.length) out[orgId] = parsed;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 export function parseTableViewConfig(raw: unknown): TableViewConfig | null {
   if (!raw || typeof raw !== "object") return null;
   const columns = (raw as { columns?: unknown }).columns;
   const filters = parseFiltersByOrg((raw as { filters?: unknown }).filters);
+  const namedFilters = parseNamedFiltersByOrg((raw as { namedFilters?: unknown }).namedFilters);
   if (!Array.isArray(columns)) {
-    return filters ? { columns: [], filters } : null;
+    if (!filters && !namedFilters) return null;
+    return { columns: [], ...(filters ? { filters } : {}), ...(namedFilters ? { namedFilters } : {}) };
   }
   const out: TableColumnConfig[] = [];
   for (const item of columns) {
@@ -77,7 +98,11 @@ export function parseTableViewConfig(raw: unknown): TableViewConfig | null {
           : null
     });
   }
-  return filters ? { columns: out, filters } : { columns: out };
+  return {
+    columns: out,
+    ...(filters ? { filters } : {}),
+    ...(namedFilters ? { namedFilters } : {})
+  };
 }
 
 function parseFiltersByOrg(

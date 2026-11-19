@@ -1,7 +1,11 @@
 import { requireOrgId } from "@/lib/auth/getCurrentOrgId";
 import { isPlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import { getCurrentSession } from "@/lib/auth/session";
+import { listFilterEnumValues, type FilterEnumValueMap } from "@/lib/db/filterEnumValues";
 import { listDistinctCustomFieldKeys } from "@/lib/db/leads";
+import { firstAdminUserIdForOrg, getMembershipRole } from "@/lib/db/memberships";
+import { ensureRmaSharedFilters, listNamedFiltersForUser } from "@/lib/db/namedFilters";
+import type { NamedLeadFilter } from "@/lib/leads/namedFilters";
 import { redirect } from "next/navigation";
 import { getTableViewFilters, getTableViewForUser } from "@/lib/db/table_views";
 import {
@@ -116,4 +120,39 @@ export async function loadTableViewBootstrap(
     availableColumns,
     savedConfig
   };
+}
+
+export type FilterBuilderContext = {
+  customKeys: string[];
+  enumValues: FilterEnumValueMap;
+  namedFilters: NamedLeadFilter[];
+  canManageShared: boolean;
+};
+
+export async function loadFilterBuilderContext(
+  pageKey: "leads" | "leads-queue",
+  orgId: string,
+  orgSlug: string | null
+): Promise<FilterBuilderContext> {
+  const session = await getCurrentSession();
+  const [customKeys, enumValues, role, platform, adminUserId] = await Promise.all([
+    listDistinctCustomFieldKeys(orgId),
+    listFilterEnumValues(orgId),
+    session ? getMembershipRole(session.userId, orgId) : Promise.resolve(null),
+    isPlatformAdmin(),
+    firstAdminUserIdForOrg(orgId)
+  ]);
+  const canManageShared = role === "admin" || platform;
+  if (orgSlug && adminUserId) {
+    await ensureRmaSharedFilters({
+      orgId,
+      orgSlug,
+      pageKey,
+      adminUserId
+    });
+  }
+  const namedFilters = session
+    ? await listNamedFiltersForUser({ userId: session.userId, pageKey, orgId })
+    : [];
+  return { customKeys, enumValues, namedFilters, canManageShared };
 }

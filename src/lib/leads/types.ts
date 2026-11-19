@@ -1,3 +1,4 @@
+import type { CustomFilter } from "@/lib/leads/customFilter";
 import type { FollowUpState, KpiKey } from "@/lib/leads/lifecycleDefinitions";
 
 export type BookingSource = "cal_com" | "manual";
@@ -159,4 +160,6 @@ export type LeadListFilters = {
   limit?: number;
   /** 0-based offset into the ordered result set. */
   offset?: number;
+  /** Registry-validated custom conditions, ANDed with the other filters. */
+  customFilter?: CustomFilter;
 };
