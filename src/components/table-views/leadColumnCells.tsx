@@ -190,13 +190,13 @@ export function renderLeadColumnCell(
     case "email":
       return (
         <Cell columnId={columnId} edit={edit}>
-          <span className="inline-flex w-full items-center gap-1">
+          <span className="group inline-flex w-full min-w-0 items-center gap-1">
             <span
-              className={
+              className={`truncate ${
                 isSyntheticQuickformEmail(lead.email)
                   ? "italic text-slate-400"
-                  : undefined
-              }
+                  : ""
+              }`}
               title={
                 isSyntheticQuickformEmail(lead.email)
                   ? "Phone-only Quickform lead — no real email"
@@ -206,7 +206,7 @@ export function renderLeadColumnCell(
               {displayLeadEmail(lead.email)}
             </span>
             {!isSyntheticQuickformEmail(lead.email) ? (
-              <CopyValue value={lead.email} hoverReveal />
+              <CopyValue value={lead.email} hoverReveal kind="email" />
             ) : null}
           </span>
         </Cell>
@@ -214,9 +214,9 @@ export function renderLeadColumnCell(
     case "phone":
       return (
         <Cell columnId={columnId} edit={edit}>
-          <span className="inline-flex w-full items-center gap-1">
-            {lead.phone || "—"}
-            <CopyValue value={lead.phone} hoverReveal />
+          <span className="group inline-flex w-full min-w-0 items-center gap-1 whitespace-nowrap">
+            <span className="truncate">{lead.phone || "—"}</span>
+            <CopyValue value={lead.phone} hoverReveal kind="phone" />
           </span>
         </Cell>
       );

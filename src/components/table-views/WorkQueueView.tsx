@@ -367,7 +367,7 @@ export default function WorkQueueView({
                 data-lead-id={lead.id}
                 data-created-at={lead.created_at}
                 data-next-action-at={lead.next_action_at ?? ""}
-                className="cursor-pointer hover:bg-slate-50/60"
+                className="group cursor-pointer hover:bg-slate-50/60"
                 onClick={(e) => {
                   const t = e.target as HTMLElement;
                   if (

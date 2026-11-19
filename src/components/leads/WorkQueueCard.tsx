@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import CopyValue from "@/components/CopyValue";
 import { FollowUpDate, LeadStatusBadges } from "@/components/leads/StageBadge";
 import InlineEditableValue from "@/components/leads/InlineEditableValue";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
@@ -58,7 +59,7 @@ export default function WorkQueueCard({
       data-lead-id={lead.id}
       data-created-at={lead.created_at}
       data-next-action-at={lead.next_action_at ?? ""}
-      className="rounded border border-slate-200 bg-white p-4 shadow-sm"
+      className="group rounded border border-slate-200 bg-white p-4 shadow-sm"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -79,23 +80,26 @@ export default function WorkQueueCard({
               Open
             </button>
           </div>
-          <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-slate-600">
-            <span>{lead.phone || "—"}</span>
-            <span>·</span>
-            <span
-              className={
-                isSyntheticQuickformEmail(lead.email)
-                  ? "italic text-slate-400"
-                  : undefined
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-slate-600">
+            <ContactWithCopy
+              display={lead.phone || "—"}
+              value={lead.phone}
+              kind="phone"
+            />
+            <span aria-hidden="true">·</span>
+            <ContactWithCopy
+              display={displayLeadEmail(lead.email)}
+              value={
+                isSyntheticQuickformEmail(lead.email) ? null : lead.email
               }
+              kind="email"
+              muted={isSyntheticQuickformEmail(lead.email)}
               title={
                 isSyntheticQuickformEmail(lead.email)
                   ? "Phone-only Quickform lead — no real email"
                   : undefined
               }
-            >
-              {displayLeadEmail(lead.email)}
-            </span>
+            />
           </div>
         </div>
         <LeadStatusBadges lead={lead} />
@@ -106,7 +110,7 @@ export default function WorkQueueCard({
           extraFields.map((f) => (
             <div key={f.id}>
               <dt className="text-slate-400">{f.label}</dt>
-              <dd className="mt-0.5 text-slate-800">
+              <dd className="mt-0.5 min-w-0 text-slate-800">
                 {renderEditableExtra(f, lead, editDisabled, onPlainField, onCustomField)}
               </dd>
             </div>
@@ -171,6 +175,29 @@ export default function WorkQueueCard({
   );
 }
 
+function ContactWithCopy({
+  display,
+  value,
+  kind,
+  muted,
+  title
+}: {
+  display: string;
+  value: string | null | undefined;
+  kind: "email" | "phone";
+  muted?: boolean;
+  title?: string;
+}) {
+  return (
+    <span className="group inline-flex min-w-0 max-w-full items-center gap-1 whitespace-nowrap">
+      <span className={`truncate ${muted ? "italic text-slate-400" : ""}`} title={title}>
+        {display}
+      </span>
+      <CopyValue value={value} hoverReveal kind={kind} />
+    </span>
+  );
+}
+
 function renderEditableExtra(
   f: { id: string; label: string; value: string },
   lead: LeadRow,
@@ -181,6 +208,26 @@ function renderEditableExtra(
   ) => void,
   onCustomField?: (key: string, value: string) => void
 ) {
+  if (f.id === "phone") {
+    return (
+      <ContactWithCopy
+        display={f.value}
+        value={lead.phone}
+        kind="phone"
+      />
+    );
+  }
+  if (f.id === "email") {
+    return (
+      <ContactWithCopy
+        display={f.value}
+        value={isSyntheticQuickformEmail(lead.email) ? null : lead.email}
+        kind="email"
+        muted={isSyntheticQuickformEmail(lead.email)}
+      />
+    );
+  }
+
   if (editDisabled || !isInlineEditableColumn(f.id)) {
     return f.value;
   }

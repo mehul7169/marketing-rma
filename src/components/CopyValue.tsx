@@ -1,17 +1,34 @@
 "use client";
 
-import { useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { toastError } from "@/components/ui/Toast";
 
 export default function CopyValue({
   value,
-  hoverReveal = false
+  hoverReveal = false,
+  label,
+  kind
 }: {
   value: string | null | undefined;
   hoverReveal?: boolean;
+  /** Accessible name, e.g. "Copy phone number". */
+  label?: string;
+  kind?: "email" | "phone";
 }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const text = (value ?? "").trim();
+
+  useEffect(() => {
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, []);
+
+  const actionLabel =
+    label ?? (kind === "phone" ? "Copy phone number" : kind === "email" ? "Copy email" : "Copy");
+  const testId = kind === "phone" ? "copy-phone" : kind === "email" ? "copy-email" : "copy-value";
+
   if (!text) return null;
 
   async function copy(e: MouseEvent) {
@@ -23,7 +40,7 @@ export default function CopyValue({
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard can fail without a permission; leave the icon unchanged.
+      toastError("Couldn't copy — select and copy manually.");
     }
   }
 
@@ -32,11 +49,12 @@ export default function CopyValue({
       type="button"
       onClick={copy}
       onMouseDown={(e) => e.stopPropagation()}
-      aria-label={copied ? "Copied" : "Copy"}
-      title={copied ? "Copied" : "Copy"}
+      aria-label={copied ? "Copied" : actionLabel}
+      title={copied ? "Copied" : actionLabel}
+      data-testid={testId}
       className={`inline-flex h-4 w-4 shrink-0 items-center justify-center text-slate-400 hover:text-slate-600 ${
         hoverReveal
-          ? "invisible pointer-events-none group-hover:visible group-hover:pointer-events-auto"
+          ? "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
           : ""
       }`}
     >

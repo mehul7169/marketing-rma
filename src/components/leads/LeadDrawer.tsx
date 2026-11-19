@@ -63,18 +63,28 @@ function ActivitySkeleton() {
 function Field({
   label,
   value,
-  copyable
+  copyable,
+  copyValue,
+  copyKind
 }: {
   label: string;
   value: string | null | undefined;
   copyable?: boolean;
+  copyValue?: string | null;
+  copyKind?: "email" | "phone";
 }) {
   return (
     <div>
       <div className="text-xs text-slate-500">{label}</div>
       <div className={`mt-0.5 inline-flex min-w-0 items-center gap-1 text-sm text-slate-900 ${NOTE_WRAP}`}>
         <span className={NOTE_WRAP}>{value || "—"}</span>
-        {copyable ? <CopyValue value={value} /> : null}
+        {copyable ? (
+          <CopyValue
+            value={copyValue ?? value}
+            kind={copyKind}
+            label={copyKind ? undefined : `Copy ${label.toLowerCase()}`}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -245,8 +255,16 @@ function LeadDrawerBody({
                 : lead.email
             }
             copyable={displayLeadEmail(lead.email) !== "No email"}
+            copyValue={lead.email}
+            copyKind="email"
           />
-          <Field label="Phone" value={lead.phone} copyable />
+          <Field
+            label="Phone"
+            value={lead.phone}
+            copyable
+            copyValue={lead.phone}
+            copyKind="phone"
+          />
           <Field label="Source" value={lead.lead_source} />
           <Field label="Ad set ID" value={lead.ad_set_id} />
           <Field label="UTM source" value={lead.utm_source} />

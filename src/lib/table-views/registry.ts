@@ -117,6 +117,7 @@ export const DEFAULT_COLUMNS: Record<TableViewPageKey, TableColumnConfig[]> = {
   "leads-queue": [
     col("name"),
     col("phone"),
+    col("email"),
     col("stage"),
     col("is_dead"),
     col("qualified"),
