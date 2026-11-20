@@ -74,7 +74,12 @@ export default async function WorkQueuePage({
     );
   }
 
-  const countBase = { orgId, dead: "hide" as const, customFilter: customFilter ?? undefined };
+  const countBase = {
+    orgId,
+    dead: "hide" as const,
+    customFilter: customFilter ?? undefined,
+    excludeShowed: true
+  };
   const allScope = listFiltersForView({
     orgId,
     tabId: "all",

@@ -1,7 +1,10 @@
+import { resolveCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import { isPlatformAdmin } from "@/lib/auth/isPlatformAdmin";
 import { resolveOrgPreview } from "@/lib/auth/orgPreview";
 import { getCurrentSession } from "@/lib/auth/session";
+import { countLeads } from "@/lib/db/leads";
 import { listOrganizations } from "@/lib/db/organizations";
+import { overdueDealsFilters } from "@/lib/deals/dealListParams";
 import AppShellClient from "@/components/AppShellClient";
 import { OrgPreviewProvider } from "@/components/admin/OrgPreviewContext";
 
@@ -15,14 +18,23 @@ export default async function AppShell({
     isPlatformAdmin()
   ]);
 
-  const [preview, organizations] = platformAdmin
-    ? await Promise.all([
-        resolveOrgPreview(),
-        listOrganizations().then((orgs) =>
+  const [preview, organizations, overdueDeals] = await Promise.all([
+    platformAdmin ? resolveOrgPreview() : Promise.resolve(null),
+    platformAdmin
+      ? listOrganizations().then((orgs) =>
           orgs.map((o) => ({ id: o.id, name: o.name }))
         )
-      ])
-    : [null, [] as Array<{ id: string; name: string }>];
+      : Promise.resolve([] as Array<{ id: string; name: string }>),
+    (async () => {
+      try {
+        const orgId = await resolveCurrentOrgId();
+        if (!orgId) return 0;
+        return countLeads(overdueDealsFilters(orgId));
+      } catch {
+        return 0;
+      }
+    })()
+  ]);
 
   return (
     <OrgPreviewProvider
@@ -35,6 +47,7 @@ export default async function AppShell({
         organizations={organizations}
         previewOrgId={preview?.orgId ?? null}
         previewOrgName={preview?.orgName ?? null}
+        overdueDeals={overdueDeals}
       >
         {children}
       </AppShellClient>

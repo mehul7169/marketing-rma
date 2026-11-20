@@ -32,7 +32,11 @@ import { DEFAULT_COLUMNS } from "@/lib/table-views/registry";
 import type { TableColumnConfig, TableViewBootstrap } from "@/lib/table-views/types";
 import type { LeadRow } from "@/lib/leads/types";
 import { customFilterYields, type CustomFilter } from "@/lib/leads/customFilter";
-import { queueQueryParams, type QueueSort } from "@/lib/leads/workQueueParams";
+import {
+  isWorkQueueLead,
+  queueQueryParams,
+  type QueueSort
+} from "@/lib/leads/workQueueParams";
 
 export default function WorkQueueView({
   initialViewMode = "table",
@@ -403,6 +407,7 @@ function leadBelongsInView(
   showFormUnqualified: boolean,
   yieldBase: { dead: boolean; formQualified: boolean }
 ): boolean {
+  if (!isWorkQueueLead(lead)) return false;
   if (lead.is_dead && !yieldBase.dead) return false;
 
   if (tabId === "meetings_booked") {

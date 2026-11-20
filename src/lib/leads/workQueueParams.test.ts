@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isWorkQueueLead,
   listFiltersForView,
   parseQueueFilter,
   parseQueueSort,
@@ -87,7 +88,8 @@ describe("listFiltersForView", () => {
       sort: "newest",
       search: undefined,
       hideFormUnqualified: true,
-      customFilter: undefined
+      customFilter: undefined,
+      excludeShowed: true
     });
   });
 
@@ -121,6 +123,7 @@ describe("listFiltersForView", () => {
     expect(meetings.meetingsBookedOnly).toBe(true);
     expect(meetings.hideFormUnqualified).toBeUndefined();
     expect(meetings.pipelineStages).toBeUndefined();
+    expect(meetings.excludeShowed).toBe(true);
 
     const followUps = listFiltersForView({
       orgId: "o1",
@@ -132,6 +135,7 @@ describe("listFiltersForView", () => {
     });
     expect(followUps.followUp).toEqual(["overdue", "today"]);
     expect(followUps.hideFormUnqualified).toBeUndefined();
+    expect(followUps.excludeShowed).toBe(true);
   });
 
   it("Deal / Form Qualified conditions drop the Work Queue base exclusions", () => {
@@ -149,6 +153,7 @@ describe("listFiltersForView", () => {
     });
     expect(lost.dead).toBe("show");
     expect(lost.hideFormUnqualified).toBe(false);
+    expect(lost.excludeShowed).toBe(true);
 
     const fq = listFiltersForView({
       orgId: "o1",
@@ -164,5 +169,14 @@ describe("listFiltersForView", () => {
     });
     expect(fq.dead).toBe("hide");
     expect(fq.hideFormUnqualified).toBe(false);
+    expect(fq.excludeShowed).toBe(true);
+  });
+});
+
+describe("isWorkQueueLead", () => {
+  it("excludes showed leads and keeps everyone else", () => {
+    expect(isWorkQueueLead({ call_showed: true })).toBe(false);
+    expect(isWorkQueueLead({ call_showed: false })).toBe(true);
+    expect(isWorkQueueLead({ call_showed: null })).toBe(true);
   });
 });

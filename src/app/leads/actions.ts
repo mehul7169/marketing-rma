@@ -14,13 +14,15 @@ import {
   updateLead
 } from "@/lib/db/leads";
 import { isSyntheticQuickformEmail } from "@/lib/leads/contactNormalize";
+import type { DealAction, DealPayload } from "@/lib/deals/dealLifecycle";
+import { updateDeal, type DealResult } from "@/lib/deals/updateDeal";
 import type { LifecycleAction, LifecycleActor, LifecyclePayload } from "@/lib/leads/lifecycle";
 import {
   validateManualLead,
   type ManualLeadFieldErrors,
   type ManualLeadInput
 } from "@/lib/leads/manualLead";
-import type { PostCallStatus, RequalificationResult } from "@/lib/leads/computeStage";
+import type { RequalificationResult } from "@/lib/leads/computeStage";
 import {
   updateLeadFields,
   updateLeadLifecycle,
@@ -30,15 +32,12 @@ import {
 import type { LeadRow } from "@/lib/leads/types";
 import { fromDatetimeLocalIST } from "@/lib/timezone";
 
-/** Post-call fields on the detail page. Lifecycle milestones go through leadLifecycleAction. */
+/** Drawer fields that are not deal lifecycle. Deal writes go through dealAction. */
 export type LeadActionInput = {
   reminder_sent?: boolean | null;
-  deal_closed?: boolean | null;
-  deal_value?: number | null;
   recording_url?: string | null;
   requalification_result?: RequalificationResult;
   requalification_notes?: string | null;
-  post_call_status?: PostCallStatus | null;
 };
 
 /** Work Queue / detail inline edits. call_scheduled_for routes to book/reschedule. */
@@ -68,8 +67,10 @@ function revalidateLeadLists() {
   revalidatePath("/");
 }
 
+type WriteResult = LifecycleResult | DealResult;
+
 /** Thrown server-action messages are masked in production, so return them instead. */
-async function asResult(fn: () => Promise<LifecycleResult>): Promise<LifecycleResult> {
+async function asResult(fn: () => Promise<WriteResult>): Promise<WriteResult> {
   try {
     return await fn();
   } catch (e) {
@@ -89,24 +90,33 @@ export async function leadLifecycleAction(
   );
 }
 
+/** Deal actions (showed leads). Same { ok, error } shape as leadLifecycleAction. */
+export async function dealAction(
+  leadId: string,
+  action: DealAction,
+  payload: DealPayload = {}
+): Promise<DealResult> {
+  const result = await asResult(async () =>
+    updateDeal(leadId, action, payload, await actor())
+  );
+  if (result.ok) {
+    revalidatePath("/deals");
+    revalidatePath("/insights");
+    revalidatePath("/");
+  }
+  return result;
+}
+
 export async function saveLeadActions(id: string, input: LeadActionInput) {
   const orgId = await requireWritableOrgId();
   const existing = await getLeadById(id, orgId);
   if (!existing) throw new Error("Lead not found");
 
-  const by = await actorEmail();
   const now = new Date().toISOString();
   const patch: Parameters<typeof updateLead>[1] = {};
 
   if (input.reminder_sent !== undefined) {
     patch.reminder_sent = input.reminder_sent;
-  }
-  if (input.deal_closed !== undefined) {
-    patch.deal_closed = input.deal_closed;
-    if (input.deal_closed !== null) patch.closed_by = by;
-  }
-  if (input.deal_value !== undefined) {
-    patch.deal_value = input.deal_value;
   }
   if (input.recording_url !== undefined) {
     const trimmed =
@@ -120,29 +130,8 @@ export async function saveLeadActions(id: string, input: LeadActionInput) {
     patch.requalification_notes =
       input.requalification_notes ?? existing.requalification_notes;
   }
-  if (input.post_call_status !== undefined) {
-    patch.post_call_status = input.post_call_status;
-    patch.post_call_status_updated_at = now;
-    patch.post_call_status_updated_by = by;
-  }
 
-  const won =
-    input.deal_closed !== undefined &&
-    input.deal_closed !== null &&
-    input.deal_closed !== existing.deal_closed
-      ? input.deal_closed
-      : null;
-  let updated: LeadRow;
-  if (won !== null) {
-    patch.last_action = won ? "Deal won" : "Deal lost";
-    patch.last_action_at = now;
-    updated = await commitLeadChange(existing, patch, [
-      { type: "deal_outcome", outcome: won ? "won" : "lost", created_by: await actorId() }
-    ]);
-  } else {
-    updated = await updateLead(existing, patch);
-  }
-  return updated;
+  return updateLead(existing, patch);
 }
 
 /**

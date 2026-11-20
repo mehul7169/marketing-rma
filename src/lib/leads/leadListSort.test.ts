@@ -38,4 +38,15 @@ describe("leadListSortClauses", () => {
       { column: "created_at", ascending: false }
     ]);
   });
+
+  it("closed / value sorts use deal columns, not created_at", () => {
+    expect(leadListSortClauses("closed", "call_showed_at")).toEqual([
+      { column: "closed_at", ascending: false, nullsFirst: false },
+      { column: "call_showed_at", ascending: false }
+    ]);
+    expect(leadListSortClauses("value", "closed_at")).toEqual([
+      { column: "deal_value", ascending: false, nullsFirst: false },
+      { column: "closed_at", ascending: false, nullsFirst: false }
+    ]);
+  });
 });

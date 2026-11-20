@@ -25,7 +25,10 @@ function Card({
       </div>
       <div className="mt-2 text-xl font-semibold text-slate-900">{pct}</div>
       <p className="mt-1 text-xs text-slate-500">
-        {formatInteger(stat.numerator)} of {formatInteger(stat.denominator)}
+        <span data-testid={label === "Closure Rate" ? "insights-won-count" : undefined}>
+          {formatInteger(stat.numerator)}
+        </span>{" "}
+        of {formatInteger(stat.denominator)}
       </p>
     </div>
   );

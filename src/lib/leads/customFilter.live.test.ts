@@ -28,7 +28,7 @@ async function sqlCount(orgId: string, apply: (q: any) => any) {
 }
 
 describe.skipIf(!hasDb)("custom filter vs live SQL (read-only)", () => {
-  it("Work Queue Deal is Lost equals deal_closed = false, including dead leads", async () => {
+  it("Work Queue Deal is Lost cannot surface showed leads", async () => {
     const orgId = await rmaOrgId();
     expect(orgId).toBeTruthy();
     const filter: CustomFilter = {
@@ -45,16 +45,34 @@ describe.skipIf(!hasDb)("custom filter vs live SQL (read-only)", () => {
       customFilter: filter
     });
     expect(filters.dead).toBe("show");
+    expect(filters.excludeShowed).toBe(true);
     const t0 = Date.now();
     const ui = await countLeads(filters);
     const ms = Date.now() - t0;
-    const sql = await sqlCount(orgId, (q) => q.eq("deal_closed", false));
+    const sqlAllLost = await sqlCount(orgId, (q) => q.eq("deal_closed", false));
+    const sqlNotShowed = await sqlCount(orgId, (q) =>
+      q.eq("deal_closed", false).or("call_showed.is.null,call_showed.eq.false")
+    );
     const deadLost = await sqlCount(orgId, (q) => q.eq("deal_closed", false).eq("is_dead", true));
-    console.log(`Deal is Lost: ui=${ui} sql=${sql} deadLost=${deadLost} ${ms}ms`);
-    expect(ui).toBe(sql);
-    expect(ui).toBeGreaterThan(0);
+    console.log(
+      `WQ Deal is Lost: ui=${ui} sqlAllLost=${sqlAllLost} sqlNotShowed=${sqlNotShowed} deadLost=${deadLost} ${ms}ms`
+    );
+    expect(ui).toBe(sqlNotShowed);
+    expect(sqlAllLost).toBeGreaterThan(ui);
     expect(deadLost).toBeGreaterThan(0);
     expect(ms, "plain column filter should be well under 300ms at ~2k rows").toBeLessThan(2000);
+  });
+
+  it("/leads Deal is Lost still equals deal_closed = false, including dead leads", async () => {
+    const orgId = await rmaOrgId();
+    const filter: CustomFilter = {
+      match: "all",
+      conditions: [{ id: "1", field: "deal", op: "is_any", value: ["lost"] }]
+    };
+    const ui = await countLeads({ orgId, customFilter: filter });
+    const sql = await sqlCount(orgId, (q) => q.eq("deal_closed", false));
+    expect(ui).toBe(sql);
+    expect(ui).toBeGreaterThan(0);
   });
 
   it("Form Qualified Yes AND Call booked at is not empty", async () => {
@@ -116,8 +134,10 @@ describe.skipIf(!hasDb)("custom filter vs live SQL (read-only)", () => {
         "contract_shared"
       ])
     );
-    console.log(`Showed + post-call: ui=${ui} sql=${sql}`);
-    expect(ui).toBe(sql);
+    const onLeads = await countLeads({ orgId, customFilter: filter });
+    console.log(`Showed + post-call: wq=${ui} sql=${sql} leads=${onLeads}`);
+    expect(ui).toBe(0);
+    expect(onLeads).toBe(sql);
   });
 
   it("form-answer monthly revenue contains 5000", async () => {

@@ -7,6 +7,7 @@
  * leads with no source.
  */
 
+import { LOST_REASON_LABELS, LOST_REASONS } from "@/lib/deals/dealLifecycle";
 import { POST_CALL_STATUSES } from "@/lib/leads/computeStage";
 import { humanizeFieldKey } from "@/lib/leads/customFields";
 import { PIPELINE_STAGE_LABELS, PIPELINE_STAGES } from "@/lib/leads/lifecycleDefinitions";
@@ -324,6 +325,23 @@ const FIXED_FIELDS: FilterFieldDef[] = [
     group: "Post-call",
     type: "text",
     column: "recording_url",
+    nullSafeIsNot: true
+  },
+  {
+    id: "next_step",
+    label: "Next step",
+    group: "Post-call",
+    type: "text",
+    column: "next_step",
+    nullSafeIsNot: true
+  },
+  {
+    id: "lost_reason",
+    label: "Lost reason",
+    group: "Post-call",
+    type: "enum",
+    column: "lost_reason",
+    enumValues: LOST_REASONS.map((r) => ({ value: r, label: LOST_REASON_LABELS[r] })),
     nullSafeIsNot: true
   },
 

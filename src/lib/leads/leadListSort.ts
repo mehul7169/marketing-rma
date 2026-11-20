@@ -33,5 +33,23 @@ export function leadListSortClauses(
       { column: "id", ascending: false }
     ];
   }
+  if (sort === "closed") {
+    return [
+      { column: "closed_at", ascending: false, nullsFirst: false },
+      { column: "call_showed_at", ascending: false }
+    ];
+  }
+  if (sort === "closed_oldest") {
+    return [
+      { column: "closed_at", ascending: true, nullsFirst: false },
+      { column: "call_showed_at", ascending: true }
+    ];
+  }
+  if (sort === "value") {
+    return [
+      { column: "deal_value", ascending: false, nullsFirst: false },
+      { column: "closed_at", ascending: false, nullsFirst: false }
+    ];
+  }
   return [{ column: dateField, ascending: false }];
 }

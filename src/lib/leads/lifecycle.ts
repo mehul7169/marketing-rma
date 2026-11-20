@@ -231,6 +231,9 @@ const markShowed: Step = (d, p, ctx) => {
     last_action: "Call showed",
     last_action_at: ctx.now
   };
+  if (d.lead.owner_id == null && ctx.actor.userId) {
+    patch.owner_id = ctx.actor.userId;
+  }
   // Correcting a no-show.
   if (d.lead.is_dead && d.lead.dead_reason === "no_show") {
     patch.is_dead = false;

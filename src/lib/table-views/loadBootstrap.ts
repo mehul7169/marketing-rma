@@ -130,7 +130,7 @@ export type FilterBuilderContext = {
 };
 
 export async function loadFilterBuilderContext(
-  pageKey: "leads" | "leads-queue",
+  pageKey: "leads" | "leads-queue" | "deals",
   orgId: string,
   orgSlug: string | null
 ): Promise<FilterBuilderContext> {
@@ -143,7 +143,7 @@ export async function loadFilterBuilderContext(
     firstAdminUserIdForOrg(orgId)
   ]);
   const canManageShared = role === "admin" || platform;
-  if (orgSlug && adminUserId) {
+  if (pageKey !== "deals" && orgSlug && adminUserId) {
     await ensureRmaSharedFilters({
       orgId,
       orgSlug,
@@ -151,8 +151,9 @@ export async function loadFilterBuilderContext(
       adminUserId
     });
   }
-  const namedFilters = session
-    ? await listNamedFiltersForUser({ userId: session.userId, pageKey, orgId })
-    : [];
+  const namedFilters =
+    pageKey !== "deals" && session
+      ? await listNamedFiltersForUser({ userId: session.userId, pageKey, orgId })
+      : [];
   return { customKeys, enumValues, namedFilters, canManageShared };
 }

@@ -105,6 +105,12 @@ export type LeadRow = {
   deal_value: number | null;
   closed_at: string | null;
   closed_by: string | null;
+  /** What to do next on an open deal. */
+  next_step: string | null;
+  /** Required when deal_closed = false. */
+  lost_reason: string | null;
+  /** profiles.id; set on mark_showed when still null. */
+  owner_id: string | null;
   notes: string | null;
   recording_url: string | null;
   stage: string | null;
@@ -149,13 +155,36 @@ export type LeadListFilters = {
   search?: string;
   /** call_scheduled_for set and still in the future. */
   meetingsBookedOnly?: boolean;
+  /** Work Queue: drop call_showed = true (those are Deals). */
+  excludeShowed?: boolean;
+  /** Deals tab: only call_showed = true. */
+  showedOnly?: boolean;
+  /** Deals tab status. Omit = all showed. */
+  dealStatus?: "open" | "won" | "lost";
+  /** Deals owner. `unassigned` = owner_id is null. */
+  ownerId?: string | "unassigned";
+  /** Deal stages; `showed_up` means post_call_status is null. */
+  dealStages?: string[];
+  /** Override the from/to timestamp column (Deals: call_showed_at / closed_at). */
+  dateField?: "created_at" | "call_showed_at" | "closed_at";
+  /** Open-list metric tiles. */
+  dealMetric?: "overdue" | "today" | "needs_next_step";
   /**
    * newest = created_at desc (Work Queue default).
    * oldest = created_at asc.
    * follow_up / queue = next_action_at asc (nulls last), then created_at desc.
    * date / omitted = dateField desc (`/leads` KPI lists).
+   * closed / closed_oldest / value = Deals Won/Lost/All.
    */
-  sort?: "date" | "queue" | "newest" | "oldest" | "follow_up";
+  sort?:
+    | "date"
+    | "queue"
+    | "newest"
+    | "oldest"
+    | "follow_up"
+    | "closed"
+    | "closed_oldest"
+    | "value";
   /** Page size (e.g. 50). Omit for unbounded (admin/scripts). */
   limit?: number;
   /** 0-based offset into the ordered result set. */

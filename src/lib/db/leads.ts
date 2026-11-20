@@ -102,6 +102,9 @@ function asLead(row: unknown): LeadRow {
     dead_reason: (r as LeadRow).dead_reason ?? null,
     contact_attempts: Number.isFinite(contactAttempts) ? contactAttempts : 0,
     next_action_at: (r as LeadRow).next_action_at ?? null,
+    next_step: (r as LeadRow).next_step ?? null,
+    lost_reason: (r as LeadRow).lost_reason ?? null,
+    owner_id: (r as LeadRow).owner_id ?? null,
     last_action: (r as LeadRow).last_action ?? null,
     last_action_at: (r as LeadRow).last_action_at ?? null,
     custom_fields:
@@ -183,6 +186,9 @@ const LEAD_FULL_SELECT = [
   "deal_value",
   "closed_at",
   "closed_by",
+  "next_step",
+  "lost_reason",
+  "owner_id",
   "notes",
   "recording_url",
   "stage",
@@ -238,6 +244,11 @@ const LEAD_LIST_SELECT = [
   "call_showed_by",
   "deal_closed",
   "deal_value",
+  "closed_at",
+  "closed_by",
+  "next_step",
+  "lost_reason",
+  "owner_id",
   "notes",
   "recording_url",
   "stage",
@@ -370,6 +381,9 @@ export async function insertLead(
     deal_value: row.deal_value ?? null,
     closed_at: row.closed_at ?? null,
     closed_by: row.closed_by ?? null,
+    next_step: row.next_step ?? null,
+    lost_reason: row.lost_reason ?? null,
+    owner_id: row.owner_id ?? null,
     notes: row.notes ?? null,
     recording_url: row.recording_url ?? null,
     stage: null,
@@ -649,7 +663,7 @@ function leadsQuery(
 ) {
   const db = requireDb();
   const kpi = filters.kpi ? KPI_DEFINITIONS[filters.kpi] : null;
-  const dateField = kpi?.field ?? "created_at";
+  const dateField = filters.dateField ?? kpi?.field ?? "created_at";
 
   let query = db.from("leads").select(select, opts).eq("org_id", filters.orgId);
 
@@ -708,6 +722,43 @@ function leadsQuery(
     query = query
       .not("call_scheduled_for", "is", null)
       .gt("call_scheduled_for", new Date().toISOString());
+  }
+  if (filters.excludeShowed) {
+    query = query.or("call_showed.is.null,call_showed.eq.false");
+  }
+  if (filters.showedOnly) query = query.eq("call_showed", true);
+  if (filters.dealStatus === "open") query = query.is("deal_closed", null);
+  if (filters.dealStatus === "won") query = query.eq("deal_closed", true);
+  if (filters.dealStatus === "lost") query = query.eq("deal_closed", false);
+  if (filters.ownerId === "unassigned") query = query.is("owner_id", null);
+  else if (filters.ownerId) query = query.eq("owner_id", filters.ownerId);
+  if (filters.dealStages && filters.dealStages.length > 0) {
+    const named = filters.dealStages.filter((s) => s !== "showed_up");
+    const includeShowedUp = filters.dealStages.includes("showed_up");
+    if (includeShowedUp && named.length === 0) {
+      query = query.is("post_call_status", null);
+    } else if (includeShowedUp) {
+      query = query.or(
+        `post_call_status.is.null,post_call_status.in.(${named.join(",")})`
+      );
+    } else {
+      query = query.in("post_call_status", named);
+    }
+  }
+  if (filters.dealMetric === "overdue") {
+    query = query
+      .not("next_step", "is", null)
+      .not("next_action_at", "is", null)
+      .lt("next_action_at", new Date().toISOString());
+  }
+  if (filters.dealMetric === "today") {
+    const today = todayISTDateString();
+    query = query
+      .gte("next_action_at", new Date().toISOString())
+      .lte("next_action_at", istDayEndUtcIso(today));
+  }
+  if (filters.dealMetric === "needs_next_step") {
+    query = query.or("next_step.is.null,next_action_at.is.null");
   }
   query = applyCustomFilter(query, filters.customFilter);
   return { query, dateField };

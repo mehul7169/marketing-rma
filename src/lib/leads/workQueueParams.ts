@@ -10,7 +10,7 @@ import {
   parseCustomFilterParam,
   type CustomFilter
 } from "@/lib/leads/customFilter";
-import type { LeadListFilters } from "@/lib/leads/types";
+import type { LeadListFilters, LeadRow } from "@/lib/leads/types";
 
 export const QUEUE_TABS = [
   { id: "all", label: "All" },
@@ -124,7 +124,8 @@ export function listFiltersForView(opts: {
     dead: yieldBase.dead ? "show" : "hide",
     sort: opts.sort,
     search: opts.search || undefined,
-    customFilter: custom
+    customFilter: custom,
+    excludeShowed: true
   };
   if (opts.tabId === "meetings_booked") return { ...base, meetingsBookedOnly: true };
   if (opts.tabId === "follow_ups_due") {
@@ -137,6 +138,11 @@ export function listFiltersForView(opts: {
       yieldBase.formQualified || yieldBase.dead ? false : !opts.showFormUnqualified,
     ...filter?.filters
   };
+}
+
+/** Pre-call work only. Showed leads belong on Deals, including custom-filter yields. */
+export function isWorkQueueLead(lead: Pick<LeadRow, "call_showed">): boolean {
+  return lead.call_showed !== true;
 }
 
 export { parseCustomFilterParam };

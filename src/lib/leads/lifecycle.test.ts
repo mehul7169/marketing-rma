@@ -161,6 +161,13 @@ describe("show outcome", () => {
     expect(ok({ ...booked, call_showed_at: earlier }, "mark_showed").patch.call_showed_at).toBe(earlier);
   });
 
+  it("mark_showed sets owner_id to the actor when it is still null", () => {
+    expect(ok(booked, "mark_showed").patch.owner_id).toBe("u1");
+    expect(
+      ok({ ...booked, owner_id: "existing-owner" }, "mark_showed").patch
+    ).not.toHaveProperty("owner_id");
+  });
+
   it("mark_no_show never sets call_showed_at and marks dead", () => {
     const p = ok({ ...booked, call_showed_at: "2026-10-25T11:00:00.000Z" }, "mark_no_show");
     expect(p.patch).toMatchObject({ call_showed: false, call_showed_at: null, is_dead: true, dead_reason: "no_show" });

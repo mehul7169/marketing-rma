@@ -3,6 +3,7 @@
  * table_views.config.filters[orgId] as the page's own URL params.
  */
 
+import { rollingFromISO } from "@/lib/deals/dealListParams";
 import { migratePersistedLeadsParams } from "@/lib/leads/listFilterParams";
 import { todayISTDateString } from "@/lib/timezone";
 import { defaultFromISO } from "@/lib/utils/date";
@@ -34,13 +35,15 @@ const PERSISTED_KEYS: Record<string, readonly string[]> = {
     "action_status",
     "is_dead"
   ],
-  "leads-queue": ["view", "tab", "filter", "search", "show_unqualified", "sort", "cf"]
+  "leads-queue": ["view", "tab", "filter", "search", "show_unqualified", "sort", "cf"],
+  deals: ["tab", "owner", "stage", "search", "sort", "metric", "from", "to", "cf"]
 };
 
 /** Deep-link params: explicit (block restore) but never remembered. */
 const DEEP_LINK_KEYS: Record<string, readonly string[]> = {
   leads: ["kpi", "cohort", "event", "lead"],
-  "leads-queue": ["lead"]
+  "leads-queue": ["lead"],
+  deals: ["deal"]
 };
 
 const MAX_VALUE_LENGTH = 500;
@@ -88,6 +91,10 @@ export function pickPersistableFilters(
     delete out.from;
     delete out.to;
   }
+  if (pageKey === "deals" && out.from === rollingFromISO(todayISO) && out.to === todayISO) {
+    delete out.from;
+    delete out.to;
+  }
   return migratePersistedState(pageKey, out, todayISO);
 }
 
@@ -125,13 +132,26 @@ export function migratePersistedState(
     if (next.tab === "all") delete next.tab;
     return next;
   }
+  if (pageKey === "deals") {
+    const next = { ...state };
+    if (next.tab === "open") delete next.tab;
+    if (next.sort === "due") delete next.sort;
+    return next;
+  }
   return state;
 }
 
 /** Redirect target when restoring; null when nothing is saved. */
 export function restoreHref(pathname: string, state: PersistedFilterState | null): string | null {
   if (!state || Object.keys(state).length === 0) return null;
-  const pageKey = pathname === "/leads/queue" ? "leads-queue" : pathname === "/leads" ? "leads" : "";
+  const pageKey =
+    pathname === "/leads/queue"
+      ? "leads-queue"
+      : pathname === "/leads"
+        ? "leads"
+        : pathname === "/deals"
+          ? "deals"
+          : "";
   const migrated = pageKey ? migratePersistedState(pageKey, state) : state;
   if (Object.keys(migrated).length === 0) return null;
   return `${pathname}?${new URLSearchParams(migrated).toString()}`;

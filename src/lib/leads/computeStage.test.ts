@@ -31,7 +31,10 @@ describe("computeStage (legacy lead.stage, still written by stamp)", () => {
     [{ deal_closed: true }, "closed"],
     [{ is_dead: true }, "dead"],
     [{ post_call_status: "proposal_needed" }, "proposal_needed"],
+    [{ post_call_status: "contract_shared" }, "contract_shared"],
+    [{ post_call_status: "awaiting_payment" }, "awaiting_payment"],
     [{ call_showed: true }, "show_up"],
+    [{ deal_closed: false, call_showed: true }, "show_up"],
     [
       {
         qualified: true,

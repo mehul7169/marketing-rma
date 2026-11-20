@@ -229,10 +229,12 @@ function LeadDrawerBody({
         <BookingHistoryList entries={lead.booking_history ?? []} />
       </section>
 
-      <section className="space-y-3">
-        <h3 className="text-sm font-medium text-slate-900">Post-call</h3>
-        <PostCallSection lead={lead} onLeadPatched={() => onReload()} />
-      </section>
+      {lead.call_showed === true ? (
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium text-slate-900">Post-call</h3>
+          <PostCallSection lead={lead} onLeadPatched={() => onReload()} />
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <h3 className="text-sm font-medium text-slate-900">Follow-ups</h3>

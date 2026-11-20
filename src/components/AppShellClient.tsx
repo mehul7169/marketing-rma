@@ -29,11 +29,15 @@ function shortLabel(label: string): string {
 function NavLink({
   href,
   children,
-  collapsed
+  collapsed,
+  badge,
+  testId
 }: {
   href: string;
   children: string;
   collapsed: boolean;
+  badge?: number;
+  testId?: string;
 }) {
   const pathname = usePathname();
   const active =
@@ -47,13 +51,24 @@ function NavLink({
     <a
       href={href}
       title={children}
-      className={`block rounded px-3 py-2 text-sm ${
+      data-testid={testId}
+      className={`flex items-center rounded px-3 py-2 text-sm ${
         active
           ? "ui-active"
           : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-      } ${collapsed ? "px-2 text-center text-[11px] font-medium tracking-wide" : ""}`}
+      } ${collapsed ? "relative justify-center px-2 text-center text-[11px] font-medium tracking-wide" : "justify-between gap-2"}`}
     >
-      {collapsed ? shortLabel(children) : children}
+      <span>{collapsed ? shortLabel(children) : children}</span>
+      {badge ? (
+        <span
+          data-testid="nav-deals-overdue"
+          className={`inline-flex min-w-[1.15rem] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-4 text-white ${
+            collapsed ? "absolute right-1 top-1" : ""
+          }`}
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      ) : null}
     </a>
   );
 }
@@ -64,6 +79,7 @@ export default function AppShellClient({
   organizations = [],
   previewOrgId = null,
   previewOrgName = null,
+  overdueDeals = 0,
   children
 }: {
   signedIn: boolean;
@@ -71,6 +87,7 @@ export default function AppShellClient({
   organizations?: Array<{ id: string; name: string }>;
   previewOrgId?: string | null;
   previewOrgName?: string | null;
+  overdueDeals?: number;
   children: ReactNode;
 }) {
   const showNav = signedIn || isPlatformAdmin;
@@ -180,6 +197,14 @@ export default function AppShellClient({
               </NavLink>
               <NavLink href="/leads/queue" collapsed={isCollapsed}>
                 Work Queue
+              </NavLink>
+              <NavLink
+                href="/deals"
+                collapsed={isCollapsed}
+                badge={overdueDeals}
+                testId="nav-deals"
+              >
+                Deals
               </NavLink>
               <NavLink href="/insights" collapsed={isCollapsed}>
                 Insights

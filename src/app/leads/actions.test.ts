@@ -51,23 +51,15 @@ beforeEach(() => {
   commitLeadChange.mockImplementation(async (lead, patch) => makeLead({ ...lead, ...patch }));
 });
 
-describe("saveLeadActions milestones", () => {
-  it("logs an activity and updates last_action for Deal won", async () => {
-    const lead = makeLead({
-      call_showed: true,
-      last_action: "Called — No Answer",
-      last_action_at: "2026-09-21T09:55:55.106Z"
-    });
+describe("saveLeadActions", () => {
+  it("writes recording_url without a deal activity", async () => {
+    const lead = makeLead({ call_showed: true });
     getLeadById.mockResolvedValue(lead);
-
-    await saveLeadActions(lead.id, { deal_closed: true, deal_value: 1000 });
-
-    const [, patch, activities] = commitLeadChange.mock.calls[0];
-    expect(activities).toEqual([
-      { type: "deal_outcome", outcome: "won", created_by: "user-1" }
-    ]);
-    expect(patch.last_action).toBe("Deal won");
-    expect(patch.last_action_at > lead.last_action_at!).toBe(true);
+    await saveLeadActions(lead.id, { recording_url: "https://fathom.video/share/x" });
+    expect(commitLeadChange).not.toHaveBeenCalled();
+    expect(updateLead.mock.calls[0][1]).toMatchObject({
+      recording_url: "https://fathom.video/share/x"
+    });
   });
 
   it("leaves last_action alone for non-milestone edits", async () => {
