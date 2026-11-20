@@ -1,6 +1,7 @@
 import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import { redirect } from "next/navigation";
 import { FilterPendingRoot } from "@/components/leads/FilterPending";
+import { ToolbarPortalProvider } from "@/components/leads/ToolbarPortal";
 import WorkQueueControls from "@/components/leads/WorkQueueControls";
 import WorkQueueView from "@/components/table-views/WorkQueueView";
 import { DataTablePageShell } from "@/components/table-views/ScrollableDataTable";
@@ -149,6 +150,7 @@ export default async function WorkQueuePage({
     <DataTablePageShell className="gap-6">
       <PersistFilterState pageKey="leads-queue" />
       <FilterPendingRoot>
+        <ToolbarPortalProvider>
         <div className="shrink-0 space-y-3">
           <div>
             <h1 className="page-title">Work Queue</h1>
@@ -187,6 +189,7 @@ export default async function WorkQueuePage({
           orgName={org?.name ?? null}
           tableViewBootstrap={tableViewBootstrap}
         />
+        </ToolbarPortalProvider>
       </FilterPendingRoot>
     </DataTablePageShell>
   );

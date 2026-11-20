@@ -33,7 +33,9 @@ const MIDDLEWARE = [
   size({
     padding: VIEWPORT_PAD,
     apply({ availableHeight, elements }) {
-      const next = `${Math.max(0, Math.floor(availableHeight))}px`;
+      const h = Math.max(0, Math.floor(availableHeight));
+      // jsdom reports 0 available height; don't clip the popover to a 0px box.
+      const next = h < 32 ? "" : `${h}px`;
       if (elements.floating.style.maxHeight !== next) {
         elements.floating.style.maxHeight = next;
       }
@@ -88,6 +90,7 @@ export default function ActionPopover({
   footer,
   widthClass = "w-72",
   bodyClassName = "p-3",
+  panelClassName = "overflow-hidden",
   role = "dialog",
   placement = "bottom-start",
   labelledBy
@@ -100,6 +103,7 @@ export default function ActionPopover({
   footer?: ReactNode;
   widthClass?: string;
   bodyClassName?: string;
+  panelClassName?: string;
   role?: "dialog" | "menu";
   placement?: Placement;
   labelledBy?: string;
@@ -159,7 +163,7 @@ export default function ActionPopover({
             ref={refs.setFloating}
             style={floatingStyles}
             {...getFloatingProps({
-              className: `z-[70] flex flex-col overflow-hidden rounded border border-slate-200 bg-white shadow-lg ${widthClass}`,
+              className: `z-[70] flex flex-col rounded border border-slate-200 bg-white shadow-lg ${panelClassName} ${widthClass}`,
               "aria-labelledby": labelledBy,
               tabIndex: -1
             })}

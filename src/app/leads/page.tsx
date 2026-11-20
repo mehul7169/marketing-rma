@@ -5,6 +5,7 @@ import {
   FilterPendingRoot,
   FilterPendingSurface
 } from "@/components/leads/FilterPending";
+import { ToolbarPortalProvider } from "@/components/leads/ToolbarPortal";
 import LeadsFilters from "@/components/leads/LeadsFilters";
 import ConfigurableLeadsTable from "@/components/table-views/ConfigurableLeadsTable";
 import PersistFilterState from "@/components/table-views/PersistFilterState";
@@ -85,6 +86,7 @@ export default async function LeadsPage({
     <DataTablePageShell className="gap-6">
       <PersistFilterState pageKey="leads" />
       <FilterPendingRoot>
+        <ToolbarPortalProvider>
         <div className="shrink-0 space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -144,6 +146,7 @@ export default async function LeadsPage({
             />
           </div>
         </FilterPendingSurface>
+        </ToolbarPortalProvider>
       </FilterPendingRoot>
     </DataTablePageShell>
   );

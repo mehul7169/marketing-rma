@@ -1,17 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import ActionPopover from "@/components/leads/ActionPopover";
+import {
+  CONTROL_H,
+  FilterIcon,
+  ToolbarGhostButton
+} from "@/components/leads/FilterToolbar";
+import { SEARCH_DEBOUNCE_MS } from "@/components/leads/useFilterSearch";
 import type { FilterEnumValueMap } from "@/lib/db/filterEnumValues";
 import {
   blankCondition,
+  completeCustomFilter,
   customConditionChipLabel,
   emptyCustomFilter,
   encodeCustomFilter,
-  isCustomFilterEmpty,
-  removeCondition,
-  validateCustomFilter,
   type CustomFilter,
-  type CustomFilterCondition
+  type CustomFilterCondition,
+  type CustomFilterMatch
 } from "@/lib/leads/customFilter";
 import {
   FILTER_FIELD_GROUPS,
@@ -23,14 +29,11 @@ import {
   type FilterFieldDef,
   type FilterOp
 } from "@/lib/leads/filterFields";
-import type { NamedLeadFilter } from "@/lib/leads/namedFilters";
-import SavedFilterMenu from "@/components/leads/SavedFilterMenu";
 
-function sameFilter(a: CustomFilter, b: CustomFilter): boolean {
-  return encodeCustomFilter(a) === encodeCustomFilter(b);
-}
+const CONTROL =
+  `${CONTROL_H} rounded-sm border border-slate-200 bg-white px-2 text-xs text-slate-800`;
 
-function FieldPicker({
+function FieldSelect({
   fields,
   value,
   onChange
@@ -39,78 +42,28 @@ function FieldPicker({
   value: string;
   onChange: (id: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
-  const selected = fields.find((f) => f.id === value);
-  const needle = q.trim().toLowerCase();
-  const grouped = FILTER_FIELD_GROUPS.map((group) => ({
-    group,
-    items: fields.filter(
-      (f) =>
-        f.group === group &&
-        (!needle ||
-          f.label.toLowerCase().includes(needle) ||
-          f.id.toLowerCase().includes(needle))
-    )
-  })).filter((g) => g.items.length > 0);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
   return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        data-testid="cf-field"
-        className="min-w-[9rem] rounded-sm border border-slate-200 bg-white px-2 py-1 text-left text-xs text-slate-800"
-        onClick={() => setOpen((v) => !v)}
-      >
-        {selected?.label ?? "Field"}
-      </button>
-      {open ? (
-        <div className="absolute z-30 mt-1 w-64 rounded border border-slate-200 bg-white p-2 shadow-sm">
-          <input
-            autoFocus
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search fields"
-            className="mb-2 w-full rounded-sm border border-slate-200 px-2 py-1 text-xs"
-          />
-          <div className="max-h-56 overflow-y-auto">
-            {grouped.map((g) => (
-              <div key={g.group} className="mb-2">
-                <p className="px-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
-                  {g.group}
-                </p>
-                {g.items.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    className={`block w-full rounded-sm px-2 py-1 text-left text-xs hover:bg-slate-50 ${
-                      f.id === value ? "bg-sky-50 text-sky-950" : "text-slate-800"
-                    }`}
-                    onClick={() => {
-                      onChange(f.id);
-                      setOpen(false);
-                      setQ("");
-                    }}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
+    <select
+      data-testid="cf-field"
+      className={`min-w-0 w-full ${CONTROL}`}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">Field</option>
+      {FILTER_FIELD_GROUPS.map((group) => {
+        const items = fields.filter((f) => f.group === group);
+        if (items.length === 0) return null;
+        return (
+          <optgroup key={group} label={group}>
+            {items.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
             ))}
-          </div>
-        </div>
-      ) : null}
-    </div>
+          </optgroup>
+        );
+      })}
+    </select>
   );
 }
 
@@ -118,14 +71,12 @@ function ValueInput({
   field,
   condition,
   enumLive,
-  onChange,
-  onEnter
+  onChange
 }: {
   field: FilterFieldDef;
   condition: CustomFilterCondition;
   enumLive: string[] | undefined;
   onChange: (value: unknown) => void;
-  onEnter: () => void;
 }) {
   const op = condition.op;
   if (
@@ -135,7 +86,7 @@ function ValueInput({
     op === "is_yes" ||
     op === "is_no"
   ) {
-    return null;
+    return <span />;
   }
   if (op === "in_last" || op === "in_next") {
     return (
@@ -144,26 +95,20 @@ function ValueInput({
         min={1}
         max={365}
         data-testid="cf-value"
-        className="w-20 rounded-sm border border-slate-200 px-2 py-1 text-xs"
+        className={`w-full ${CONTROL}`}
         value={typeof condition.value === "number" ? condition.value : 14}
         onChange={(e) => onChange(Number(e.target.value))}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            onEnter();
-          }
-        }}
       />
     );
   }
   if (op === "between" && field.type === "number") {
     const pair = Array.isArray(condition.value) ? condition.value : [0, 0];
     return (
-      <span className="inline-flex items-center gap-1">
+      <span className="inline-flex w-full items-center gap-1">
         <input
           type="number"
           data-testid="cf-value-min"
-          className="w-20 rounded-sm border border-slate-200 px-2 py-1 text-xs"
+          className={`min-w-0 flex-1 ${CONTROL}`}
           value={pair[0] ?? ""}
           onChange={(e) => onChange([Number(e.target.value), Number(pair[1] ?? 0)])}
         />
@@ -171,15 +116,9 @@ function ValueInput({
         <input
           type="number"
           data-testid="cf-value-max"
-          className="w-20 rounded-sm border border-slate-200 px-2 py-1 text-xs"
+          className={`min-w-0 flex-1 ${CONTROL}`}
           value={pair[1] ?? ""}
           onChange={(e) => onChange([Number(pair[0] ?? 0), Number(e.target.value)])}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              onEnter();
-            }
-          }}
         />
       </span>
     );
@@ -187,17 +126,17 @@ function ValueInput({
   if (op === "between" && field.type === "datetime") {
     const pair = Array.isArray(condition.value) ? condition.value : ["", ""];
     return (
-      <span className="inline-flex items-center gap-1">
+      <span className="inline-flex w-full items-center gap-1">
         <input
           type="date"
-          className="rounded-sm border border-slate-200 px-2 py-1 text-xs"
+          className={`min-w-0 flex-1 ${CONTROL}`}
           value={String(pair[0] ?? "")}
           onChange={(e) => onChange([e.target.value, String(pair[1] ?? "")])}
         />
         <span className="text-slate-400">–</span>
         <input
           type="date"
-          className="rounded-sm border border-slate-200 px-2 py-1 text-xs"
+          className={`min-w-0 flex-1 ${CONTROL}`}
           value={String(pair[1] ?? "")}
           onChange={(e) => onChange([String(pair[0] ?? ""), e.target.value])}
         />
@@ -209,7 +148,7 @@ function ValueInput({
       <input
         type="date"
         data-testid="cf-value"
-        className="rounded-sm border border-slate-200 px-2 py-1 text-xs"
+        className={`w-full ${CONTROL}`}
         value={typeof condition.value === "string" ? condition.value : ""}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -220,15 +159,9 @@ function ValueInput({
       <input
         type="number"
         data-testid="cf-value"
-        className="w-24 rounded-sm border border-slate-200 px-2 py-1 text-xs"
+        className={`w-full ${CONTROL}`}
         value={typeof condition.value === "number" ? condition.value : ""}
         onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            onEnter();
-          }
-        }}
       />
     );
   }
@@ -239,7 +172,7 @@ function ValueInput({
       <select
         multiple
         data-testid="cf-value"
-        className="max-h-24 min-w-[10rem] rounded-sm border border-slate-200 bg-white px-1 py-1 text-xs"
+        className="max-h-24 min-h-8 w-full rounded-sm border border-slate-200 bg-white px-1 py-1 text-xs"
         value={selected}
         onChange={(e) =>
           onChange(Array.from(e.target.selectedOptions).map((o) => o.value))
@@ -257,53 +190,132 @@ function ValueInput({
     <input
       type="text"
       data-testid="cf-value"
-      className="min-w-[8rem] rounded-sm border border-slate-200 px-2 py-1 text-xs"
+      className={`w-full ${CONTROL}`}
       value={typeof condition.value === "string" ? condition.value : ""}
       onChange={(e) => onChange(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          onEnter();
-        }
-      }}
     />
   );
 }
 
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+  testId
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+  testId?: string;
+}) {
+  return (
+    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+      <span>{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        data-testid={testId}
+        className={`relative h-5 w-9 rounded-full ${
+          checked ? "bg-sky-600" : "bg-slate-200"
+        }`}
+        onClick={() => onChange(!checked)}
+      >
+        <span
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-[left] ${
+            checked ? "left-4" : "left-0.5"
+          }`}
+        />
+      </button>
+    </label>
+  );
+}
+
 export default function CustomFilterBuilder({
-  pageKey,
   filter,
   customKeys,
   enumValues,
-  namedFilters,
-  canManageShared,
-  currentQuery,
-  yieldNoteText,
-  onApply
+  onApply,
+  open,
+  onOpenChange,
+  focusConditionId = null,
+  seedBlank = false,
+  addNonce = 0,
+  activeCount = 0,
+  showFormUnqualified,
+  onShowFormUnqualifiedChange,
+  formUnqualifiedEnabled = false,
+  children
 }: {
-  pageKey: "leads" | "leads-queue";
   filter: CustomFilter | null;
   customKeys: string[];
   enumValues: FilterEnumValueMap;
-  namedFilters: NamedLeadFilter[];
-  canManageShared: boolean;
-  currentQuery: Record<string, string>;
-  yieldNoteText: string | null;
   onApply: (next: CustomFilter | null) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  focusConditionId?: string | null;
+  seedBlank?: boolean;
+  addNonce?: number;
+  activeCount?: number;
+  showFormUnqualified?: boolean;
+  onShowFormUnqualifiedChange?: (next: boolean) => void;
+  formUnqualifiedEnabled?: boolean;
+  children?: ReactNode;
 }) {
   const applied = filter ?? emptyCustomFilter();
-  const [draft, setDraft] = useState<CustomFilter>(applied);
-  const [open, setOpen] = useState(!isCustomFilterEmpty(applied));
   const appliedKey = encodeCustomFilter(applied) ?? "";
+  const [draft, setDraft] = useState<CustomFilter>(applied);
+  const initRef = useRef(false);
+  const onApplyRef = useRef(onApply);
+  onApplyRef.current = onApply;
+  const appliedKeyRef = useRef(appliedKey);
+  appliedKeyRef.current = appliedKey;
 
   useEffect(() => {
-    setDraft(applied);
-    if (!isCustomFilterEmpty(applied)) setOpen(true);
+    if (!open) {
+      initRef.current = false;
+      return;
+    }
+    if (initRef.current) return;
+    initRef.current = true;
+    const base = filter ?? emptyCustomFilter();
+    setDraft(
+      seedBlank || base.conditions.length === 0
+        ? { match: base.match, conditions: [...base.conditions, blankCondition()] }
+        : { ...base }
+    );
+    // Only initialize when the popover opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedKey]);
+  }, [open, seedBlank]);
+
+  useEffect(() => {
+    if (addNonce === 0) return;
+    setDraft((prev) => ({
+      ...prev,
+      conditions: [...prev.conditions, blankCondition()]
+    }));
+  }, [addNonce]);
+
+  useEffect(() => {
+    if (!open) return;
+    const ready = completeCustomFilter(draft);
+    const nextKey = ready ? encodeCustomFilter(ready) ?? "" : "";
+    if (nextKey === appliedKeyRef.current) return;
+    const t = window.setTimeout(() => {
+      onApplyRef.current(ready);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(t);
+  }, [draft, open]);
+
+  useEffect(() => {
+    if (!open || !focusConditionId) return;
+    const el = document.querySelector<HTMLElement>(
+      `[data-cf-row="${focusConditionId}"] [data-testid="cf-field"]`
+    );
+    el?.focus();
+  }, [open, focusConditionId, draft.conditions.length]);
 
   const fields = useMemo(() => fieldsForPicker(customKeys), [customKeys]);
-  const dirty = !sameFilter(draft, applied);
 
   function setCondition(id: string, patch: Partial<CustomFilterCondition>) {
     setDraft((prev) => ({
@@ -312,90 +324,68 @@ export default function CustomFilterBuilder({
     }));
   }
 
-  function applyDraft() {
-    const ready: CustomFilter = {
-      match: draft.match,
-      conditions: draft.conditions.filter((c) => {
-        if (!c.field || !c.op) return false;
-        return Boolean(resolveFilterField(c.field));
-      })
-    };
-    if (ready.conditions.length === 0) {
-      onApply(null);
-      return;
-    }
-    const checked = validateCustomFilter(ready);
-    if (!checked.ok) return;
-    onApply(checked.filter);
+  function setMatch(match: CustomFilterMatch) {
+    setDraft((p) => ({ ...p, match }));
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          data-testid="cf-add"
-          className="rounded-sm border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50"
-          onClick={() => {
-            setOpen(true);
-            setDraft((prev) => ({
-              ...prev,
-              conditions: [...prev.conditions, blankCondition()]
-            }));
-          }}
-        >
-          + Filter
-        </button>
-        <SavedFilterMenu
-          pageKey={pageKey}
-          items={namedFilters}
-          canManageShared={canManageShared}
-          currentQuery={currentQuery}
+    <ActionPopover
+      open={open}
+      onOpenChange={onOpenChange}
+      placement="bottom-start"
+      widthClass="w-[min(40rem,calc(100vw-1rem))]"
+      bodyClassName="p-3 overflow-visible"
+      panelClassName="overflow-visible"
+      labelledBy="cf-popover-title"
+      trigger={
+        <ToolbarGhostButton
+          testId="cf-filter"
+          label="Filter"
+          icon={<FilterIcon />}
+          count={activeCount || undefined}
+          active={activeCount > 0}
+          onClick={() => onOpenChange(!open)}
         />
-        {open ? (
-          <>
-            <div
-              className="inline-flex overflow-hidden rounded-sm border border-slate-200"
-              role="group"
-              aria-label="Match mode"
+      }
+    >
+      <div data-testid="cf-popover">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p id="cf-popover-title" className="text-sm text-slate-700">
+            Match{" "}
+            <select
+              data-testid="cf-match"
+              className={`${CONTROL_H} rounded-sm border border-slate-200 bg-white px-1.5 text-sm text-slate-900`}
+              value={draft.match}
+              onChange={(e) => setMatch(e.target.value as CustomFilterMatch)}
             >
-              {(["all", "any"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  data-testid={`cf-match-${m}`}
-                  className={`px-2.5 py-1 text-xs ${
-                    draft.match === m
-                      ? "bg-sky-100 font-medium text-sky-950"
-                      : "bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                  onClick={() => setDraft((p) => ({ ...p, match: m }))}
-                >
-                  {m === "all" ? "Match all" : "Match any"}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              data-testid="cf-apply"
-              disabled={!dirty && draft.conditions.length === 0}
-              className="rounded-sm border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-950 disabled:opacity-50"
-              onClick={applyDraft}
-            >
-              Apply
-            </button>
-          </>
-        ) : null}
-      </div>
+              <option value="all">all</option>
+              <option value="any">any</option>
+            </select>{" "}
+            of these
+          </p>
+          {formUnqualifiedEnabled && onShowFormUnqualifiedChange ? (
+            <ToggleSwitch
+              checked={Boolean(showFormUnqualified)}
+              onChange={onShowFormUnqualifiedChange}
+              label="Include form-unqualified"
+              testId="queue-show-unqualified"
+            />
+          ) : null}
+        </div>
 
-      {open && draft.conditions.length > 0 ? (
+        {children}
+
         <div className="space-y-2" data-testid="cf-rows">
           {draft.conditions.map((c) => {
             const field = c.field ? resolveFilterField(c.field) : null;
             const ops = field ? opsForField(field) : [];
             return (
-              <div key={c.id} className="flex flex-wrap items-center gap-2">
-                <FieldPicker
+              <div
+                key={c.id}
+                data-cf-row={c.id}
+                className="grid grid-cols-[minmax(8rem,1.2fr)_minmax(7rem,0.9fr)_minmax(8rem,1.4fr)_auto] items-center gap-2"
+              >
+                <FieldSelect
                   fields={fields}
                   value={c.field}
                   onChange={(id) => {
@@ -407,7 +397,7 @@ export default function CustomFilterBuilder({
                 {field ? (
                   <select
                     data-testid="cf-op"
-                    className="rounded-sm border border-slate-200 bg-white px-2 py-1 text-xs"
+                    className={`min-w-0 w-full ${CONTROL}`}
                     value={c.op}
                     onChange={(e) =>
                       setCondition(c.id, { op: e.target.value as FilterOp, value: undefined })
@@ -419,26 +409,28 @@ export default function CustomFilterBuilder({
                       </option>
                     ))}
                   </select>
-                ) : null}
+                ) : (
+                  <span />
+                )}
                 {field ? (
                   <ValueInput
                     field={field}
                     condition={c}
                     enumLive={field.enumSource ? enumValues[field.enumSource] : undefined}
                     onChange={(value) => setCondition(c.id, { value })}
-                    onEnter={applyDraft}
                   />
-                ) : null}
+                ) : (
+                  <span />
+                )}
                 <button
                   type="button"
                   aria-label={`Remove ${customConditionChipLabel(c)}`}
-                  className="rounded-sm px-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800"
+                  className={`${CONTROL_H} rounded-sm px-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800`}
                   onClick={() =>
-                    setDraft((p) => {
-                      const next = removeCondition(p, c.id);
-                      if (next.conditions.length === 0) setOpen(false);
-                      return next;
-                    })
+                    setDraft((p) => ({
+                      ...p,
+                      conditions: p.conditions.filter((row) => row.id !== c.id)
+                    }))
                   }
                 >
                   ×
@@ -447,13 +439,22 @@ export default function CustomFilterBuilder({
             );
           })}
         </div>
-      ) : null}
 
-      {yieldNoteText ? (
-        <p className="text-xs text-slate-500" data-testid="cf-yield-note">
-          {yieldNoteText}
-        </p>
-      ) : null}
-    </div>
+        <button
+          type="button"
+          data-testid="cf-add"
+          className="mt-3 text-xs text-slate-600 hover:text-slate-900"
+          onClick={() =>
+            setDraft((prev) => ({
+              ...prev,
+              conditions: [...prev.conditions, blankCondition()]
+            }))
+          }
+        >
+          + Add condition
+        </button>
+      </div>
+    </ActionPopover>
   );
 }
+

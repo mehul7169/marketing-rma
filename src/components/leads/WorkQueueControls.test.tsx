@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import { FilterPendingRoot } from "@/components/leads/FilterPending";
+import { ToolbarPortalProvider } from "@/components/leads/ToolbarPortal";
+import type { CustomFilter } from "@/lib/leads/customFilter";
 
 const nav = vi.hoisted(() => ({
   push: vi.fn(),
@@ -17,27 +19,38 @@ import WorkQueueControls from "@/components/leads/WorkQueueControls";
 
 const COUNTS = { all: 247, meetings_booked: 12, follow_ups_due: 40 };
 
+const TWO: CustomFilter = {
+  match: "all",
+  conditions: [
+    { id: "c1", field: "first_contacted_at", op: "is_empty" },
+    { id: "c2", field: "created_at", op: "after", value: "2026-11-01" }
+  ]
+};
+
 function renderControls(
   extra: Partial<ComponentProps<typeof WorkQueueControls>> = {}
 ) {
   return render(
     <FilterPendingRoot>
-      <WorkQueueControls
-        view="table"
-        tabId="all"
-        filterId={null}
-        search=""
-        showFormUnqualified={false}
-        sort="newest"
-        counts={COUNTS}
-        {...extra}
-      />
+      <ToolbarPortalProvider>
+        <WorkQueueControls
+          view="table"
+          tabId="all"
+          filterId={null}
+          search=""
+          showFormUnqualified={false}
+          sort="newest"
+          counts={COUNTS}
+          {...extra}
+        />
+      </ToolbarPortalProvider>
     </FilterPendingRoot>
   );
 }
 
 beforeEach(() => {
   nav.push.mockReset();
+  nav.replace.mockReset();
 });
 
 describe("WorkQueueControls", () => {
@@ -65,23 +78,26 @@ describe("WorkQueueControls", () => {
     expect(nav.push).toHaveBeenCalledWith("/leads/queue?view=table&sort=follow_up");
   });
 
-  it("disables the status filter on Meetings / Follow-ups", () => {
+  it("hides form-unqualified on Meetings / Follow-ups", () => {
     const { rerender } = renderControls();
-    expect(screen.getByTestId("queue-filter")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("cf-filter"));
+    expect(screen.getByTestId("queue-show-unqualified")).toBeInTheDocument();
     rerender(
       <FilterPendingRoot>
-        <WorkQueueControls
-          view="table"
-          tabId="meetings_booked"
-          filterId={null}
-          search=""
-          showFormUnqualified={false}
-          sort="newest"
-          counts={COUNTS}
-        />
+        <ToolbarPortalProvider>
+          <WorkQueueControls
+            view="table"
+            tabId="meetings_booked"
+            filterId={null}
+            search=""
+            showFormUnqualified={false}
+            sort="newest"
+            counts={COUNTS}
+          />
+        </ToolbarPortalProvider>
       </FilterPendingRoot>
     );
-    expect(screen.getByTestId("queue-filter")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("cf-filter"));
     expect(screen.queryByTestId("queue-show-unqualified")).toBeNull();
   });
 
@@ -93,10 +109,55 @@ describe("WorkQueueControls", () => {
     );
   });
 
-  it("puts + Filter on the controls row next to Sort", () => {
+  it("renders Filter, Sort, and Views on the toolbar", () => {
     renderControls();
-    expect(screen.getByTestId("cf-add")).toHaveTextContent("+ Filter");
+    expect(screen.getByTestId("cf-filter")).toBeInTheDocument();
     expect(screen.getByTestId("cf-saved")).toBeInTheDocument();
     expect(screen.getByTestId("queue-sort")).toBeInTheDocument();
+    expect(screen.getByTestId("work-queue-search")).toBeInTheDocument();
+  });
+
+  it("shows the all/any prefix only with 2+ conditions and toggling it navigates", () => {
+    const { rerender } = renderControls({ customFilter: TWO });
+    expect(screen.getByTestId("cf-match-prefix")).toHaveTextContent("Where all of:");
+    fireEvent.click(screen.getByTestId("cf-match-prefix"));
+    expect(String(nav.push.mock.calls[0][0])).toMatch(/[?&]cf=/);
+
+    const one: CustomFilter = { match: "all", conditions: [TWO.conditions[0]!] };
+    rerender(
+      <FilterPendingRoot>
+        <ToolbarPortalProvider>
+          <WorkQueueControls
+            view="table"
+            tabId="all"
+            filterId={null}
+            search=""
+            showFormUnqualified={false}
+            sort="newest"
+            counts={COUNTS}
+            customFilter={one}
+          />
+        </ToolbarPortalProvider>
+      </FilterPendingRoot>
+    );
+    expect(screen.queryByTestId("cf-match-prefix")).toBeNull();
+  });
+
+  it("opens the popover on a chip and removes a condition with ×", () => {
+    renderControls({ customFilter: TWO });
+    const chip = screen.getByTestId("filter-chip-cf:c1");
+    fireEvent.click(chip.querySelector("button")!);
+    expect(screen.getByTestId("cf-popover")).toBeInTheDocument();
+    fireEvent.click(chip.querySelector('[aria-label^="Remove"]')!);
+    expect(String(nav.push.mock.calls[0][0])).toMatch(/[?&]cf=/);
+  });
+
+  it("shows and hides the form-unqualified chip", () => {
+    renderControls({ showFormUnqualified: true });
+    expect(screen.getByTestId("filter-chip-unqualified")).toHaveTextContent(
+      "Include form-unqualified"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remove Include form-unqualified" }));
+    expect(nav.push).toHaveBeenCalledWith("/leads/queue?view=table");
   });
 });

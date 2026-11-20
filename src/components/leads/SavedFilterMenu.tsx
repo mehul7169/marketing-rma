@@ -1,32 +1,49 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFilterPending } from "@/components/leads/FilterPending";
+import { ToolbarGhostButton, ViewsIcon } from "@/components/leads/FilterToolbar";
 import type { NamedLeadFilter } from "@/lib/leads/namedFilters";
 
 export default function SavedFilterMenu({
   pageKey,
   items,
   canManageShared,
-  currentQuery
+  currentQuery,
+  saveRequestKey = 0,
+  columnsSlot
 }: {
   pageKey: "leads" | "leads-queue";
   items: NamedLeadFilter[];
   canManageShared: boolean;
   currentQuery: Record<string, string>;
+  saveRequestKey?: number;
+  columnsSlot?: ReactNode;
 }) {
   const router = useRouter();
   const { start } = useFilterPending();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [managing, setManaging] = useState(false);
   const [name, setName] = useState("");
   const [shared, setShared] = useState(false);
   const [list, setList] = useState(items);
   const rootRef = useRef<HTMLDivElement>(null);
+  const prevSave = useRef(saveRequestKey);
   const path = pageKey === "leads-queue" ? "/leads/queue" : "/leads";
 
   useEffect(() => setList(items), [items]);
+
+  useEffect(() => {
+    if (saveRequestKey !== prevSave.current) {
+      prevSave.current = saveRequestKey;
+      if (saveRequestKey > 0) {
+        setOpen(true);
+        setSaving(true);
+      }
+    }
+  }, [saveRequestKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -98,18 +115,16 @@ export default function SavedFilterMenu({
 
   return (
     <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        data-testid="cf-saved"
-        className="rounded-sm border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50"
+      <ToolbarGhostButton
+        testId="cf-saved"
+        label="Views"
+        icon={<ViewsIcon />}
         onClick={() => setOpen((v) => !v)}
-      >
-        Saved filters
-      </button>
+      />
       {open ? (
-        <div className="absolute z-30 mt-1 w-72 rounded border border-slate-200 bg-white p-2 text-xs shadow-sm">
+        <div className="absolute right-0 z-30 mt-1 w-72 rounded border border-slate-200 bg-white p-2 text-xs shadow-sm">
           {personal.length === 0 && team.length === 0 ? (
-            <p className="px-1 py-2 text-slate-500">No saved filters yet.</p>
+            <p className="px-1 py-2 text-slate-500">No saved views yet.</p>
           ) : null}
           {personal.length > 0 ? (
             <p className="px-1 text-[10px] font-medium uppercase text-slate-400">Yours</p>
@@ -118,7 +133,7 @@ export default function SavedFilterMenu({
             <SavedRow
               key={item.id}
               item={item}
-              canEdit
+              canEdit={managing}
               onApply={() => applyItem(item)}
               onRename={() => void rename(item)}
               onUpdate={() => void update(item)}
@@ -134,21 +149,21 @@ export default function SavedFilterMenu({
             <SavedRow
               key={item.id}
               item={item}
-              canEdit={canManageShared}
+              canEdit={managing && canManageShared}
               onApply={() => applyItem(item)}
               onRename={() => void rename(item)}
               onUpdate={() => void update(item)}
               onDelete={() => void remove(item)}
             />
           ))}
-          <div className="mt-2 border-t border-slate-100 pt-2">
+          <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
             {saving ? (
               <div className="space-y-2">
                 <input
                   autoFocus
                   data-testid="cf-save-name"
-                  className="w-full rounded-sm border border-slate-200 px-2 py-1"
-                  placeholder="Filter name"
+                  className="h-8 w-full rounded-sm border border-slate-200 px-2"
+                  placeholder="View name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => {
@@ -175,14 +190,27 @@ export default function SavedFilterMenu({
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                data-testid="cf-save-as"
-                className="text-slate-600 underline decoration-slate-300 hover:text-slate-900"
-                onClick={() => setSaving(true)}
-              >
-                Save as…
-              </button>
+              <>
+                <button
+                  type="button"
+                  data-testid="cf-save-as"
+                  className="block w-full rounded-sm px-1 py-1 text-left text-slate-700 hover:bg-slate-50"
+                  onClick={() => setSaving(true)}
+                >
+                  Save current view…
+                </button>
+                {personal.length > 0 || team.length > 0 ? (
+                  <button
+                    type="button"
+                    data-testid="cf-manage-views"
+                    className="block w-full rounded-sm px-1 py-1 text-left text-slate-700 hover:bg-slate-50"
+                    onClick={() => setManaging((v) => !v)}
+                  >
+                    {managing ? "Done" : "Manage views"}
+                  </button>
+                ) : null}
+                {columnsSlot}
+              </>
             )}
           </div>
         </div>

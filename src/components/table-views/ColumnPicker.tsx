@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import type { UseTableViewResult } from "@/hooks/useTableView";
 
 export default function ColumnPicker({
-  view
+  view,
+  variant = "default"
 }: {
   view: UseTableViewResult;
+  variant?: "default" | "ghost" | "menu";
 }) {
   const [open, setOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -28,10 +30,29 @@ export default function ColumnPicker({
     <div className="relative" ref={panelRef}>
       <button
         type="button"
-        className="rounded border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+        title="Columns"
+        aria-label="Columns"
+        className={
+          variant === "menu"
+            ? "block w-full rounded-sm px-1 py-1 text-left text-slate-700 hover:bg-slate-50"
+            : variant === "ghost"
+              ? "inline-flex h-8 items-center gap-1.5 rounded px-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              : "rounded border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+        }
         onClick={() => setOpen((v) => !v)}
       >
-        Columns
+        {variant === "ghost" ? (
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path
+              d="M3.5 2.5h2v11h-2v-11Zm3.5 0h2v11H7v-11Zm3.5 0h2v11h-2v-11Z"
+              stroke="currentColor"
+              strokeWidth="1.25"
+            />
+          </svg>
+        ) : null}
+        <span className={variant === "ghost" ? "max-[1024px]:hidden" : undefined}>
+          Columns
+        </span>
         {view.saving ? (
           <span className="ml-1 text-xs text-slate-400">saving…</span>
         ) : null}

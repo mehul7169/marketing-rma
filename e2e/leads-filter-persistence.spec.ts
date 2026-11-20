@@ -19,7 +19,14 @@ async function login(browser: Browser, creds: { email?: string; password?: strin
   return page;
 }
 
+async function ensureFilterPopover(page: Page) {
+  if (await page.getByTestId("cf-popover").count()) return;
+  await page.getByTestId("cf-filter").click();
+  await expect(page.getByTestId("cf-popover")).toBeVisible();
+}
+
 async function openFilter(page: Page, name: string) {
+  await ensureFilterPopover(page);
   const trigger = page.getByRole("button", { name: `${name} filter` });
   if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
   return page.getByRole("listbox", { name });
@@ -91,6 +98,7 @@ test.describe("Leads filter persistence", () => {
     await expect.poll(() => param(a, "stage")).toBe("call_booked");
     expect(param(a, "source")?.split(",").sort()).toEqual([s1, s2].sort());
     await expect(a.getByTestId("filter-chip-source")).toBeVisible();
+    await ensureFilterPopover(a);
     await expect(a.getByRole("button", { name: "Source filter" })).toContainText("2 selected");
     await openFilter(a, "Source");
     await a.screenshot({ path: "test-results/leads-filter-chips.png" });
@@ -114,6 +122,7 @@ test.describe("Leads filter persistence", () => {
     await a.goto(adminUrl);
     await a.getByRole("button", { name: /^Remove Source:/ }).click();
     await expect.poll(() => param(a, "source")).toBeNull();
+    await ensureFilterPopover(a);
     await expect(a.getByRole("button", { name: "Source filter" })).toContainText("All");
     await expect(a.getByTestId("filter-chip-stage")).toBeVisible();
     await expect(a.getByRole("button", { name: "Stage filter" })).toContainText("Call Booked");
@@ -122,10 +131,11 @@ test.describe("Leads filter persistence", () => {
         r.url().includes("/api/table-views/leads/filters") &&
         r.request().postData()?.includes('"search":"dead=hide"') === true
     );
-    await a.getByRole("button", { name: "Clear all" }).click();
+    await a.getByRole("button", { name: "Clear" }).click();
     await expect.poll(() => new URL(a.url()).search).toBe("?dead=hide");
     await clearedSave;
     await expect(a.getByLabel("Active filters")).toHaveCount(0);
+    await ensureFilterPopover(a);
     await expect(a.getByRole("button", { name: "Stage filter" })).toContainText("All");
     // The cleared state is what's remembered now.
     await a.waitForTimeout(1_000);

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FilterPendingRoot } from "@/components/leads/FilterPending";
+import { ToolbarPortalProvider } from "@/components/leads/ToolbarPortal";
 import {
   parseLeadsFilterParams,
   type LeadsFilterState
@@ -25,7 +26,9 @@ function state(q = "", extra: Record<string, string> = {}): LeadsFilterState {
 function renderFilters(s: LeadsFilterState) {
   return render(
     <FilterPendingRoot>
-      <LeadsFilters sources={["youtube"]} state={s} />
+      <ToolbarPortalProvider>
+        <LeadsFilters sources={["youtube"]} state={s} />
+      </ToolbarPortalProvider>
     </FilterPendingRoot>
   );
 }
@@ -36,38 +39,31 @@ beforeEach(() => {
 });
 
 describe("LeadsFilters search", () => {
-  it("shows + Filter on the filter row", () => {
+  it("shows Filter and Views on the toolbar", () => {
     renderFilters(state(""));
-    expect(screen.getByTestId("cf-add")).toHaveTextContent("+ Filter");
+    expect(screen.getByTestId("cf-filter")).toBeInTheDocument();
+    expect(screen.getByTestId("cf-saved")).toBeInTheDocument();
+    expect(screen.getByTestId("leads-search")).toBeInTheDocument();
   });
 
-  it("keeps the input and chip in sync with URL q", () => {
+  it("keeps the input in sync with URL q", () => {
     const { rerender } = renderFilters(state("kunal"));
     const input = screen.getByTestId("leads-search") as HTMLInputElement;
     expect(input.value).toBe("kunal");
-    expect(screen.getByTestId("filter-chip-q")).toHaveTextContent("Search: kunal");
 
     rerender(
       <FilterPendingRoot>
-        <LeadsFilters sources={["youtube"]} state={state("puneet")} />
+        <ToolbarPortalProvider>
+          <LeadsFilters sources={["youtube"]} state={state("puneet")} />
+        </ToolbarPortalProvider>
       </FilterPendingRoot>
     );
     expect(input.value).toBe("puneet");
-    expect(screen.getByTestId("filter-chip-q")).toHaveTextContent(
-      "Search: puneet"
-    );
   });
 
-  it("clears the input when the search chip is removed", () => {
-    renderFilters(state("kunal"));
-    fireEvent.click(screen.getByRole("button", { name: "Remove Search: kunal" }));
-    expect(nav.push).toHaveBeenCalledTimes(1);
-    expect(String(nav.push.mock.calls[0][0])).not.toMatch(/[?&]q=/);
-  });
-
-  it("clears q on Clear all", () => {
+  it("clears q on Clear when other filters are active", () => {
     renderFilters(state("kunal", { source: "youtube" }));
-    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     expect(nav.push).toHaveBeenCalledTimes(1);
     const href = String(nav.push.mock.calls[0][0]);
     expect(href).not.toMatch(/[?&]q=/);
@@ -78,15 +74,15 @@ describe("LeadsFilters search", () => {
     const { rerender } = renderFilters(state(""));
     const input = screen.getByTestId("leads-search") as HTMLInputElement;
     expect(input.value).toBe("");
-    expect(screen.queryByTestId("filter-chip-q")).not.toBeInTheDocument();
 
     rerender(
       <FilterPendingRoot>
-        <LeadsFilters sources={["youtube"]} state={state("kunal")} />
+        <ToolbarPortalProvider>
+          <LeadsFilters sources={["youtube"]} state={state("kunal")} />
+        </ToolbarPortalProvider>
       </FilterPendingRoot>
     );
     expect(input.value).toBe("kunal");
-    expect(screen.getByTestId("filter-chip-q")).toHaveTextContent("Search: kunal");
   });
 
   it("Enter pushes the URL once immediately", () => {

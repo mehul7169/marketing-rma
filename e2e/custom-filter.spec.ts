@@ -21,9 +21,7 @@ async function waitQueue(page: Page) {
 }
 
 async function pickField(page: Page, label: string) {
-  await page.getByTestId("cf-field").last().click();
-  await page.getByPlaceholder("Search fields").fill(label);
-  await page.getByRole("button", { name: label, exact: true }).click();
+  await page.getByTestId("cf-field").last().selectOption({ label });
 }
 
 function cfParam(page: Page): string | null {
@@ -40,12 +38,15 @@ test.describe("custom filter builder", () => {
     await page.goto("/leads/queue?view=table");
     await waitQueue(page);
 
-    await page.getByTestId("cf-add").click();
+    await page.getByTestId("cf-filter").click();
+    await expect(page.getByTestId("cf-popover")).toBeVisible();
     await pickField(page, "Form Qualified");
     await page.getByTestId("cf-add").click();
     await pickField(page, "Call booked at");
     await page.getByTestId("cf-op").last().selectOption("is_not_empty");
-    await page.getByTestId("cf-apply").click();
+    await expect(page.locator('[data-testid^="filter-chip-cf:"]')).toHaveCount(2, {
+      timeout: 20_000
+    });
     await page.waitForURL(/[?&]cf=/, { timeout: 20_000 });
     await waitQueue(page);
 
@@ -68,7 +69,7 @@ test.describe("custom filter builder", () => {
     await expect(page.getByText(savedName)).toBeVisible({ timeout: 10_000 });
     await page.getByTestId("cf-saved").click();
 
-    await page.getByRole("button", { name: "Clear all" }).click();
+    await page.getByRole("button", { name: "Clear" }).click();
     await waitQueue(page);
     await expect.poll(() => cfParam(page)).toBeNull();
 

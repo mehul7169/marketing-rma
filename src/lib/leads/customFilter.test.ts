@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  completeCustomFilter,
   customConditionChipLabel,
+  customConditionChipParts,
   customFilterYields,
   encodeCustomFilter,
   parseCustomFilterParam,
@@ -231,5 +233,37 @@ describe("customConditionChipLabel", () => {
     expect(
       customConditionChipLabel({ id: "2", field: "contact_attempts", op: "gte", value: 3 })
     ).toBe("Attempts ≥ 3");
+  });
+});
+
+describe("completeCustomFilter", () => {
+  it("drops incomplete rows and keeps valid ones", () => {
+    expect(
+      completeCustomFilter({
+        match: "any",
+        conditions: [
+          { id: "1", field: "form_qualified", op: "is_yes" },
+          { id: "2", field: "", op: "contains", value: "" },
+          { id: "3", field: "name", op: "contains", value: "" }
+        ]
+      })
+    ).toEqual({
+      match: "any",
+      conditions: [{ id: "1", field: "form_qualified", op: "is_yes" }]
+    });
+    expect(
+      completeCustomFilter({
+        match: "all",
+        conditions: [{ id: "1", field: "name", op: "contains", value: "" }]
+      })
+    ).toBeNull();
+  });
+});
+
+describe("customConditionChipParts", () => {
+  it("splits field name from the rest of the label", () => {
+    expect(
+      customConditionChipParts({ id: "1", field: "deal", op: "is_any", value: ["lost"] })
+    ).toEqual({ field: "Deal", rest: "is Lost" });
   });
 });

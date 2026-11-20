@@ -14,7 +14,7 @@ import type { LeadListFilters } from "@/lib/leads/types";
 
 export const QUEUE_TABS = [
   { id: "all", label: "All" },
-  { id: "meetings_booked", label: "Meetings Booked" },
+  { id: "meetings_booked", label: "Meetings booked" },
   { id: "follow_ups_due", label: "Follow-ups" }
 ] as const;
 
@@ -38,6 +38,12 @@ export const QUEUE_STATUS_FILTERS: Array<{
   { id: "contacted", filters: { pipelineStages: ["contacted"] } },
   { id: "upcoming", filters: { followUp: ["upcoming"] } }
 ];
+
+export const QUEUE_STATUS_CHIP_LABELS: Record<string, { field: string; rest: string }> = {
+  new: { field: "Stage", rest: "is New" },
+  contacted: { field: "Stage", rest: "is Contacted" },
+  upcoming: { field: "Follow-up", rest: "is Upcoming" }
+};
 
 /** Saved queue state from before the Stage rename. */
 export const LEGACY_QUEUE_FILTER_IDS: Record<string, string> = {

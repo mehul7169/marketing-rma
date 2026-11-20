@@ -88,9 +88,13 @@ export default function CreateLeadButton({
         disabled={disabled}
         title={disabled ? ORG_PREVIEW_READ_ONLY_MESSAGE : undefined}
         onClick={() => setOpen(true)}
-        className="btn-brand disabled:cursor-not-allowed disabled:opacity-60"
+        aria-label="Create Lead"
+        className="btn-brand inline-flex h-8 items-center gap-1.5 px-3 text-sm leading-none disabled:cursor-not-allowed disabled:opacity-60"
       >
-        Create Lead
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+          <path d="M6 1.5v9M1.5 6h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+        <span className="max-[1024px]:hidden">Create Lead</span>
       </button>
 
       {open ? (

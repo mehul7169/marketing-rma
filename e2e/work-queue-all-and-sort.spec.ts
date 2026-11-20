@@ -140,6 +140,7 @@ async function screenshotChrome(page: Page, file: string) {
 
 test.describe("Work Queue All tab and sort", () => {
   test.skip(!email || !password, "Set E2E_MEMBER_EMAIL/PASSWORD");
+  test.describe.configure({ mode: "serial" });
   test.setTimeout(180_000);
 
   test("default All + newest first matches DB; sort is server-side across pages", async ({
@@ -282,7 +283,7 @@ test.describe("Work Queue All tab and sort", () => {
     await waitQueue(page);
     const wide = await page.getByTestId("queue-controls").boundingBox();
     expect(wide).toBeTruthy();
-    expect(wide!.height, "single tidy row at 1440").toBeLessThan(42);
+    expect(wide!.height, "tabs + toolbar at 1440").toBeLessThan(96);
     const wideOverflow = await page
       .getByTestId("queue-controls")
       .evaluate((n) => (n as HTMLElement).scrollWidth > (n as HTMLElement).clientWidth + 1);
@@ -294,6 +295,8 @@ test.describe("Work Queue All tab and sort", () => {
 
     await page.setViewportSize({ width: 1024, height: 900 });
     await waitQueue(page);
+    const mid = await page.getByTestId("queue-controls").boundingBox();
+    expect(mid!.height, "tabs + toolbar at 1024").toBeLessThan(96);
     const narrowOverflow = await page
       .getByTestId("queue-controls")
       .evaluate((n) => (n as HTMLElement).scrollWidth > (n as HTMLElement).clientWidth + 1);

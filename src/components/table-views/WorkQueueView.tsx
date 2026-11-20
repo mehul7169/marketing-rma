@@ -6,7 +6,8 @@ import ConfirmPopover from "@/components/leads/ConfirmPopover";
 import CreateLeadButton from "@/components/leads/CreateLeadButton";
 import LeadDrawerHost from "@/components/leads/LeadDrawer";
 import { useFilterPending } from "@/components/leads/FilterPending";
-import { useFilterSearch } from "@/components/leads/useFilterSearch";
+import { ToolbarTrailing } from "@/components/leads/ToolbarPortal";
+import { ViewModeSegment } from "@/components/leads/FilterToolbar";
 import { useLeadGrid } from "@/components/leads/useLeadGrid";
 import WorkQueueCard from "@/components/leads/WorkQueueCard";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
@@ -18,7 +19,6 @@ import {
   renderLeadColumnCell
 } from "@/components/table-views/leadColumnCells";
 import AsyncStatusIndicator from "@/components/ui/AsyncStatusIndicator";
-import Spinner from "@/components/ui/Spinner";
 import { toastSuccess } from "@/components/ui/Toast";
 import Pagination from "@/components/ui/Pagination";
 import { useTableView } from "@/hooks/useTableView";
@@ -33,7 +33,6 @@ import type { TableColumnConfig, TableViewBootstrap } from "@/lib/table-views/ty
 import type { LeadRow } from "@/lib/leads/types";
 import { customFilterYields, type CustomFilter } from "@/lib/leads/customFilter";
 import { queueQueryParams, type QueueSort } from "@/lib/leads/workQueueParams";
-import { useRouter } from "next/navigation";
 
 export default function WorkQueueView({
   initialViewMode = "table",
@@ -66,26 +65,9 @@ export default function WorkQueueView({
   orgName?: string | null;
   tableViewBootstrap?: TableViewBootstrap | null;
 }) {
-  const router = useRouter();
   const preview = useOrgPreview();
-  const { pending, start } = useFilterPending();
+  const { pending } = useFilterPending();
   const [viewMode, setViewMode] = useState<"cards" | "table">(initialViewMode);
-  const search = useFilterSearch({
-    urlValue: initialSearch,
-    onCommit: (q, { isLatest, immediate }) => {
-      start(() => {
-        if (!isLatest()) return;
-        const url = new URL(window.location.href);
-        url.searchParams.set("view", viewMode);
-        url.searchParams.delete("page");
-        if (q) url.searchParams.set("search", q);
-        else url.searchParams.delete("search");
-        const href = url.pathname + url.search;
-        if (immediate) router.push(href);
-        else router.replace(href);
-      });
-    }
-  });
   const yieldBase = customFilterYields(customFilter);
   const belongs = useCallback(
     (lead: LeadRow) =>
@@ -200,67 +182,12 @@ export default function WorkQueueView({
     </div>
   );
 
-  const toolbar = (
-    <div className="flex w-full flex-wrap items-center justify-between gap-2">
-      <label className="relative w-full max-w-xs shrink-0">
-        <span className="sr-only" id="work-queue-search-label">
-          Search leads
-        </span>
-        <input
-          id="work-queue-search"
-          data-testid="work-queue-search"
-          type="search"
-          aria-labelledby="work-queue-search-label"
-          value={search.draft}
-          onChange={(e) => search.onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              search.onEnter();
-            }
-          }}
-          placeholder="Search name, email, or phone"
-          className="w-full rounded border border-slate-200 px-3 py-1.5 pr-8 text-sm text-slate-900"
-          autoComplete="off"
-        />
-        {pending ? (
-          <span
-            className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
-            data-testid="search-pending"
-          >
-            <Spinner size="xs" label="Searching" />
-          </span>
-        ) : null}
-      </label>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("cards")}
-            className={`rounded border px-3 py-1.5 text-sm ${
-              viewMode === "cards"
-                ? "ui-active"
-                : "border-slate-200 text-slate-700"
-            }`}
-          >
-            Cards
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("table")}
-            className={`rounded border px-3 py-1.5 text-sm ${
-              viewMode === "table"
-                ? "ui-active"
-                : "border-slate-200 text-slate-700"
-            }`}
-          >
-            Table
-          </button>
-        </div>
-        <ColumnPicker view={view} />
-        <CreateLeadButton disabled={preview.active} onCreated={onLeadCreated} />
-      </div>
-    </div>
+  const trailing = (
+    <ToolbarTrailing>
+      <ViewModeSegment value={viewMode} onChange={setMode} />
+      {viewMode === "table" ? <ColumnPicker view={view} variant="ghost" /> : null}
+      <CreateLeadButton disabled={preview.active} onCreated={onLeadCreated} />
+    </ToolbarTrailing>
   );
 
   const emptyMessage = hasSearch
@@ -272,7 +199,7 @@ export default function WorkQueueView({
   if (filteredRows.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-4">
-        {toolbar}
+        {trailing}
         <p
           className={`rounded border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500 ${pendingClass}`}
           aria-busy={pending}
@@ -288,7 +215,7 @@ export default function WorkQueueView({
   if (viewMode === "cards") {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-        <div className="shrink-0">{toolbar}</div>
+        {trailing}
         <div className={`min-h-0 flex-1 overflow-y-auto ${pendingClass}`} aria-busy={pending}>
           <div className="grid gap-4 lg:grid-cols-2">
             {filteredRows.map((lead) => (
@@ -338,7 +265,8 @@ export default function WorkQueueView({
 
   return (
     <>
-      <ScrollableDataTable toolbar={toolbar}>
+      {trailing}
+      <ScrollableDataTable>
         <div className={pendingClass} aria-busy={pending}>
         <table
           className="w-full border-collapse text-sm"

@@ -47,6 +47,33 @@ export function isCustomFilterEmpty(filter: CustomFilter | null | undefined): bo
   return !filter || filter.conditions.length === 0;
 }
 
+/** Complete, valid conditions only. Incomplete rows are ignored, not errors. */
+export function completeCustomFilter(
+  filter: CustomFilter | null | undefined
+): CustomFilter | null {
+  if (!filter) return null;
+  const conditions = filter.conditions.filter((c) => {
+    const checked = validateCustomFilter({
+      match: "all",
+      conditions: [{ ...c, id: c.id || "x" }]
+    });
+    return checked.ok;
+  });
+  if (conditions.length === 0) return null;
+  return { match: filter.match === "any" ? "any" : "all", conditions };
+}
+
+export function customConditionChipParts(condition: CustomFilterCondition): {
+  field: string;
+  rest: string;
+} {
+  const field = resolveFilterField(condition.field);
+  const name = field?.label ?? condition.field;
+  const full = customConditionChipLabel(condition);
+  const rest = full.startsWith(name) ? full.slice(name.length).trim() : full;
+  return { field: name, rest };
+}
+
 function toBase64Url(json: string): string {
   const bytes = new TextEncoder().encode(json);
   let bin = "";

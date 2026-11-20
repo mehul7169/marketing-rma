@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import ConfirmPopover from "@/components/leads/ConfirmPopover";
 import LeadDrawerHost from "@/components/leads/LeadDrawer";
 import { useLeadGrid } from "@/components/leads/useLeadGrid";
+import { ToolbarTrailing } from "@/components/leads/ToolbarPortal";
 import ColumnPicker from "@/components/table-views/ColumnPicker";
 import ScrollableDataTable from "@/components/table-views/ScrollableDataTable";
 import {
@@ -43,7 +44,10 @@ export default function ConfigurableLeadsTable({
 
   return (
     <>
-      <ScrollableDataTable toolbar={<ColumnPicker view={view} />}>
+      <ToolbarTrailing>
+        <ColumnPicker view={view} variant="ghost" />
+      </ToolbarTrailing>
+      <ScrollableDataTable>
         <table
           className="w-full border-collapse text-sm"
           style={{ tableLayout: "fixed", minWidth: tableMinWidth }}

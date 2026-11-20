@@ -1,22 +1,37 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import CustomFilterBuilder from "@/components/leads/CustomFilterBuilder";
 import { useFilterPending } from "@/components/leads/FilterPending";
-import WorkQueueStatusFilter from "@/components/leads/WorkQueueStatusFilter";
+import {
+  ChipTextLink,
+  FilterChip,
+  FilterSearchInput,
+  SortIcon,
+  ToolbarDivider,
+  ghostBtnClass
+} from "@/components/leads/FilterToolbar";
+import SavedFilterMenu from "@/components/leads/SavedFilterMenu";
+import { ToolbarTrailingSlot } from "@/components/leads/ToolbarPortal";
+import { useFilterSearch } from "@/components/leads/useFilterSearch";
 import type { FilterEnumValueMap } from "@/lib/db/filterEnumValues";
 import {
+  completeCustomFilter,
   customConditionChipLabel,
+  customConditionChipParts,
   customFilterYields,
   isCustomFilterEmpty,
   removeCondition,
   yieldNote,
-  type CustomFilter
+  type CustomFilter,
+  type CustomFilterMatch
 } from "@/lib/leads/customFilter";
 import type { NamedLeadFilter } from "@/lib/leads/namedFilters";
 import {
   QUEUE_SORT_LABELS,
   QUEUE_SORTS,
+  QUEUE_STATUS_CHIP_LABELS,
   QUEUE_TABS,
   isQueuePrimaryTab,
   queueHref,
@@ -24,14 +39,6 @@ import {
   type QueueSort,
   type QueueTabId
 } from "@/lib/leads/workQueueParams";
-
-function Dot({ className = "" }: { className?: string }) {
-  return (
-    <span className={`text-slate-300 ${className}`.trim()} aria-hidden="true">
-      ·
-    </span>
-  );
-}
 
 export default function WorkQueueControls({
   view,
@@ -61,7 +68,12 @@ export default function WorkQueueControls({
   canManageShared?: boolean;
 }) {
   const router = useRouter();
-  const { start } = useFilterPending();
+  const { pending, start } = useFilterPending();
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [seedBlank, setSeedBlank] = useState(false);
+  const [addNonce, setAddNonce] = useState(0);
+  const [saveRequestKey, setSaveRequestKey] = useState(0);
   const current = {
     view,
     tab: tabId === "all" ? null : tabId,
@@ -85,22 +97,55 @@ export default function WorkQueueControls({
     start(() => router.push(queueHref({ ...current, ...patch })));
   }
 
+  const searchBox = useFilterSearch({
+    urlValue: search,
+    onCommit: (q, { isLatest, immediate }) => {
+      start(() => {
+        if (!isLatest()) return;
+        const href = queueHref({ ...current, search: q });
+        if (immediate) router.push(href);
+        else router.replace(href);
+      });
+    }
+  });
+
   const filterDisabled = isQueuePrimaryTab(tabId);
   const note = yieldNote(customFilterYields(customFilter));
+  const conditions = customFilter?.conditions ?? [];
+  const statusChip = filterId ? QUEUE_STATUS_CHIP_LABELS[filterId] : null;
+  const activeCount =
+    conditions.length +
+    (showFormUnqualified && !filterDisabled ? 1 : 0) +
+    (filterId ? 1 : 0);
+  const hasChips =
+    conditions.length > 0 ||
+    Boolean(statusChip) ||
+    (showFormUnqualified && !filterDisabled);
+  const match: CustomFilterMatch = customFilter?.match === "any" ? "any" : "all";
+
+  function openFilter(opts: { add?: boolean; focusId?: string | null } = {}) {
+    setFocusId(opts.focusId ?? null);
+    if (opts.add && filterOpen) {
+      setAddNonce((n) => n + 1);
+      return;
+    }
+    setSeedBlank(Boolean(opts.add) || isCustomFilterEmpty(customFilter));
+    setFilterOpen(true);
+  }
+
+  function applyCustom(next: CustomFilter | null) {
+    const ready = completeCustomFilter(next);
+    go({ customFilter: ready });
+  }
 
   return (
-    <div className="space-y-2">
-    <div
-      data-testid="queue-controls"
-      className="flex flex-wrap items-center gap-x-4 gap-y-2"
-    >
-      <div className="max-xl:w-full">
+    <div className="space-y-2" data-testid="queue-controls">
       <div
-        className="inline-flex overflow-hidden rounded-sm border border-sky-200"
+        className="flex flex-wrap items-end gap-x-6 border-b border-slate-200"
         role="tablist"
         aria-label="Work Queue tabs"
       >
-        {QUEUE_TABS.map((tab, i) => {
+        {QUEUE_TABS.map((tab) => {
           const active = tabId === tab.id;
           const href = queueHref({
             ...current,
@@ -125,18 +170,16 @@ export default function WorkQueueControls({
                   filter: tab.id === "all" ? current.filter : null
                 });
               }}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs ${
-                i > 0 ? "border-l border-sky-200" : ""
-              } ${
+              className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-0.5 pb-2 text-sm ${
                 active
-                  ? "bg-sky-100 font-medium text-sky-950"
-                  : "bg-sky-50/60 text-sky-900 hover:bg-sky-100/80"
+                  ? "border-slate-900 font-medium text-slate-900"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
               {tab.label}
               <span
                 data-testid={`queue-count-${tab.id}`}
-                className="rounded-sm border border-sky-200/80 bg-white/80 px-1 py-px text-[10px] tabular-nums text-sky-800"
+                className="tabular-nums text-slate-400"
               >
                 {counts[tab.id] ?? 0}
               </span>
@@ -144,142 +187,151 @@ export default function WorkQueueControls({
           );
         })}
       </div>
-      </div>
 
-      <div className="inline-flex items-center gap-x-4">
-        <Dot className="max-xl:hidden" />
-        <WorkQueueStatusFilter
-          value={filterId}
-          disabled={filterDisabled}
-          onChange={(next) => go({ tab: null, filter: next || null })}
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterSearchInput
+          testId="work-queue-search"
+          labelledBy="work-queue-search-label"
+          label="Search leads"
+          placeholder="Search name, email, or phone"
+          value={searchBox.draft}
+          onChange={searchBox.onChange}
+          onEnter={searchBox.onEnter}
+          pending={pending}
         />
-      </div>
-
-      <div className="inline-flex items-center gap-x-4">
-        <Dot />
-        <CustomFilterBuilder
-          pageKey="leads-queue"
-          filter={customFilter}
-          customKeys={customKeys}
-          enumValues={enumValues}
-          namedFilters={namedFilters}
-          canManageShared={canManageShared}
-          currentQuery={queueQueryParams(current)}
-          yieldNoteText={null}
-          onApply={(next) => go({ customFilter: next })}
-        />
-      </div>
-
-      <div className="inline-flex items-center gap-x-4">
-        <Dot />
-        <label className="inline-flex items-center gap-1.5 text-xs text-slate-600">
-          <span className="whitespace-nowrap">Sort</span>
-          <select
-            data-testid="queue-sort"
-            aria-label="Sort"
-            className="rounded-sm border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800"
-            value={sort}
-            onChange={(e) => go({ sort: e.target.value as QueueSort })}
-          >
-            {QUEUE_SORTS.map((id) => (
-              <option key={id} value={id}>
-                {QUEUE_SORT_LABELS[id]}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {filterDisabled ? null : (
-        <div className="inline-flex items-center gap-x-4">
-          <Dot />
-          <a
-            href={queueHref({
-              ...current,
-              showFormUnqualified: !showFormUnqualified
-            })}
-            aria-pressed={showFormUnqualified}
-            data-testid="queue-show-unqualified"
-            onClick={(e) => {
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
-                return;
-              }
-              e.preventDefault();
-              go({ showFormUnqualified: !showFormUnqualified });
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1 max-md:w-full">
+          <CustomFilterBuilder
+            filter={customFilter}
+            customKeys={customKeys}
+            enumValues={enumValues}
+            onApply={applyCustom}
+            open={filterOpen}
+            onOpenChange={(next) => {
+              if (next) openFilter({ add: isCustomFilterEmpty(customFilter) });
+              else setFilterOpen(false);
             }}
-            className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs ${
-              showFormUnqualified
-                ? "border-slate-400 bg-slate-100 text-slate-900"
-                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <input
-              type="checkbox"
-              readOnly
-              checked={showFormUnqualified}
-              className="h-3 w-3"
-              tabIndex={-1}
-            />
-            Show form-unqualified
-          </a>
+            focusConditionId={focusId}
+            seedBlank={seedBlank}
+            addNonce={addNonce}
+            activeCount={activeCount}
+            showFormUnqualified={showFormUnqualified}
+            onShowFormUnqualifiedChange={
+              filterDisabled ? undefined : (next) => go({ showFormUnqualified: next })
+            }
+            formUnqualifiedEnabled={!filterDisabled}
+          />
+          <label className={`${ghostBtnClass} cursor-pointer`} title="Sort">
+            <SortIcon />
+            <select
+              data-testid="queue-sort"
+              aria-label="Sort"
+              className="h-8 max-w-[9.5rem] cursor-pointer border-0 bg-transparent text-sm text-slate-600 max-[1024px]:sr-only"
+              value={sort}
+              onChange={(e) => go({ sort: e.target.value as QueueSort })}
+            >
+              {QUEUE_SORTS.map((id) => (
+                <option key={id} value={id}>
+                  {QUEUE_SORT_LABELS[id]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <SavedFilterMenu
+            pageKey="leads-queue"
+            items={namedFilters}
+            canManageShared={canManageShared}
+            currentQuery={queueQueryParams(current)}
+            saveRequestKey={saveRequestKey}
+          />
+          <ToolbarDivider />
+          <ToolbarTrailingSlot />
         </div>
-      )}
-    </div>
-    {!isCustomFilterEmpty(customFilter) || search ? (
-      <div className="flex flex-wrap items-center gap-2" aria-label="Active filters">
-        {search ? (
-          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-3 pr-1 text-xs">
-            Search: {search}
-            <button
-              type="button"
-              className="rounded-full px-1.5 text-slate-500 hover:bg-slate-200"
-              onClick={() => go({ search: "" })}
-            >
-              ×
-            </button>
-          </span>
-        ) : null}
-        {(customFilter?.conditions ?? []).map((c) => (
-          <span
-            key={c.id}
-            data-testid={`filter-chip-cf:${c.id}`}
-            className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-3 pr-1 text-xs text-slate-800"
-          >
-            <span className="truncate">{customConditionChipLabel(c)}</span>
-            <button
-              type="button"
-              aria-label={`Remove ${customConditionChipLabel(c)}`}
-              className="rounded-full px-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900"
-              onClick={() => {
-                const next = removeCondition(customFilter!, c.id);
-                go({ customFilter: isCustomFilterEmpty(next) ? null : next });
-              }}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <button
-          type="button"
-          className="text-xs text-slate-500 underline decoration-slate-300 hover:text-slate-900"
-          onClick={() =>
-            go({
-              filter: null,
-              customFilter: null,
-              showFormUnqualified: false,
-              search: ""
-            })
-          }
-        >
-          Clear all
-        </button>
       </div>
-    ) : null}
-    {note ? (
-      <p className="text-xs text-slate-500" data-testid="cf-yield-note">
-        {note}
-      </p>
-    ) : null}
+
+      {hasChips ? (
+        <div className="flex flex-wrap items-center gap-2" aria-label="Active filters">
+          {conditions.length >= 2 ? (
+            <button
+              type="button"
+              data-testid="cf-match-prefix"
+              className="text-xs text-slate-500 hover:text-slate-800"
+              onClick={() =>
+                go({
+                  customFilter: customFilter
+                    ? { ...customFilter, match: match === "all" ? "any" : "all" }
+                    : null
+                })
+              }
+            >
+              Where {match} of:
+            </button>
+          ) : null}
+          {statusChip && filterId ? (
+            <FilterChip
+              testId={`filter-chip-status:${filterId}`}
+              field={statusChip.field}
+              rest={statusChip.rest}
+              removeLabel={`Remove ${statusChip.field} ${statusChip.rest}`}
+              onEdit={() => openFilter()}
+              onRemove={() => go({ filter: null })}
+            />
+          ) : null}
+          {conditions.map((c) => {
+            const parts = customConditionChipParts(c);
+            return (
+              <FilterChip
+                key={c.id}
+                testId={`filter-chip-cf:${c.id}`}
+                field={parts.field}
+                rest={parts.rest}
+                removeLabel={`Remove ${customConditionChipLabel(c)}`}
+                onEdit={() => openFilter({ focusId: c.id })}
+                onRemove={() => {
+                  const next = removeCondition(customFilter!, c.id);
+                  go({ customFilter: isCustomFilterEmpty(next) ? null : next });
+                }}
+              />
+            );
+          })}
+          {showFormUnqualified && !filterDisabled ? (
+            <FilterChip
+              testId="filter-chip-unqualified"
+              field="Include form-unqualified"
+              rest=""
+              removeLabel="Remove Include form-unqualified"
+              onEdit={() => openFilter()}
+              onRemove={() => go({ showFormUnqualified: false })}
+            />
+          ) : null}
+          <ChipTextLink testId="cf-add-filter" onClick={() => openFilter({ add: true })}>
+            + Add filter
+          </ChipTextLink>
+          <span className="text-slate-300" aria-hidden>
+            ·
+          </span>
+          <ChipTextLink onClick={() => setSaveRequestKey((n) => n + 1)}>Save view</ChipTextLink>
+          <span className="text-slate-300" aria-hidden>
+            ·
+          </span>
+          <ChipTextLink
+            onClick={() =>
+              go({
+                filter: null,
+                customFilter: null,
+                showFormUnqualified: false,
+                search: ""
+              })
+            }
+          >
+            Clear
+          </ChipTextLink>
+        </div>
+      ) : null}
+      {note ? (
+        <p className="text-xs text-slate-500" data-testid="cf-yield-note">
+          {note}
+        </p>
+      ) : null}
     </div>
   );
 }
