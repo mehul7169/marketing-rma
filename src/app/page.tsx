@@ -1,5 +1,6 @@
 import { getCurrentOrgId } from "@/lib/auth/getCurrentOrgId";
 import CohortMaturityNote from "@/components/CohortMaturityNote";
+import MetaAdsHealthBanner from "@/components/cron/MetaAdsHealthBanner";
 import DateRangePicker from "@/components/DateRangePicker";
 import { countLeads, listDistinctLeadSources, listLeads } from "@/lib/db/leads";
 import {
@@ -62,6 +63,7 @@ export default async function HomePage({
 
   return (
     <div className="space-y-8">
+      <MetaAdsHealthBanner orgId={orgId} />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Funnel overview</h1>

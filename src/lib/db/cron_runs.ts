@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
+import { reportCronResult } from "@/lib/cron/reportCronResult";
 
 /** Job name is free-form text (hourly crons + per-account backfill-{uuid}). */
 export type CronRunJob = string;
@@ -24,6 +25,7 @@ export async function logCronRun(run: CronRunLog) {
   });
 
   if (error) throw error;
+  await reportCronResult(run.job, run);
 }
 
 export async function getLatestCronRunForJob(job: string): Promise<{

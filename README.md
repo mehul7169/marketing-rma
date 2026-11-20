@@ -69,6 +69,13 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 - Empty day (nothing overdue and nothing due today): `"No deal follow-ups due today."`
 - `?dry_run=1` returns the payload without posting or logging.
 
+### Cron failure alerts
+- `logCronRun` calls `reportCronResult` after every `cron_runs` insert.
+- Hourly jobs alert after 3 consecutive errors; daily jobs (`daily-summary`, `deals-digest`) alert on the first failure. Slack goes to `SLACK_DAILY_SUMMARY_WEBHOOK_URL` (never hardcoded).
+- One alert when a job starts failing, then at most once per 24h while it stays down, then `✅ {job} recovered` on the next success. Debounce lives in `cron_alert_state` (migration `010_cron_alert_state.sql` — apply in the SQL editor).
+- Meta token expiry (`Error validating access token` / `Session has expired`) uses the copy "Meta access token expired. Reconnect with a long-lived token."
+- Admins (org admin or platform admin) see a banner on `/` and `/meta-ads` while `meta-ads` is failing or `meta_ads_daily` is more than 2 IST days stale.
+
 ## Website ingest (runmoreads.in)
 The marketing site never talks to Supabase. It POSTs to this app with `Authorization: Bearer $WEBSITE_INGEST_SECRET`:
 - `POST /api/ingest/lead-form` — qualification form submit (optional `qualified: boolean | null`). The website's verdict is stored in `form_qualified` only. `qualified` / `qualified_at` / `qualified_by` are the setter's decision, and ingest never writes them.

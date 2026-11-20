@@ -22,6 +22,7 @@ import {
   buildAdFunnelBreakdown
 } from "@/lib/meta/adFunnelBreakdown";
 import DateRangePicker from "@/components/DateRangePicker";
+import MetaAdsHealthBanner from "@/components/cron/MetaAdsHealthBanner";
 import MetaPerformanceDashboard from "@/components/meta/MetaPerformanceDashboard";
 
 export default async function MetaAdsPage({
@@ -118,6 +119,7 @@ export default async function MetaAdsPage({
 
   return (
     <div className="space-y-8">
+      <MetaAdsHealthBanner orgId={orgId} />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Meta Ads Performance</h1>
