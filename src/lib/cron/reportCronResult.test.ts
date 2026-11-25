@@ -104,6 +104,23 @@ describe("decideCronAlert daily vs hourly", () => {
     expect(d.action).toBe("failure");
     expect(d.text).toContain("daily-summary has failed since 08:00 IST");
   });
+
+  it("alerts adspend-sheet on the first failure", () => {
+    const run: CronRunSnapshot = {
+      status: "error",
+      error: "All ad accounts failed",
+      ran_at: T0.toISOString()
+    };
+    const d = decideCronAlert({
+      job: "adspend-sheet",
+      result: run,
+      runsNewestFirst: [run],
+      state: null,
+      now: T0
+    });
+    expect(d.action).toBe("failure");
+    expect(d.text).toContain("adspend-sheet has failed since 08:00 IST");
+  });
 });
 
 describe("reportCronResult meta-ads streak", () => {

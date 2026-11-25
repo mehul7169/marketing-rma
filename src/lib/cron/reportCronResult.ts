@@ -1,7 +1,7 @@
 /**
  * After each cron_runs write: alert Slack when a job starts failing, at most
  * once per 24h while it stays down, then one recovery message.
- * Daily jobs (daily-summary, deals-digest) alert on the first failure;
+ * Daily jobs (daily-summary, deals-digest, adspend-sheet) alert on the first failure;
  * everything else waits for 3 consecutive errors.
  */
 
@@ -10,7 +10,7 @@ import type { CronRunLog } from "@/lib/db/cron_runs";
 import { postSlackWebhook } from "@/lib/slack/notify";
 import { formatIST } from "@/lib/timezone";
 
-export const DAILY_CRON_JOBS = new Set(["daily-summary", "deals-digest"]);
+export const DAILY_CRON_JOBS = new Set(["daily-summary", "deals-digest", "adspend-sheet"]);
 export const HOURLY_FAIL_STREAK = 3;
 export const ALERT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const APP_BASE = "https://tracking.runmoreads.in";

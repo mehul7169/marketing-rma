@@ -70,9 +70,17 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 - Empty day (nothing overdue and nothing due today): `"No deal follow-ups due today."`
 - `?dry_run=1` returns the payload without posting or logging.
 
+### Master AdSpend sheet (`/api/cron/adspend-sheet`)
+- Runs at `0 2 * * *` UTC (07:30 IST). Same `assertCronSecret` + `cron_runs` (`job = adspend-sheet`) + first-failure Slack as other daily jobs.
+- Independent of the dashboard: reads Tracker names from the hardcoded Master AdSpend spreadsheet (`DEFAULT_ADSPEND_SHEET_ID`; optional `ADSPEND_SHEET_ID` override), fetches account-level spend from Meta Graph `v19.0` with `META_ACCESS_TOKEN`, and upserts Date / Client / Ad Spent (Calls Booked left empty). Does **not** write `ad_accounts` or `meta_ads_daily`.
+- Auth is the GA4 service account (`GA4_SERVICE_ACCOUNT_JSON` or `GOOGLE_SERVICE_ACCOUNT_JSON`). Share the sheet with that `client_email` as Editor and keep Tracker names column B as Plain text (16-digit IDs).
+- Each run covers yesterday plus the previous 2 IST days (late spend adjustments). Empty B rows are skipped (`no ad account ID`); permission/token errors skip that client (no false ₹0). The run fails only if every account fails.
+- Prefers the **Daily Ad Spend** tab when it exists and is plain values. Else if Data is formula-driven, rows go to Feed; otherwise they append/update Data. Idempotent on `(Date, Client)`.
+- Backfill: `npx tsx scripts/adspend-sheet-sync.ts --from=2026-11-25 --to=2026-11-25 [--dry-run]`. Cron also accepts `?dry_run=1&from=&to=`.
+
 ### Cron failure alerts
 - `logCronRun` calls `reportCronResult` after every `cron_runs` insert.
-- Hourly jobs alert after 3 consecutive errors; daily jobs (`daily-summary`, `deals-digest`) alert on the first failure. Slack goes to `SLACK_DAILY_SUMMARY_WEBHOOK_URL` (never hardcoded).
+- Hourly jobs alert after 3 consecutive errors; daily jobs (`daily-summary`, `deals-digest`, `adspend-sheet`) alert on the first failure. Slack goes to `SLACK_DAILY_SUMMARY_WEBHOOK_URL` (never hardcoded).
 - One alert when a job starts failing, then at most once per 24h while it stays down, then `✅ {job} recovered` on the next success. Debounce lives in `cron_alert_state` (migration `010_cron_alert_state.sql` — apply in the SQL editor).
 - Meta token expiry (`Error validating access token` / `Session has expired`) uses the copy "Meta access token expired. Reconnect with a long-lived token."
 - Admins (org admin or platform admin) see a banner on `/meta-ads` while `meta-ads` is failing or `meta_ads_daily` is more than 2 IST days stale. Home shows spend / cost-per-booked in the KPI strip, or a "Ad data stale since … — reconnect Meta" chip instead of frozen spend.
