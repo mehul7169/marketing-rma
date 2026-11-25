@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { actId, parseAdAccountId, parseTrackerRows } from "@/lib/adspend/parseTracker";
+import {
+  actId,
+  matchesClientFilter,
+  parseAdAccountId,
+  parseTrackerRows
+} from "@/lib/adspend/parseTracker";
 
 const HEADER = ["Name in Client Ad Tracker", "Ad Account Id", "Name in Clients list"];
 
@@ -47,5 +52,19 @@ describe("parseTrackerRows", () => {
 
   it("prefixes act_ without parsing the id as a number", () => {
     expect(actId("9935669047237741")).toBe("act_9935669047237741");
+  });
+});
+
+describe("matchesClientFilter", () => {
+  const vaidehi = { trackerName: "cinqa_ads", clientName: "Vaidehi" };
+
+  it("matches client or tracker name case-insensitively", () => {
+    expect(matchesClientFilter(vaidehi, ["vaidehi"])).toBe(true);
+    expect(matchesClientFilter(vaidehi, ["CINQA"])).toBe(true);
+    expect(matchesClientFilter(vaidehi, ["Karan"])).toBe(false);
+  });
+
+  it("matches all rows when the filter list is empty", () => {
+    expect(matchesClientFilter(vaidehi, [])).toBe(true);
   });
 });

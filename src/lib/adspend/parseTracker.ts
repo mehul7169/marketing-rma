@@ -42,6 +42,21 @@ export function actId(adAccountId: string): string {
   return adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
 }
 
+export function matchesClientFilter(
+  row: Pick<TrackerRow, "clientName" | "trackerName">,
+  filters: string[]
+): boolean {
+  if (!filters.length) return true;
+  return filters.some((raw) => {
+    const q = raw.trim().toLowerCase();
+    if (!q) return false;
+    return (
+      row.clientName.trim().toLowerCase().includes(q) ||
+      row.trackerName.trim().toLowerCase().includes(q)
+    );
+  });
+}
+
 export function parseTrackerRows(values: unknown[][]): ParsedTracker {
   const synced: TrackerRow[] = [];
   const skipped: SkippedTrackerRow[] = [];

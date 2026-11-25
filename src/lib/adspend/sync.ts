@@ -18,7 +18,13 @@ import {
   type DaySpend,
   type MetaAccountInfo
 } from "@/lib/adspend/metaGraph";
-import { actId, parseTrackerRows, type SkippedTrackerRow, type TrackerRow } from "@/lib/adspend/parseTracker";
+import {
+  actId,
+  matchesClientFilter,
+  parseTrackerRows,
+  type SkippedTrackerRow,
+  type TrackerRow
+} from "@/lib/adspend/parseTracker";
 import {
   applySheetOps,
   ensureTab,
@@ -67,6 +73,8 @@ export type SyncAdspendOptions = {
   fromISO?: string;
   toISO?: string;
   dryRun?: boolean;
+  /** Case-insensitive substring match on Tracker names client or tracker name. */
+  clients?: string[];
 };
 
 function defaultWindow(): { fromISO: string; toISO: string } {
@@ -157,6 +165,13 @@ export async function syncAdspendSheet(
 
   const trackerValues = await readRange(TRACKER_TAB, "A:C", "FORMATTED_VALUE");
   const parsed = parseTrackerRows(trackerValues);
+  const clientFilters = (options.clients ?? []).map((s) => s.trim()).filter(Boolean);
+  const synced = clientFilters.length
+    ? parsed.synced.filter((row) => matchesClientFilter(row, clientFilters))
+    : parsed.synced;
+  const skipped = clientFilters.length
+    ? parsed.skipped.filter((row) => matchesClientFilter(row, clientFilters))
+    : parsed.skipped;
 
   const tabs = await listSheetTabs();
   const tabNames = tabs.map((t) => t.title);
@@ -171,12 +186,12 @@ export async function syncAdspendSheet(
   });
 
   const warnings: string[] = [
-    ...parsed.skipped
+    ...skipped
       .filter((s) => s.reason !== "no ad account ID")
       .map((s) => `${s.trackerName}: ${s.reason} (${s.adAccountIdRaw})`)
   ];
   const idOwners = new Map<string, string[]>();
-  for (const row of parsed.synced) {
+  for (const row of synced) {
     const list = idOwners.get(row.adAccountId) ?? [];
     list.push(row.clientName);
     idOwners.set(row.adAccountId, list);
@@ -192,7 +207,7 @@ export async function syncAdspendSheet(
   const accounts: AccountRunResult[] = [];
   const validated: Array<{ row: TrackerRow; account: MetaAccountInfo }> = [];
 
-  const validations = await mapPool(parsed.synced, META_POOL, async (row) => {
+  const validations = await mapPool(synced, META_POOL, async (row) => {
     const v = await validateAdAccount(row.adAccountId);
     return { row, v };
   });
@@ -281,13 +296,13 @@ export async function syncAdspendSheet(
     });
   }
 
-  const okClients = parsed.synced.filter((row) =>
+  const okClients = synced.filter((row) =>
     accounts.some((a) => a.client === row.clientName && a.adAccountId === row.adAccountId && a.status === "ok")
   );
 
   const desired = buildDesiredRows(days, okClients, spendByClientDate);
 
-  const attempted = parsed.synced.length;
+  const attempted = synced.length;
   const succeeded = okClients.length;
   const allFailed = attempted > 0 && succeeded === 0;
   const noneConfigured = attempted === 0;
@@ -318,7 +333,9 @@ export async function syncAdspendSheet(
   }
 
   const error = noneConfigured
-    ? "No ad accounts to sync (Tracker names column B is empty)."
+    ? clientFilters.length
+      ? `No tracker rows matched client filter: ${clientFilters.join(", ")}`
+      : "No ad accounts to sync (Tracker names column B is empty)."
     : allFailed
       ? "All ad accounts failed"
       : null;
@@ -328,8 +345,8 @@ export async function syncAdspendSheet(
     toISO: window.toISO,
     writeTarget,
     dryRun,
-    trackerSynced: parsed.synced.length,
-    skippedNoId: parsed.skipped.filter((s) => s.reason === "no ad account ID"),
+    trackerSynced: synced.length,
+    skippedNoId: skipped.filter((s) => s.reason === "no ad account ID"),
     accounts,
     desired,
     rowsUpserted: allFailed || noneConfigured ? 0 : plan.rowCount,

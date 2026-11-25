@@ -2,7 +2,7 @@
 /**
  * Write Meta ad spend into the Master AdSpend sheet.
  *
- *   npx tsx scripts/adspend-sheet-sync.ts --from=2026-11-25 --to=2026-11-25 [--dry-run]
+ *   npx tsx scripts/adspend-sheet-sync.ts --from=2026-11-25 --to=2026-11-25 [--client=Vaidehi] [--dry-run]
  *
  * Loads .env.local then .env before importing app modules.
  * Does not write ad_accounts or meta_ads_daily.
@@ -18,18 +18,24 @@ type Cli = {
   fromISO: string | null;
   toISO: string | null;
   dryRun: boolean;
+  clients: string[];
 };
 
 function parseArgs(argv: string[]): Cli {
   let fromISO: string | null = null;
   let toISO: string | null = null;
   let dryRun = false;
+  const clients: string[] = [];
   for (const arg of argv) {
     if (arg === "--dry-run" || arg === "--dry_run") dryRun = true;
     else if (arg.startsWith("--from=")) fromISO = arg.slice("--from=".length).trim() || null;
     else if (arg.startsWith("--to=")) toISO = arg.slice("--to=".length).trim() || null;
+    else if (arg.startsWith("--client=")) {
+      const v = arg.slice("--client=".length).trim();
+      if (v) clients.push(v);
+    }
   }
-  return { fromISO, toISO, dryRun };
+  return { fromISO, toISO, dryRun, clients };
 }
 
 async function main() {
@@ -42,7 +48,8 @@ async function main() {
   const result = await syncAdspendSheet({
     fromISO: cli.fromISO ?? undefined,
     toISO: cli.toISO ?? undefined,
-    dryRun: cli.dryRun
+    dryRun: cli.dryRun,
+    clients: cli.clients
   });
 
   console.log(printDryRun(result));
@@ -51,7 +58,7 @@ async function main() {
     for (const w of result.warnings) console.log(`- ${w}`);
   }
 
-  if (!cli.dryRun) {
+  if (!cli.dryRun && !cli.clients.length) {
     const notes = adspendRunNotes({
       ...result,
       skippedNoId: result.skippedNoId

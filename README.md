@@ -76,7 +76,7 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 - Auth is the GA4 service account (`GA4_SERVICE_ACCOUNT_JSON` or `GOOGLE_SERVICE_ACCOUNT_JSON`). Share the sheet with that `client_email` as Editor and keep Tracker names column B as Plain text (16-digit IDs).
 - Each run covers yesterday plus the previous 2 IST days (late spend adjustments). Empty B rows are skipped (`no ad account ID`); permission/token errors skip that client (no false ₹0). The run fails only if every account fails.
 - Prefers the **Daily Ad Spend** tab when it exists and is plain values. Else if Data is formula-driven, rows go to Feed; otherwise they append/update Data. Idempotent on `(Date, Client)`.
-- Backfill: `npx tsx scripts/adspend-sheet-sync.ts --from=2026-11-25 --to=2026-11-25 [--dry-run]`. Cron also accepts `?dry_run=1&from=&to=`.
+- Backfill: `npx tsx scripts/adspend-sheet-sync.ts --from=2026-11-25 --to=2026-11-25 [--client=Vaidehi] [--dry-run]`. Cron also accepts `?dry_run=1&from=&to=`.
 
 ### Cron failure alerts
 - `logCronRun` calls `reportCronResult` after every `cron_runs` insert.
