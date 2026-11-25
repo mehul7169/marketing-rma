@@ -1,5 +1,9 @@
 export const CURRENCY = "INR" as const;
 
+function trimDecimals(n: number): string {
+  return n.toFixed(2).replace(/\.?0+$/, "");
+}
+
 const inrFormatter = new Intl.NumberFormat("en-IN", {
   style: "currency",
   currency: "INR",
@@ -14,9 +18,26 @@ const inrAxisFormatter = new Intl.NumberFormat("en-IN", {
   compactDisplay: "short"
 });
 
+/** Full INR with Indian grouping — e.g. ₹5,25,000, ₹0 */
+export function formatInr(value: number): string {
+  return inrFormatter.format(Math.round(value));
+}
+
+/**
+ * Compact INR for dashboard tiles — e.g. ₹5.25L, ₹1.2Cr, ₹0.
+ * Below 1 lakh uses the full grouped form.
+ */
+export function formatInrCompact(value: number): string {
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(Math.round(value));
+  if (abs < 100_000) return `${sign}${formatInr(abs)}`;
+  if (abs < 10_000_000) return `${sign}₹${trimDecimals(abs / 100_000)}L`;
+  return `${sign}₹${trimDecimals(abs / 10_000_000)}Cr`;
+}
+
 /** e.g. ₹68,255 */
 export function formatCurrency(value: number): string {
-  return inrFormatter.format(value);
+  return formatInr(value);
 }
 
 /** Compact INR for chart y-axis ticks (e.g. ₹6.8K, ₹1.2L). */

@@ -1,12 +1,27 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 import { formatOrgSlug } from "@/lib/orgs/formatOrgSlug";
 
+export type MonthlyTarget = {
+  metric: "revenue";
+  value: number;
+};
+
 export type OrganizationRow = {
   id: string;
   name: string;
   slug: string;
   created_at: string;
+  monthly_target: MonthlyTarget | null;
 };
+
+export function parseMonthlyTarget(raw: unknown): MonthlyTarget | null {
+  if (!raw || typeof raw !== "object") return null;
+  const m = raw as { metric?: unknown; value?: unknown };
+  if (m.metric !== "revenue") return null;
+  const value = Number(m.value);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return { metric: "revenue", value };
+}
 
 export type OrganizationListItem = OrganizationRow & {
   member_count: number;
@@ -22,7 +37,8 @@ function asOrg(row: Record<string, unknown>): OrganizationRow {
     id: String(row.id),
     name: String(row.name ?? ""),
     slug: String(row.slug ?? ""),
-    created_at: String(row.created_at ?? "")
+    created_at: String(row.created_at ?? ""),
+    monthly_target: parseMonthlyTarget(row.monthly_target)
   };
 }
 
@@ -30,7 +46,7 @@ export async function listOrganizations(): Promise<OrganizationListItem[]> {
   const db = requireDb();
   const { data: orgs, error } = await db
     .from("organizations")
-    .select("id, name, slug, created_at")
+    .select("id, name, slug, created_at, monthly_target")
     .order("created_at", { ascending: true });
   if (error) throw error;
 
@@ -64,7 +80,7 @@ export async function getOrganizationById(
   const db = requireDb();
   const { data, error } = await db
     .from("organizations")
-    .select("id, name, slug, created_at")
+    .select("id, name, slug, created_at, monthly_target")
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
@@ -84,7 +100,7 @@ export async function createOrganization(input: {
   const { data, error } = await db
     .from("organizations")
     .insert({ name, slug })
-    .select("id, name, slug, created_at")
+    .select("id, name, slug, created_at, monthly_target")
     .single();
 
   if (error) {

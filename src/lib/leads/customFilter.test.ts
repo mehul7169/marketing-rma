@@ -165,6 +165,26 @@ describe("conditionToFragment", () => {
     ).toBe("contact_attempts.gte.3");
   });
 
+  it("translates traffic paid/organic via trafficType rules", () => {
+    const paid = conditionToFragment({
+      id: "1",
+      field: "traffic",
+      op: "is_any",
+      value: ["paid"]
+    });
+    expect(paid).toContain("lead_source.ilike.quickform%");
+    expect(paid).toContain("lead_source.eq.facebook");
+    expect(paid).toContain("utm_medium.ilike.cpc");
+    expect(paid.startsWith("or(")).toBe(true);
+    const organic = conditionToFragment({
+      id: "1",
+      field: "traffic",
+      op: "is_any",
+      value: ["organic"]
+    });
+    expect(organic.startsWith("not.or(")).toBe(true);
+  });
+
   it("quotes commas and parentheses inside OR values", () => {
     const frag = conditionToFragment({
       id: "1",

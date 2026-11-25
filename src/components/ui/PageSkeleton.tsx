@@ -102,28 +102,27 @@ export function InsightsPageSkeleton() {
   );
 }
 
-/** Home overview funnel. */
+/** Home dashboard. */
 export function OverviewPageSkeleton() {
   return (
     <Shell>
-      <div className="shrink-0 space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <PageHeaderSkeleton />
-          <SkeletonBlock className="h-8 w-52" />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <SkeletonBlock className="h-7 w-24" />
+        <div className="flex gap-2">
+          <SkeletonBlock className="h-8 w-56 rounded-pill" />
+          <SkeletonBlock className="h-8 w-40 rounded-pill" />
         </div>
-        <StatCardsSkeleton count={5} />
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" aria-hidden>
-        {Array.from({ length: 5 }, (_, i) => (
-          <div
-            key={i}
-            className="rounded border border-subtle bg-surface p-4"
-          >
-            <SkeletonBlock className="mb-2 h-3 w-16" />
-            <SkeletonBlock className="h-8 w-14" />
-            <SkeletonBlock className="mt-2 h-3 w-20" />
-          </div>
-        ))}
+      <div className="flex flex-col gap-4 xl:flex-row">
+        <SkeletonBlock className="h-44 w-full rounded-card xl:w-[40%]" />
+        <SkeletonBlock className="h-44 w-full rounded-card xl:w-[60%]" />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,55%)_minmax(0,45%)]">
+        <SkeletonBlock className="h-72 rounded-card" />
+        <div className="space-y-4">
+          <ChartSkeleton className="h-56" />
+          <SkeletonBlock className="h-48 rounded-card" />
+        </div>
       </div>
     </Shell>
   );

@@ -2,7 +2,7 @@
 Internal marketing + sales lifecycle dashboard (Meta Ads performance + website/video analytics).
 
 ## What this covers right now (Phase 1)
-- Funnel overview on `/` from the `leads` table (system of record for status).
+- Home dashboard on `/` (goal ring, KPI strip, paid/organic funnel, trend, leaderboard) from `lifecycleDefinitions` KPIs plus `deal_closed` / `deal_value`.
 - CRM at `/leads` for setter/sales to qualify, verify, mark show-up, and close deals.
 - Website ingest APIs (`/api/ingest/*`) for runmoreads.in form + cal.com bookings.
 - Meta Ads performance and website/video analytics.
@@ -75,7 +75,16 @@ Create `.env.local` locally from `.env.example`. This file is never committed.
 - Hourly jobs alert after 3 consecutive errors; daily jobs (`daily-summary`, `deals-digest`) alert on the first failure. Slack goes to `SLACK_DAILY_SUMMARY_WEBHOOK_URL` (never hardcoded).
 - One alert when a job starts failing, then at most once per 24h while it stays down, then `✅ {job} recovered` on the next success. Debounce lives in `cron_alert_state` (migration `010_cron_alert_state.sql` — apply in the SQL editor).
 - Meta token expiry (`Error validating access token` / `Session has expired`) uses the copy "Meta access token expired. Reconnect with a long-lived token."
-- Admins (org admin or platform admin) see a banner on `/` and `/meta-ads` while `meta-ads` is failing or `meta_ads_daily` is more than 2 IST days stale.
+- Admins (org admin or platform admin) see a banner on `/meta-ads` while `meta-ads` is failing or `meta_ads_daily` is more than 2 IST days stale. Home shows spend / cost-per-booked in the KPI strip, or a "Ad data stale since … — reconnect Meta" chip instead of frozen spend.
+
+## Home dashboard (`/`)
+- URL filters: `range` (`today` / `7d` / `30d` default / `month` / `all`) and `traffic` (`all` default / `paid` / `organic`). IST-inclusive last day. Goal ring always uses the current calendar month, not the selected range.
+- Revenue goal: `organizations.monthly_target` `{ metric: "revenue", value }` (RMA ₹30L / month). Orgs with `NULL` hide the card — no empty-state prompt. Won revenue = `sum(deal_value)` where `deal_closed` and `closed_at` in the month. Null `deal_value` counts as ₹0 and a muted Deals link.
+- Paid vs organic is `trafficType()` in `lifecycleDefinitions.ts` (also the custom-filter Traffic field). Funnel, trend, and `/leads?kpi=` deep links share it.
+- Funnel steps: Leads → Contacted → Calls booked → Showed → Won. Qualified is a side stat. Bars split paid/organic and scale to Leads. Counts come from `countKpi` / `leadHitsKpiInRange`.
+- INR: `formatInr` / `formatInrCompact` in `src/lib/format.ts` (₹5,25,000 / ₹5.25L / ₹1.2Cr).
+- Dashboard payload is cached ~60s per org + range + traffic + IST day (`unstable_cache` in `src/lib/db/homeDashboard.ts`).
+- Playwright: `e2e/home-dashboard.spec.ts` (URL filters, booked funnel → `/leads`, 1440/1024/768 light+dark, reduced-motion). Screenshots in `e2e/screenshots/home/`.
 
 ## Website ingest (runmoreads.in)
 The marketing site never talks to Supabase. It POSTs to this app with `Authorization: Bearer $WEBSITE_INGEST_SECRET`:
@@ -183,8 +192,10 @@ Motion presets live in `src/lib/motion.ts` (`fast` 120ms, `base` 200ms, `slow` 7
 ## Project structure
 - `src/app/` : App Router pages (`/`, `/meta-ads`, `/website`, `/dev/ui`) and route handlers
 - `src/components/ui/` : token-based kit (Card, Stat, Segmented, Button, …)
-- `src/lib/db/` : Supabase data-access helpers per table (`meta_ads_daily`, `website_daily`, `cron_runs`)
-- `src/lib/leads/` : Stage computation used by every lead write
+- `src/lib/db/` : Supabase data-access helpers per table (`meta_ads_daily`, `website_daily`, `cron_runs`, `homeDashboard`)
+- `src/lib/home/` : Home range/traffic, pace, INR-facing assemble
+- `src/lib/leads/` : Stage computation used by every lead write (`trafficType` lives here)
+- `src/components/home/` : Home dashboard cards
 - `src/app/api/ingest/` : Website form/booking ingest (Bearer `WEBSITE_INGEST_SECRET`)
 - `supabase/migrations/` : SQL migrations (including ad-level Meta grain)
 - `src/app/api/cron/` : Cron-protected scheduled pull endpoints for Meta, GA4, and Wistia

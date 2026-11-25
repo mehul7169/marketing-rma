@@ -29,6 +29,9 @@ export function escapeIlikePattern(value: string): string {
 
 function colOf(field: FilterFieldDef): string {
   if (field.derived === "deal") return "deal_closed";
+  if (field.derived === "traffic") {
+    throw new Error("traffic is derived");
+  }
   if (!field.column) throw new Error(`field ${field.id} has no column`);
   return field.column;
 }
@@ -56,9 +59,49 @@ function strs(value: unknown): string[] {
 }
 
 function wrapGroup(fragment: string): string {
-  if (fragment.startsWith("or(") || fragment.startsWith("and(")) return fragment;
+  if (
+    fragment.startsWith("or(") ||
+    fragment.startsWith("and(") ||
+    fragment.startsWith("not.")
+  ) {
+    return fragment;
+  }
   if (!fragment.includes(",")) return fragment;
   return `or(${fragment})`;
+}
+
+/** Mirrors `trafficType` in lifecycleDefinitions (PostgREST OR-group). */
+export function paidTrafficOrGroup(): string {
+  return [
+    "lead_source.ilike.quickform%",
+    "lead_source.eq.facebook",
+    "utm_medium.ilike.paid",
+    "utm_medium.ilike.cpc",
+    "utm_medium.ilike.paid-social",
+    'and(utm_campaign.not.is.null,utm_campaign.neq."")'
+  ].join(",");
+}
+
+function trafficFragments(op: CustomFilterCondition["op"], value: unknown): string {
+  const paid = `or(${paidTrafficOrGroup()})`;
+  const organic = `not.or(${paidTrafficOrGroup()})`;
+  const map: Record<string, string> = { paid, organic };
+  const partsFor = (ids: string[]) => ids.map((id) => map[id]).filter(Boolean);
+
+  if (op === "is_any") {
+    const parts = partsFor(strs(value));
+    if (parts.length === 0) return "lead_source.neq.lead_source";
+    if (parts.length === 2) return "lead_source.eq.lead_source"; // both → all
+    return parts[0]!;
+  }
+  if (op === "is_none") {
+    const exclude = new Set(strs(value));
+    const rest = (["paid", "organic"] as const).filter((k) => !exclude.has(k));
+    const parts = partsFor([...rest]);
+    if (parts.length === 0) return "lead_source.neq.lead_source";
+    return parts[0]!;
+  }
+  throw new Error(`Traffic does not support ${op}`);
 }
 
 function dealFragments(op: CustomFilterCondition["op"], value: unknown): string {
@@ -94,6 +137,7 @@ export function conditionToFragment(
   const field = resolveFilterField(condition.field);
   if (!field) throw new Error(`unknown field: ${condition.field}`);
   if (field.derived === "deal") return dealFragments(condition.op, condition.value);
+  if (field.derived === "traffic") return trafficFragments(condition.op, condition.value);
 
   const col = colOf(field);
   const op = condition.op;

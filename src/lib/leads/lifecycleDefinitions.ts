@@ -199,3 +199,52 @@ export function kpiBannerCopy(kpi: KpiKey): string {
   if (kpi === "leads") return "Showing leads created in this range.";
   return `Showing ${def.label} — leads whose ${def.field} falls in this range (IST), including those who have since died or moved further.`;
 }
+
+/** Home dashboard funnel (Qualified is a side stat, not a step). */
+export const HOME_DASHBOARD_FUNNEL = [
+  "leads",
+  "contacted",
+  "calls_booked",
+  "showups",
+  "deals_closed"
+] as const satisfies readonly KpiKey[];
+
+/** Home labels — Won / Showed, not the CRM "Deals Closed" name. */
+export const HOME_DASHBOARD_FUNNEL_LABELS: Record<
+  (typeof HOME_DASHBOARD_FUNNEL)[number],
+  string
+> = {
+  leads: "Leads",
+  contacted: "Contacted",
+  calls_booked: "Calls booked",
+  showups: "Showed",
+  deals_closed: "Won"
+};
+
+// ---------------------------------------------------------------------------
+// Paid vs organic (Home, funnel, trend, filter builder)
+// ---------------------------------------------------------------------------
+
+export type TrafficType = "paid" | "organic";
+
+/** utm_medium values that count as paid (case-insensitive exact). */
+export const PAID_UTM_MEDIUMS = ["paid", "cpc", "paid-social"] as const;
+
+export type TrafficLead = Pick<
+  LeadRow,
+  "lead_source" | "utm_medium" | "utm_campaign"
+>;
+
+/**
+ * Paid if source starts with `quickform`, source is `facebook`, utm_medium is
+ * paid / cpc / paid-social, or utm_campaign is set. Everything else is organic
+ * (including NULL source and YouTube).
+ */
+export function trafficType(lead: TrafficLead): TrafficType {
+  const source = (lead.lead_source ?? "").trim().toLowerCase();
+  if (source.startsWith("quickform") || source === "facebook") return "paid";
+  const medium = (lead.utm_medium ?? "").trim().toLowerCase();
+  if ((PAID_UTM_MEDIUMS as readonly string[]).includes(medium)) return "paid";
+  if ((lead.utm_campaign ?? "").trim()) return "paid";
+  return "organic";
+}

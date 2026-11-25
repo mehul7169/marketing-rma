@@ -279,7 +279,7 @@ export function leadListFiltersFromState(
 export function kpiLeadsHref(
   kpi: KpiKey,
   range: { fromISO: string; toISO: string },
-  extra: { sources?: string[] } = {}
+  extra: { sources?: string[]; customFilter?: CustomFilter | null } = {}
 ): string {
   const params = new URLSearchParams({
     from: range.fromISO,
@@ -288,6 +288,8 @@ export function kpiLeadsHref(
   });
   if (kpi !== "leads") params.set("kpi", kpi);
   if (extra.sources?.length) params.set("source", extra.sources.join(","));
+  const cf = extra.customFilter ? encodeCustomFilter(extra.customFilter) : null;
+  if (cf) params.set("cf", cf);
   return `/leads?${params.toString()}`;
 }
 

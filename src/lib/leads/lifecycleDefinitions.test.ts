@@ -7,7 +7,8 @@ import {
   leadHitsKpiInRange,
   leadReachedKpi,
   needsQualification,
-  pipelineStageOf
+  pipelineStageOf,
+  trafficType
 } from "@/lib/leads/lifecycleDefinitions";
 
 const IN = "2026-09-10T06:00:00.000Z"; // IST 11:30 on 10 Sep
@@ -90,5 +91,38 @@ describe("KPI range (IST inclusive last day)", () => {
     expect(
       countKpi([showed, showedUnqualified, flagOnly], "qualified_showups", FROM, TO)
     ).toBe(1);
+  });
+});
+
+describe("trafficType", () => {
+  it("treats quickform* and facebook as paid", () => {
+    expect(trafficType(makeLead({ lead_source: "quickform_fb" }))).toBe("paid");
+    expect(trafficType(makeLead({ lead_source: "quickform_ig" }))).toBe("paid");
+    expect(trafficType(makeLead({ lead_source: "facebook" }))).toBe("paid");
+  });
+
+  it("treats paid / cpc / paid-social utm_medium as paid", () => {
+    expect(trafficType(makeLead({ lead_source: "ig", utm_medium: "CPC" }))).toBe(
+      "paid"
+    );
+    expect(trafficType(makeLead({ lead_source: "youtube", utm_medium: "paid" }))).toBe(
+      "paid"
+    );
+    expect(
+      trafficType(makeLead({ lead_source: "ig", utm_medium: "paid-social" }))
+    ).toBe("paid");
+  });
+
+  it("treats any utm_campaign as paid", () => {
+    expect(
+      trafficType(makeLead({ lead_source: "ig", utm_campaign: "london-1" }))
+    ).toBe("paid");
+  });
+
+  it("treats null source, youtube, and bare ig as organic", () => {
+    expect(trafficType(makeLead({ lead_source: null }))).toBe("organic");
+    expect(trafficType(makeLead({ lead_source: "youtube" }))).toBe("organic");
+    expect(trafficType(makeLead({ lead_source: "ig" }))).toBe("organic");
+    expect(trafficType(makeLead({ lead_source: "referral" }))).toBe("organic");
   });
 });

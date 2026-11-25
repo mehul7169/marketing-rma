@@ -24,7 +24,7 @@ function asAdAccount(row: unknown): AdAccountRow {
     client_name: String(r.client_name ?? ""),
     is_lead_source: Boolean(r.is_lead_source),
     active: r.active === false ? false : true,
-    created_at: String(r.created_at ?? "")
+    created_at: String(r.created_at ?? ""),
   };
 }
 
@@ -46,7 +46,6 @@ export function metaAdAccountIdVariants(raw: string): string[] {
  * for stamping meta_ads_daily — do not use for user-facing pages.
  */
 export async function listActiveAdAccounts(): Promise<AdAccountRow[]> {
-  if (!supabaseAdmin) return [];
   const db = requireDb();
   const { data, error } = await db
     .from("ad_accounts")
@@ -60,7 +59,7 @@ export async function listActiveAdAccounts(): Promise<AdAccountRow[]> {
 
 export async function getAdAccountById(
   id: string,
-  orgId?: string
+  orgId?: string,
 ): Promise<AdAccountRow | null> {
   if (!supabaseAdmin) return null;
   const db = requireDb();
@@ -74,7 +73,7 @@ export async function getAdAccountById(
 /** Match either `act_123` or `123` storage forms within an org. */
 export async function getAdAccountByMetaId(
   metaAdAccountId: string,
-  orgId: string
+  orgId: string,
 ): Promise<AdAccountRow | null> {
   if (!supabaseAdmin) return null;
   const db = requireDb();
@@ -105,9 +104,10 @@ export async function insertAdAccount(input: {
       org_id: input.org_id,
       meta_ad_account_id: normalizeMetaAdAccountId(input.meta_ad_account_id),
       client_name:
-        input.client_name.trim() || normalizeMetaAdAccountId(input.meta_ad_account_id),
+        input.client_name.trim() ||
+        normalizeMetaAdAccountId(input.meta_ad_account_id),
       is_lead_source: input.is_lead_source ?? false,
-      active: input.active ?? true
+      active: input.active ?? true,
     })
     .select("*")
     .single();
@@ -117,7 +117,7 @@ export async function insertAdAccount(input: {
 
 export async function updateAdAccountClientName(
   id: string,
-  clientName: string
+  clientName: string,
 ): Promise<AdAccountRow> {
   const db = requireDb();
   const name = clientName.trim();
@@ -149,9 +149,8 @@ export async function deleteClientAdAccount(id: string): Promise<{
   }
 
   // Dynamic import avoids a circular dependency with meta_ads_daily ↔ ad_accounts.
-  const { remappingMetaAdsDailyAccountId } = await import(
-    "@/lib/db/meta_ads_daily"
-  );
+  const { remappingMetaAdsDailyAccountId } =
+    await import("@/lib/db/meta_ads_daily");
   const metaId = normalizeMetaAdAccountId(account.meta_ad_account_id);
   await remappingMetaAdsDailyAccountId(account.id, metaId, account.org_id);
 
@@ -160,7 +159,7 @@ export async function deleteClientAdAccount(id: string): Promise<{
 
   return {
     meta_ad_account_id: metaId,
-    client_name: account.client_name
+    client_name: account.client_name,
   };
 }
 
@@ -169,7 +168,7 @@ export async function deleteClientAdAccount(id: string): Promise<{
  * Platform-admin /clients-ads: omit orgId to list across every organization.
  */
 export async function listClientAdAccounts(
-  orgId?: string
+  orgId?: string,
 ): Promise<AdAccountRow[]> {
   if (!supabaseAdmin) return [];
   const db = requireDb();
@@ -190,7 +189,7 @@ export async function listClientAdAccounts(
  * Does not read is_lead_source — every active row for the org is in scope.
  */
 export async function listActiveAdAccountsForOrg(
-  orgId: string
+  orgId: string,
 ): Promise<AdAccountRow[]> {
   if (!supabaseAdmin) return [];
   if (!orgId) return [];
@@ -211,7 +210,7 @@ export async function listActiveAdAccountsForOrg(
  * Does not read is_lead_source (column kept; unused on this path).
  */
 export async function getLeadSourceAdAccount(
-  orgId: string
+  orgId: string,
 ): Promise<AdAccountRow | null> {
   const accounts = await listActiveAdAccountsForOrg(orgId);
   if (accounts.length === 0) return null;

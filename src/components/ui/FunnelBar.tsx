@@ -9,23 +9,34 @@ export default function FunnelBar({
   organic,
   valueLabel,
   conversionLabel,
+  label,
+  maxScale,
   className
 }: {
   paid: number;
   organic: number;
   valueLabel: string;
   conversionLabel?: string;
+  label?: string;
+  /** Scale the stacked width against this total (Home: Leads). */
+  maxScale?: number;
   className?: string;
 }) {
   const reduced = useReducedMotion();
   const skip = MOTION_OFF || reduced;
   const total = paid + organic;
-  const paidPct = total <= 0 ? 0 : (paid / total) * 100;
-  const orgPct = total <= 0 ? 0 : 100 - paidPct;
+  const scale = maxScale && maxScale > 0 ? maxScale : total > 0 ? total : 1;
+  const paidPct = Math.min(100, (paid / scale) * 100);
+  const orgPct = Math.min(100 - paidPct, (organic / scale) * 100);
 
   return (
     <div className={cn("min-w-0", className)}>
       <div className="flex items-center gap-3">
+        {label ? (
+          <div className="w-[5.5rem] shrink-0 text-sm text-fg sm:w-28">
+            {label}
+          </div>
+        ) : null}
         <div className="flex h-2.5 min-w-0 flex-1 overflow-hidden rounded-pill bg-surface-2">
           <motion.span
             className="h-full origin-left bg-accent"
@@ -47,7 +58,9 @@ export default function FunnelBar({
         </div>
       </div>
       {conversionLabel ? (
-        <div className="mt-1 text-xs text-muted">{conversionLabel}</div>
+        <div className={cn("mt-1 text-xs text-muted", label && "sm:pl-[7.75rem]")}>
+          {conversionLabel}
+        </div>
       ) : null}
     </div>
   );

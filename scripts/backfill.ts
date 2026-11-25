@@ -6,7 +6,8 @@
  *   npx tsx scripts/backfill.ts --source=all --from=2024-01-01 --confirm
  *   npx tsx scripts/backfill.ts --source=meta --from=2024-06-01
  *
- * Loads env from .env.local then .env (same as local dev).
+ * Loads .env.local then .env BEFORE importing app modules — supabaseAdmin
+ * reads those vars at import time. Do not statically import @/lib/db here.
  * Requires --confirm or an interactive y/N prompt before writing to Supabase.
  */
 
@@ -15,15 +16,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { resolve } from "node:path";
 import { config as loadEnv } from "dotenv";
 import { subYears } from "date-fns";
-import { formatChunkLabel, getMonthlyChunks, type DateChunk } from "../src/lib/ingest/chunks";
-import { ingestGa4Range, getGa4IngestConfigFromEnv } from "../src/lib/ingest/ga4";
-import { backfillMetaAds } from "../src/lib/ingest/backfillMeta";
-import { withRetry } from "../src/lib/ingest/retry";
-import {
-  getWistiaIngestConfigFromEnv,
-  ingestWistiaHistoricalRange
-} from "../src/lib/ingest/wistia";
-import { getOrgIdBySlug } from "../src/lib/orgs/getOrgIdBySlug";
+import type { DateChunk } from "../src/lib/ingest/chunks";
 import { toISODate } from "../src/lib/utils/date";
 
 loadEnv({ path: resolve(process.cwd(), ".env.local") });
@@ -149,6 +142,7 @@ async function backfillMeta(
   toISO: string,
   adAccountId?: string
 ): Promise<SourceSummary> {
+  const { backfillMetaAds } = await import("../src/lib/ingest/backfillMeta");
   const result = await backfillMetaAds(fromISO, toISO, {
     adAccountId,
     log: (msg) => console.log(msg)
@@ -181,6 +175,14 @@ async function backfillMeta(
 }
 
 async function backfillGa4(fromISO: string, toISO: string): Promise<SourceSummary> {
+  const { ingestGa4Range, getGa4IngestConfigFromEnv } = await import(
+    "../src/lib/ingest/ga4"
+  );
+  const { formatChunkLabel, getMonthlyChunks } = await import(
+    "../src/lib/ingest/chunks"
+  );
+  const { withRetry } = await import("../src/lib/ingest/retry");
+  const { getOrgIdBySlug } = await import("../src/lib/orgs/getOrgIdBySlug");
   // Deliberate simplification: GA4 property is RMA's only for now.
   const orgId = await getOrgIdBySlug("rma");
   const config = getGa4IngestConfigFromEnv();
@@ -219,6 +221,15 @@ async function backfillWistia(
   fromISO: string,
   toISO: string
 ): Promise<SourceSummary> {
+  const {
+    getWistiaIngestConfigFromEnv,
+    ingestWistiaHistoricalRange
+  } = await import("../src/lib/ingest/wistia");
+  const { formatChunkLabel, getMonthlyChunks } = await import(
+    "../src/lib/ingest/chunks"
+  );
+  const { withRetry } = await import("../src/lib/ingest/retry");
+  const { getOrgIdBySlug } = await import("../src/lib/orgs/getOrgIdBySlug");
   // Deliberate simplification: Wistia media is RMA's only for now.
   const orgId = await getOrgIdBySlug("rma");
   const config = getWistiaIngestConfigFromEnv();

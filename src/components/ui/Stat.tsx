@@ -5,15 +5,22 @@ import CountUp from "@/components/ui/CountUp";
 import { cn } from "@/components/ui/cn";
 import {
   formatCurrency,
+  formatInrCompact,
   formatInteger,
   formatPercent
 } from "@/lib/format";
 
 export type StatSize = "md" | "lg" | "xl";
-export type StatFormatName = "currency" | "percent" | "integer" | "percent0";
+export type StatFormatName =
+  | "currency"
+  | "compactInr"
+  | "percent"
+  | "integer"
+  | "percent0";
 
 const NAMED: Record<StatFormatName, (n: number) => string> = {
   currency: formatCurrency,
+  compactInr: formatInrCompact,
   percent: formatPercent,
   integer: formatInteger,
   percent0: (n) => `${Math.round(n).toLocaleString("en-IN")}%`

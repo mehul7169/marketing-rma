@@ -108,7 +108,7 @@ export type FilterFieldDef = {
   type: FilterFieldType;
   /** PostgREST column. Omitted for derived fields. */
   column?: string;
-  derived?: "deal";
+  derived?: "deal" | "traffic";
   /** Static enum options; live distinct values are merged at runtime. */
   enumValues?: FilterEnumOption[];
   enumSource?:
@@ -345,6 +345,17 @@ const FIXED_FIELDS: FilterFieldDef[] = [
     nullSafeIsNot: true
   },
 
+  {
+    id: "traffic",
+    label: "Traffic",
+    group: "Attribution",
+    type: "enum",
+    derived: "traffic",
+    enumValues: [
+      { value: "paid", label: "Paid" },
+      { value: "organic", label: "Organic" }
+    ]
+  },
   {
     id: "lead_source",
     label: "Source",

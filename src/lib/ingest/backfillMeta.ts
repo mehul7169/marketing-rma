@@ -7,13 +7,13 @@ import { formatChunkLabel, getMonthlyChunks } from "@/lib/ingest/chunks";
 import {
   getMetaAccessTokenFromEnv,
   ingestMetaAdsForAccount,
-  META_ACCOUNT_INGEST_DELAY_MS
+  META_ACCOUNT_INGEST_DELAY_MS,
 } from "@/lib/ingest/meta";
 import { withRetry } from "@/lib/ingest/retry";
 import {
   getAdAccountById,
   listActiveAdAccounts,
-  type AdAccountRow
+  type AdAccountRow,
 } from "@/lib/db/ad_accounts";
 
 export type MetaBackfillFailedChunk = {
@@ -50,7 +50,7 @@ async function backfillOneAccount(
   fromISO: string,
   toISO: string,
   accessToken: string,
-  log: (msg: string) => void
+  log: (msg: string) => void,
 ): Promise<MetaBackfillAccountSummary> {
   const chunks = getMonthlyChunks(fromISO, toISO);
   const summary: MetaBackfillAccountSummary = {
@@ -59,11 +59,11 @@ async function backfillOneAccount(
     metaAdAccountId: account.meta_ad_account_id,
     rowsUpserted: 0,
     failedChunks: [],
-    error: null
+    error: null,
   };
 
   log(
-    `Meta [${account.client_name}]: ${chunks.length} monthly chunk(s) ${fromISO} → ${toISO}`
+    `Meta [${account.client_name}]: ${chunks.length} monthly chunk(s) ${fromISO} → ${toISO}`,
   );
 
   for (const chunk of chunks) {
@@ -72,10 +72,12 @@ async function backfillOneAccount(
       const rows = await withRetry(
         () =>
           ingestMetaAdsForAccount(account, chunk.start, chunk.end, accessToken),
-        { label: `Meta ${account.client_name} ${label}` }
+        { label: `Meta ${account.client_name} ${label}` },
       );
       summary.rowsUpserted += rows;
-      log(`Meta [${account.client_name}]: pulled ${label} — ${rows} rows upserted`);
+      log(
+        `Meta [${account.client_name}]: pulled ${label} — ${rows} rows upserted`,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       summary.failedChunks.push({
@@ -83,7 +85,7 @@ async function backfillOneAccount(
         clientName: account.client_name,
         start: chunk.start,
         end: chunk.end,
-        error: message
+        error: message,
       });
       log(`Meta [${account.client_name}]: FAILED ${label} — ${message}`);
     }
@@ -108,7 +110,7 @@ export type BackfillMetaAdsOptions = {
 export async function backfillMetaAds(
   fromISO: string,
   toISO: string,
-  options: BackfillMetaAdsOptions = {}
+  options: BackfillMetaAdsOptions = {},
 ): Promise<MetaBackfillSummary> {
   const log = options.log ?? ((msg: string) => console.log(msg));
   const accessToken = getMetaAccessTokenFromEnv();
@@ -127,7 +129,7 @@ export async function backfillMetaAds(
 
   if (accounts.length === 0) {
     throw new Error(
-      "No ad accounts to backfill — seed ad_accounts or pass adAccountId."
+      "No ad accounts to backfill — seed ad_accounts or pass adAccountId.",
     );
   }
 
@@ -143,7 +145,7 @@ export async function backfillMetaAds(
         fromISO,
         toISO,
         accessToken,
-        log
+        log,
       );
       accountSummaries.push(summary);
       rowsUpserted += summary.rowsUpserted;
@@ -158,7 +160,7 @@ export async function backfillMetaAds(
         metaAdAccountId: account.meta_ad_account_id,
         rowsUpserted: 0,
         failedChunks: [],
-        error: message
+        error: message,
       });
     }
 
@@ -172,6 +174,6 @@ export async function backfillMetaAds(
     toISO,
     rowsUpserted,
     accounts: accountSummaries,
-    failedChunks
+    failedChunks,
   };
 }
