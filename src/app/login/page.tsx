@@ -50,16 +50,16 @@ function LoginForm() {
   return (
     <form
       onSubmit={onSubmit}
-      className="w-full max-w-sm space-y-4 rounded border border-slate-200 p-6"
+      className="w-full max-w-sm space-y-4 rounded-card border border-subtle bg-surface p-6"
       aria-busy={submitting}
     >
       <h1 className="page-title">Log in</h1>
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-muted">
         Internal dashboard — sign in to continue.
       </p>
 
       <div className="space-y-1">
-        <label htmlFor="email" className="text-xs text-slate-600">
+        <label htmlFor="email" className="text-xs text-muted">
           Email
         </label>
         <input
@@ -70,12 +70,12 @@ function LoginForm() {
           disabled={submitting}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900 disabled:opacity-60"
+          className="w-full rounded border border-subtle px-3 py-2 text-sm text-fg disabled:opacity-60"
         />
       </div>
 
       <div className="space-y-1">
-        <label htmlFor="password" className="text-xs text-slate-600">
+        <label htmlFor="password" className="text-xs text-muted">
           Password
         </label>
         <input
@@ -86,17 +86,17 @@ function LoginForm() {
           disabled={submitting}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900 disabled:opacity-60"
+          className="w-full rounded border border-subtle px-3 py-2 text-sm text-fg disabled:opacity-60"
         />
       </div>
 
       {resetSuccess ? (
-        <p className="text-sm text-slate-700">
+        <p className="text-sm text-fg">
           Password updated. Sign in with your new password.
         </p>
       ) : null}
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="text-sm text-danger">{error}</p> : null}
 
       <button
         type="submit"
@@ -107,18 +107,18 @@ function LoginForm() {
         {submitting ? "Signing in…" : "Sign in"}
       </button>
 
-      <p className="text-center text-sm text-slate-600">
+      <p className="text-center text-sm text-muted">
         <Link
           href="/forgot-password"
-          className="font-medium text-slate-900 underline"
+          className="font-medium text-fg underline"
         >
           Forgot password?
         </Link>
       </p>
 
-      <p className="text-center text-sm text-slate-600">
+      <p className="text-center text-sm text-muted">
         Don&apos;t have an account yet?{" "}
-        <Link href="/signup" className="font-medium text-slate-900 underline">
+        <Link href="/signup" className="font-medium text-fg underline">
           Sign up
         </Link>
       </p>
@@ -131,9 +131,9 @@ export default function LoginPage() {
     <div className="flex min-h-[60vh] items-center justify-center">
       <Suspense
         fallback={
-          <div className="w-full max-w-sm space-y-4 rounded border border-slate-200 p-6">
+          <div className="w-full max-w-sm space-y-4 rounded-card border border-subtle bg-surface p-6">
             <h1 className="page-title">Log in</h1>
-            <p className="text-sm text-slate-600">Loading…</p>
+            <p className="text-sm text-muted">Loading…</p>
           </div>
         }
       >

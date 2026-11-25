@@ -122,12 +122,12 @@ export default function SavedFilterMenu({
         onClick={() => setOpen((v) => !v)}
       />
       {open ? (
-        <div className="absolute right-0 z-30 mt-1 w-72 rounded border border-slate-200 bg-white p-2 text-xs shadow-sm">
+        <div className="absolute right-0 z-30 mt-1 w-72 rounded border border-subtle bg-surface p-2 text-xs shadow-card">
           {personal.length === 0 && team.length === 0 ? (
-            <p className="px-1 py-2 text-slate-500">No saved views yet.</p>
+            <p className="px-1 py-2 text-muted">No saved views yet.</p>
           ) : null}
           {personal.length > 0 ? (
-            <p className="px-1 text-[10px] font-medium uppercase text-slate-400">Yours</p>
+            <p className="px-1 text-[10px] font-medium uppercase text-muted">Yours</p>
           ) : null}
           {personal.map((item) => (
             <SavedRow
@@ -141,7 +141,7 @@ export default function SavedFilterMenu({
             />
           ))}
           {team.length > 0 ? (
-            <p className="mt-2 px-1 text-[10px] font-medium uppercase text-slate-400">
+            <p className="mt-2 px-1 text-[10px] font-medium uppercase text-muted">
               Shared with team
             </p>
           ) : null}
@@ -156,13 +156,13 @@ export default function SavedFilterMenu({
               onDelete={() => void remove(item)}
             />
           ))}
-          <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
+          <div className="mt-2 space-y-1 border-t border-subtle pt-2">
             {saving ? (
               <div className="space-y-2">
                 <input
                   autoFocus
                   data-testid="cf-save-name"
-                  className="h-8 w-full rounded-sm border border-slate-200 px-2"
+                  className="h-8 w-full rounded-sm border border-subtle px-2"
                   placeholder="View name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -171,7 +171,7 @@ export default function SavedFilterMenu({
                   }}
                 />
                 {canManageShared ? (
-                  <label className="flex items-center gap-1.5 text-slate-600">
+                  <label className="flex items-center gap-1.5 text-muted">
                     <input
                       type="checkbox"
                       checked={shared}
@@ -183,7 +183,7 @@ export default function SavedFilterMenu({
                 <button
                   type="button"
                   data-testid="cf-save-confirm"
-                  className="rounded-sm bg-sky-100 px-2 py-1 font-medium text-sky-950"
+                  className="rounded-sm bg-accent-soft px-2 py-1 font-medium text-fg"
                   onClick={() => void saveNew()}
                 >
                   Save
@@ -194,7 +194,7 @@ export default function SavedFilterMenu({
                 <button
                   type="button"
                   data-testid="cf-save-as"
-                  className="block w-full rounded-sm px-1 py-1 text-left text-slate-700 hover:bg-slate-50"
+                  className="block w-full rounded-sm px-1 py-1 text-left text-fg hover:bg-surface-2"
                   onClick={() => setSaving(true)}
                 >
                   Save current view…
@@ -203,7 +203,7 @@ export default function SavedFilterMenu({
                   <button
                     type="button"
                     data-testid="cf-manage-views"
-                    className="block w-full rounded-sm px-1 py-1 text-left text-slate-700 hover:bg-slate-50"
+                    className="block w-full rounded-sm px-1 py-1 text-left text-fg hover:bg-surface-2"
                     onClick={() => setManaging((v) => !v)}
                   >
                     {managing ? "Done" : "Manage views"}
@@ -239,20 +239,20 @@ function SavedRow({
       <button
         type="button"
         data-testid={`cf-saved-item-${item.id}`}
-        className="min-w-0 flex-1 truncate rounded-sm px-1 py-1 text-left text-slate-800 hover:bg-slate-50"
+        className="min-w-0 flex-1 truncate rounded-sm px-1 py-1 text-left text-fg hover:bg-surface-2"
         onClick={onApply}
       >
         {item.name}
       </button>
       {canEdit ? (
         <>
-          <button type="button" className="text-slate-400 hover:text-slate-700" onClick={onRename}>
+          <button type="button" className="text-muted hover:text-fg" onClick={onRename}>
             Rename
           </button>
-          <button type="button" className="text-slate-400 hover:text-slate-700" onClick={onUpdate}>
+          <button type="button" className="text-muted hover:text-fg" onClick={onUpdate}>
             Update
           </button>
-          <button type="button" className="text-slate-400 hover:text-slate-700" onClick={onDelete}>
+          <button type="button" className="text-muted hover:text-fg" onClick={onDelete}>
             Delete
           </button>
         </>

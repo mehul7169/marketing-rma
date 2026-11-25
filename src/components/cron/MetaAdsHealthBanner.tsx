@@ -14,7 +14,7 @@ export default async function MetaAdsHealthBanner({ orgId }: { orgId: string }) 
   return (
     <div
       data-testid="meta-ads-health-banner"
-      className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-950"
+      className="rounded border border-danger-soft bg-danger-soft px-3 py-2 text-sm text-danger"
     >
       {text}
     </div>

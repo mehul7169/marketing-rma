@@ -18,6 +18,8 @@ import {
 } from "@/components/leads/StageBadge";
 import { useLeadDrawerParam } from "@/components/leads/useLeadDrawerParam";
 import { toastError } from "@/components/ui/Toast";
+import { motion, useReducedMotion } from "motion/react";
+import { MOTION_OFF, transitionBase } from "@/lib/motion";
 import { formatCurrencyNullable } from "@/lib/format";
 import { leadErrorToast } from "@/lib/leads/leadErrorToast";
 import { activityTypeLabel } from "@/lib/leads/activityLabels";
@@ -53,9 +55,9 @@ function ActivitySkeleton() {
       data-testid="lead-drawer-activity-skeleton"
       aria-busy
     >
-      <div className="h-12 animate-pulse rounded bg-slate-100" />
-      <div className="h-12 animate-pulse rounded bg-slate-100" />
-      <div className="h-12 animate-pulse rounded bg-slate-100" />
+      <div className="h-12 skeleton-shimmer rounded bg-surface-2" />
+      <div className="h-12 skeleton-shimmer rounded bg-surface-2" />
+      <div className="h-12 skeleton-shimmer rounded bg-surface-2" />
     </div>
   );
 }
@@ -75,8 +77,8 @@ function Field({
 }) {
   return (
     <div>
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className={`mt-0.5 inline-flex min-w-0 items-center gap-1 text-sm text-slate-900 ${NOTE_WRAP}`}>
+      <div className="text-xs text-muted">{label}</div>
+      <div className={`mt-0.5 inline-flex min-w-0 items-center gap-1 text-sm text-fg ${NOTE_WRAP}`}>
         <span className={NOTE_WRAP}>{value || "—"}</span>
         {copyable ? (
           <CopyValue
@@ -92,17 +94,17 @@ function Field({
 
 function BookingHistoryList({ entries }: { entries: BookingHistoryEntry[] }) {
   if (entries.length === 0) {
-    return <p className="text-sm text-slate-500">No booking history.</p>;
+    return <p className="text-sm text-muted">No booking history.</p>;
   }
   const ordered = [...entries].reverse();
   return (
     <ul className="space-y-2">
       {ordered.map((e, i) => (
-        <li key={`${e.changed_at}-${i}`} className="text-xs text-slate-700">
+        <li key={`${e.changed_at}-${i}`} className="text-xs text-fg">
           <div>
             {fmtWhen(e.previous_scheduled_for)} → {fmtWhen(e.new_scheduled_for)}
           </div>
-          <div className="text-slate-500">
+          <div className="text-muted">
             {e.changed_by || "—"} · {fmtWhen(e.changed_at)}
             {e.source === "cal_com" ? " · Cal.com" : " · manual"}
           </div>
@@ -159,32 +161,32 @@ function LeadDrawerBody({
     <div className="space-y-8 pb-8">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className={`text-lg font-semibold text-slate-900 ${NOTE_WRAP}`}>
+          <h2 className={`text-lg font-semibold text-fg ${NOTE_WRAP}`}>
             {lead.name || lead.email}
           </h2>
           <LeadStatusBadges lead={lead} />
         </div>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-muted">
           Last updated {fmtWhen(lead.updated_at)}
         </p>
       </div>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-slate-900">Activity</h3>
+        <h3 className="text-sm font-medium text-fg">Activity</h3>
         <ul
           className="max-h-72 space-y-2 overflow-y-auto overflow-x-hidden"
           data-testid="lead-drawer-activity"
         >
           {activities.length === 0 ? (
-            <li className="text-sm text-slate-500">No activities yet.</li>
+            <li className="text-sm text-muted">No activities yet.</li>
           ) : (
             activities.map((a) => (
               <li
                 key={a.id}
-                className="rounded border border-slate-100 px-3 py-2 text-sm"
+                className="rounded border border-subtle px-3 py-2 text-sm"
               >
-                <div className="flex flex-wrap gap-x-2 text-xs text-slate-500">
-                  <span className="font-medium text-slate-800">
+                <div className="flex flex-wrap gap-x-2 text-xs text-muted">
+                  <span className="font-medium text-fg">
                     {activityTypeLabel(a.type)}
                   </span>
                   {a.outcome ? <span>{a.outcome}</span> : null}
@@ -193,7 +195,7 @@ function LeadDrawerBody({
                 </div>
                 {a.note ? (
                   <p
-                    className={`mt-1 text-sm text-slate-800 ${NOTE_WRAP}`}
+                    className={`mt-1 text-sm text-fg ${NOTE_WRAP}`}
                     data-testid="lead-drawer-note-text"
                   >
                     {a.note}
@@ -204,13 +206,13 @@ function LeadDrawerBody({
           )}
         </ul>
         <fieldset disabled={preview.active} className="space-y-2 disabled:opacity-70">
-          <label className="block text-xs text-slate-600">
+          <label className="block text-xs text-muted">
             Add note
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={3}
-              className={`mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900 ${NOTE_WRAP}`}
+              className={`mt-1 w-full rounded border border-subtle px-3 py-2 text-sm text-fg ${NOTE_WRAP}`}
             />
           </label>
           <button
@@ -225,19 +227,19 @@ function LeadDrawerBody({
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-slate-900">Booking history</h3>
+        <h3 className="text-sm font-medium text-fg">Booking history</h3>
         <BookingHistoryList entries={lead.booking_history ?? []} />
       </section>
 
       {lead.call_showed === true ? (
         <section className="space-y-3">
-          <h3 className="text-sm font-medium text-slate-900">Post-call</h3>
+          <h3 className="text-sm font-medium text-fg">Post-call</h3>
           <PostCallSection lead={lead} onLeadPatched={() => onReload()} />
         </section>
       ) : null}
 
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-slate-900">Follow-ups</h3>
+        <h3 className="text-sm font-medium text-fg">Follow-ups</h3>
         <LeadFollowUps
           leadId={lead.id}
           leadName={lead.name || lead.email}
@@ -247,7 +249,7 @@ function LeadDrawerBody({
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-slate-900">Locked fields</h3>
+        <h3 className="text-sm font-medium text-fg">Locked fields</h3>
         <div className="grid grid-cols-2 gap-4">
           <Field
             label="Email"
@@ -315,7 +317,7 @@ function LeadDrawerBody({
             }
           />
           <div>
-            <div className="text-xs text-slate-500">Follow-up date</div>
+            <div className="text-xs text-muted">Follow-up date</div>
             <div className="mt-0.5 text-sm">
               <FollowUpDate at={lead.next_action_at} />
             </div>
@@ -324,7 +326,7 @@ function LeadDrawerBody({
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-slate-900">Form details</h3>
+        <h3 className="text-sm font-medium text-fg">Form details</h3>
         <CustomFieldsPanel customFields={lead.custom_fields} />
       </section>
     </div>
@@ -337,6 +339,8 @@ export default function LeadDrawerHost({
   onLeadPatched?: (lead: LeadRow) => void;
 } = {}) {
   const { leadId, close } = useLeadDrawerParam();
+  const reduced = useReducedMotion();
+  const skipMotion = MOTION_OFF || reduced;
   const [payload, setPayload] = useState<LeadDrawerPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const seqRef = useRef(0);
@@ -397,47 +401,57 @@ export default function LeadDrawerHost({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <button
+      <motion.button
         type="button"
         data-testid="lead-drawer-backdrop"
         aria-label="Close lead"
-        className="absolute inset-0 bg-slate-900/30"
+        className="absolute inset-0 bg-overlay"
         onClick={onBackdrop}
+        initial={skipMotion ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={transitionBase}
       />
       <aside
         role="dialog"
         aria-modal="true"
         data-testid="lead-drawer"
-        className="relative z-10 flex h-full w-full min-w-0 max-w-xl flex-col overflow-x-hidden border-l border-slate-200 bg-white shadow-xl"
+        className="relative z-10 flex h-full w-full min-w-0 max-w-xl flex-col overflow-x-hidden border-l border-subtle bg-surface shadow-card"
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <span className="min-w-0 truncate text-sm font-medium text-slate-800">
+        <div className="flex items-center justify-between border-b border-subtle px-4 py-3">
+          <span className="min-w-0 truncate text-sm font-medium text-fg">
             {shown?.lead.name || shown?.lead.email || "Lead"}
           </span>
           <button
             type="button"
             data-testid="lead-drawer-close"
             onClick={close}
-            className="rounded px-2 py-1 text-sm text-slate-600 hover:bg-slate-50"
+            className="rounded px-2 py-1 text-sm text-muted hover:bg-surface-2"
           >
             Close
           </button>
         </div>
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4">
-          {error && !shown ? (
-            <p className="text-sm text-red-600">{error}</p>
-          ) : shown && shown.lead.id === leadId ? (
-            <LeadDrawerBody
-              data={shown}
-              onReload={() => void load(shown.lead.id)}
-            />
-          ) : (
-            <div className="space-y-3">
-              <div className="h-6 w-40 animate-pulse rounded bg-slate-100" />
-              <h3 className="text-sm font-medium text-slate-900">Activity</h3>
-              <ActivitySkeleton />
-            </div>
-          )}
+        <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          <motion.div
+            className="h-full min-w-0 w-full overflow-y-auto overflow-x-hidden px-4 py-4"
+            initial={skipMotion ? false : { x: "100%" }}
+            animate={{ x: 0 }}
+            transition={transitionBase}
+          >
+            {error && !shown ? (
+              <p className="text-sm text-danger">{error}</p>
+            ) : shown && shown.lead.id === leadId ? (
+              <LeadDrawerBody
+                data={shown}
+                onReload={() => void load(shown.lead.id)}
+              />
+            ) : (
+              <div className="space-y-3">
+                <div className="h-6 w-40 skeleton-shimmer rounded bg-surface-2" />
+                <h3 className="text-sm font-medium text-fg">Activity</h3>
+                <ActivitySkeleton />
+              </div>
+            )}
+          </motion.div>
         </div>
       </aside>
     </div>

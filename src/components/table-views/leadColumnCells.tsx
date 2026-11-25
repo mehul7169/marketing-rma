@@ -69,7 +69,7 @@ function Cell({
   children: ReactNode;
 }) {
   return (
-    <td className={className ?? "px-4 py-3 text-slate-700"}>
+    <td className={className ?? "px-4 py-3 text-fg"}>
       {children}
     </td>
   );
@@ -98,8 +98,8 @@ function YesNoDash({
       data-value={v === null ? "dash" : v ? "yes" : "no"}
       className={`rounded px-1.5 py-0.5 text-[11px] ${
         value === v
-          ? "bg-slate-900 text-white"
-          : "text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          ? "bg-accent text-accent-fg"
+          : "text-muted hover:bg-surface-2 disabled:cursor-not-allowed disabled:hover:bg-transparent"
       }`}
       onClick={(e) => {
         e.stopPropagation();
@@ -146,7 +146,7 @@ export function renderLeadColumnCell(
       <Cell
         columnId={columnId}
         edit={edit}
-        className="max-w-[180px] px-4 py-3 text-slate-700"
+        className="max-w-[180px] px-4 py-3 text-fg"
       >
         {canEdit && key ? (
           <InlineEditableValue
@@ -167,7 +167,7 @@ export function renderLeadColumnCell(
         <Cell
           columnId={columnId}
           edit={edit}
-          className="px-4 py-3 font-medium text-slate-900"
+          className="px-4 py-3 font-medium text-fg"
         >
           <button
             type="button"
@@ -194,7 +194,7 @@ export function renderLeadColumnCell(
             <span
               className={`truncate ${
                 isSyntheticQuickformEmail(lead.email)
-                  ? "italic text-slate-400"
+                  ? "italic text-muted"
                   : ""
               }`}
               title={
@@ -227,7 +227,7 @@ export function renderLeadColumnCell(
         <Cell
           columnId={columnId}
           edit={edit}
-          className="max-w-[160px] truncate px-4 py-3 text-slate-700"
+          className="max-w-[160px] truncate px-4 py-3 text-fg"
         >
           {lead.last_action || "—"}
         </Cell>
@@ -237,7 +237,7 @@ export function renderLeadColumnCell(
         <Cell
           columnId={columnId}
           edit={edit}
-          className="whitespace-nowrap px-4 py-3 text-slate-700"
+          className="whitespace-nowrap px-4 py-3 text-fg"
         >
           {canEdit ? (
             <InlineEditableValue
@@ -272,7 +272,7 @@ export function renderLeadColumnCell(
         <Cell columnId={columnId} edit={edit}>
           {lead.contact_attempts ?? 0}
           {ctx.compactName && lead.last_action_at ? (
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-muted">
               {formatISTDateTime(lead.last_action_at)}
             </div>
           ) : null}
@@ -312,7 +312,7 @@ export function renderLeadColumnCell(
         <Cell
           columnId={columnId}
           edit={edit}
-          className="whitespace-nowrap px-4 py-3 text-slate-700"
+          className="whitespace-nowrap px-4 py-3 text-fg"
         >
           {fmtWhen(lead.created_at)}
         </Cell>
@@ -322,7 +322,7 @@ export function renderLeadColumnCell(
         <Cell
           columnId={columnId}
           edit={edit}
-          className="whitespace-nowrap px-4 py-3 text-slate-700"
+          className="whitespace-nowrap px-4 py-3 text-fg"
         >
           {canEdit ? (
             <InlineEditableValue
@@ -343,7 +343,7 @@ export function renderLeadColumnCell(
         <Cell
           columnId={columnId}
           edit={edit}
-          className="whitespace-nowrap px-4 py-3 text-slate-700"
+          className="whitespace-nowrap px-4 py-3 text-fg"
         >
           {fmtWhen(lead.call_booked_at)}
         </Cell>
@@ -456,11 +456,11 @@ export function renderLeadColumnCell(
         <Cell columnId={columnId} edit={edit}>
           {lead.is_dead ? (
             <span className="inline-flex items-center gap-1">
-              <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px] text-white">
+              <span className="rounded-pill bg-surface-2 px-1.5 py-0.5 text-[11px] text-muted">
                 Dead
               </span>
               {lead.dead_reason ? (
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted">
                   {deadReasonLabel(lead.dead_reason)}
                 </span>
               ) : null}
@@ -468,7 +468,7 @@ export function renderLeadColumnCell(
           ) : canEdit ? (
             <button
               type="button"
-              className="text-[11px] text-slate-500 hover:text-slate-800"
+              className="text-[11px] text-muted hover:text-fg"
               onClick={(e) => {
                 e.stopPropagation();
                 edit?.onConfirm?.({
@@ -503,7 +503,7 @@ export function renderLeadColumnCell(
         <Cell
           columnId={columnId}
           edit={edit}
-          className="max-w-[180px] px-4 py-3 text-slate-700"
+          className="max-w-[180px] px-4 py-3 text-fg"
         >
           {canEdit ? (
             <InlineEditableValue
@@ -555,7 +555,7 @@ export function renderLeadColumnCell(
         </td>
       );
     default:
-      return <td className="px-4 py-3 text-slate-400">—</td>;
+      return <td className="px-4 py-3 text-muted">—</td>;
   }
 }
 
@@ -588,7 +588,7 @@ export function LeadTableHeaderCell({
           aria-orientation="vertical"
           aria-label={`Resize ${label}`}
           data-no-row-nav
-          className="absolute right-0 top-0 z-10 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-sky-300/60"
+          className="absolute right-0 top-0 z-10 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-accent-soft"
           onMouseDown={(e) => {
             e.preventDefault();
             e.stopPropagation();

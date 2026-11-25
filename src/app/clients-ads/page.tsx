@@ -66,13 +66,13 @@ function LeadDayCell({
   return (
     <td
       className={`px-4 py-3 tabular-nums ${
-        warn ? "font-medium text-amber-800" : "text-slate-700"
+        warn ? "font-medium text-warning" : "text-fg"
       }`}
     >
       <span className="inline-flex items-center gap-1">
         {formatInteger(value)}
         {warn ? (
-          <span className="text-amber-700" title="Significant day-over-day swing" aria-label="Significant swing">
+          <span className="text-warning" title="Significant day-over-day swing" aria-label="Significant swing">
             ⚠
           </span>
         ) : null}
@@ -105,7 +105,7 @@ export default async function ClientsAdsPage() {
       <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Client Ads</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted">
             All client Meta ad accounts across orgs (RMA lead-source stays on
             Meta Ads). Lead counts are Meta-reported for IST calendar days.
           </p>
@@ -120,7 +120,7 @@ export default async function ClientsAdsPage() {
       </div>
 
       {accounts.length === 0 ? (
-        <div className="rounded border border-slate-200 p-10 text-center text-sm text-slate-600">
+        <div className="rounded border border-subtle p-10 text-center text-sm text-muted">
           No client ad accounts yet. Use Add Ad Account with the numeric Meta
           account ID your Business Manager can access.
         </div>
@@ -128,18 +128,18 @@ export default async function ClientsAdsPage() {
         <ScrollableDataTable>
           <table className="min-w-full border-collapse text-sm">
             <thead>
-              <tr className="bg-slate-50 text-left text-slate-700">
+              <tr className="bg-surface-2 text-left text-fg">
                 <th className="px-4 py-3 font-medium">Client</th>
                 <th className="px-4 py-3 font-medium">Meta Ad Account ID</th>
                 <th className="px-4 py-3 font-medium">
                   Yesterday
-                  <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                  <span className="mt-0.5 block text-xs font-normal text-muted">
                     {yesterdayISO}
                   </span>
                 </th>
                 <th className="px-4 py-3 font-medium">
                   Day Before
-                  <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                  <span className="mt-0.5 block text-xs font-normal text-muted">
                     {dayBeforeISO}
                   </span>
                 </th>
@@ -156,28 +156,28 @@ export default async function ClientsAdsPage() {
                 return (
                   <tr
                     key={account.id}
-                    className="border-t border-slate-100 hover:bg-slate-50/80"
+                    className="border-t border-subtle hover:bg-surface-2/80"
                   >
                     <td className="px-4 py-3">
                       <Link
                         href={`/clients-ads/${account.id}`}
-                        className="font-medium text-slate-900 underline-offset-2 hover:underline"
+                        className="font-medium text-fg underline-offset-2 hover:underline"
                       >
                         {account.client_name}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                    <td className="px-4 py-3 font-mono text-xs text-muted">
                       {account.meta_ad_account_id}
                     </td>
                     <LeadDayCell value={yesterday} warn={warn} />
                     <LeadDayCell value={dayBefore} warn={warn} />
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-muted">
                       {status === "pending" ? (
-                        <span className="text-amber-800">Backfilling…</span>
+                        <span className="text-warning">Backfilling…</span>
                       ) : status === "error" ? (
-                        <span className="text-red-700">Backfill error</span>
+                        <span className="text-danger">Backfill error</span>
                       ) : (
-                        <span className="text-slate-500">Ready</span>
+                        <span className="text-muted">Ready</span>
                       )}
                     </td>
                   </tr>

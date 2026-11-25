@@ -190,7 +190,7 @@ export default function StageActionMenu({
     <div className="flex justify-end gap-2">
       <button
         type="button"
-        className="text-xs text-slate-600"
+        className="text-xs text-muted"
         onClick={() => setPanel(null)}
       >
         Cancel
@@ -222,7 +222,7 @@ export default function StageActionMenu({
           <button
             ref={triggerRef}
             type="button"
-            className="rounded border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
+            className="rounded border border-subtle px-1.5 py-0.5 text-[11px] text-muted hover:bg-surface-2"
             aria-haspopup="menu"
             aria-expanded={panel !== null}
             onClick={(e) => {
@@ -244,7 +244,7 @@ export default function StageActionMenu({
                 disabled={Boolean(item.disabledReason)}
                 title={item.disabledReason ?? undefined}
                 data-testid={`stage-action-${item.id}`}
-                className="block w-full px-3 py-1.5 text-left text-xs text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                className="block w-full px-3 py-1.5 text-left text-xs text-fg hover:bg-surface-2 disabled:cursor-not-allowed disabled:text-muted"
                 onClick={() => {
                   if (item.disabledReason) return;
                   item.onPick();
@@ -257,13 +257,13 @@ export default function StageActionMenu({
         ) : null}
         {panel === "log_call" ? (
           <div className="space-y-2">
-            <div className="text-xs font-medium text-slate-800">Log call</div>
-            <label className="block text-xs text-slate-600">
+            <div className="text-xs font-medium text-fg">Log call</div>
+            <label className="block text-xs text-muted">
               Outcome
               <select
                 value={outcome}
                 onChange={(e) => setOutcome(e.target.value as LogCallOutcome)}
-                className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                className="mt-1 w-full rounded border border-subtle px-2 py-1.5 text-sm"
               >
                 {LOG_CALL_OUTCOMES.map((o) => (
                   <option key={o} value={o}>
@@ -273,45 +273,45 @@ export default function StageActionMenu({
               </select>
             </label>
             {outcome === "follow_up_needed" ? (
-              <label className="block text-xs text-slate-600">
+              <label className="block text-xs text-muted">
                 Follow-up (IST)
                 <input
                   type="datetime-local"
                   value={followUpAt}
                   onChange={(e) => setFollowUpAt(e.target.value)}
-                  className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                  className="mt-1 w-full rounded border border-subtle px-2 py-1.5 text-sm"
                 />
               </label>
             ) : null}
             {outcome === "qualified" && !lead.call_scheduled_for ? (
-              <label className="block text-xs text-slate-600">
+              <label className="block text-xs text-muted">
                 Call scheduled for (IST)
                 <input
                   type="datetime-local"
                   value={callAt}
                   onChange={(e) => setCallAt(e.target.value)}
-                  className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                  className="mt-1 w-full rounded border border-subtle px-2 py-1.5 text-sm"
                 />
               </label>
             ) : null}
-            {error ? <p className="text-xs text-red-600">{error}</p> : null}
+            {error ? <p className="text-xs text-danger">{error}</p> : null}
           </div>
         ) : null}
         {panel === "book_call" ? (
           <div className="space-y-2">
-            <div className="text-xs font-medium text-slate-800">
+            <div className="text-xs font-medium text-fg">
               {lead.call_booked_at ? "Reschedule call" : "Book call"}
             </div>
-            <label className="block text-xs text-slate-600">
+            <label className="block text-xs text-muted">
               Date & time (IST)
               <input
                 type="datetime-local"
                 value={callAt}
                 onChange={(e) => setCallAt(e.target.value)}
-                className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                className="mt-1 w-full rounded border border-subtle px-2 py-1.5 text-sm"
               />
             </label>
-            {error ? <p className="text-xs text-red-600">{error}</p> : null}
+            {error ? <p className="text-xs text-danger">{error}</p> : null}
           </div>
         ) : null}
       </ActionPopover>

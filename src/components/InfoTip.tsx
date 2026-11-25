@@ -88,7 +88,7 @@ export default function InfoTip({
         aria-label="More info"
         aria-expanded={open}
         aria-describedby={open ? tipId : undefined}
-        className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-slate-300 text-[9px] font-medium leading-none text-slate-400 hover:border-slate-400 hover:text-slate-600 focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400"
+        className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-subtle text-[9px] font-medium leading-none text-muted hover:border-subtle hover:text-fg"
         onMouseEnter={() => {
           if (prefersHover()) show();
         }}
@@ -111,7 +111,7 @@ export default function InfoTip({
               ref={tipRef}
               id={tipId}
               role="tooltip"
-              className="pointer-events-none fixed z-[100] w-72 max-w-[calc(100vw-1.5rem)] -translate-x-1/2 rounded border border-slate-200 bg-white px-3 py-2 text-left text-xs leading-relaxed text-slate-700 shadow-sm"
+              className="pointer-events-none fixed z-[100] w-72 max-w-[calc(100vw-1.5rem)] -translate-x-1/2 rounded border border-subtle bg-surface px-3 py-2 text-left text-xs leading-relaxed text-fg shadow-card"
               style={{
                 top: coords?.top ?? 0,
                 left: coords?.left ?? 0,

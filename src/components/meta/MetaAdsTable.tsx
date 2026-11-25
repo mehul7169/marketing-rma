@@ -273,14 +273,14 @@ function ActionsSummary({ actions }: { actions: MetaActionEntry[] }) {
   const count = actions.length;
 
   if (count === 0) {
-    return <span className="text-slate-400">—</span>;
+    return <span className="text-muted">—</span>;
   }
 
   return (
     <div className="relative inline-block text-left">
       <button
         type="button"
-        className="text-xs text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+        className="text-xs text-muted underline decoration-subtle underline-offset-2 hover:text-fg"
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => !v);
@@ -294,15 +294,15 @@ function ActionsSummary({ actions }: { actions: MetaActionEntry[] }) {
         {count} action type{count === 1 ? "" : "s"}
       </button>
       {open ? (
-        <div className="absolute right-0 z-20 mt-1 max-h-56 w-64 overflow-y-auto rounded border border-slate-200 bg-white px-3 py-2 text-left shadow-sm">
+        <div className="absolute right-0 z-20 mt-1 max-h-56 w-64 overflow-y-auto rounded border border-subtle bg-surface px-3 py-2 text-left shadow-card">
           <ul className="space-y-1">
             {actions.map((a) => (
               <li
                 key={a.action_type}
-                className="flex justify-between gap-3 text-[11px] text-slate-700"
+                className="flex justify-between gap-3 text-[11px] text-fg"
               >
                 <span className="min-w-0 break-all">{a.action_type}</span>
-                <span className="shrink-0 tabular-nums text-slate-900">
+                <span className="shrink-0 tabular-nums text-fg">
                   {formatInteger(Number(a.value) || 0)}
                 </span>
               </li>
@@ -337,7 +337,7 @@ function MetricCells({
 
 function Chevron({ open }: { open: boolean }) {
   return (
-    <span className="inline-block w-3 shrink-0 text-slate-400" aria-hidden>
+    <span className="inline-block w-3 shrink-0 text-muted" aria-hidden>
       {open ? "▾" : "▸"}
     </span>
   );
@@ -450,14 +450,14 @@ export default function MetaAdsTable({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search campaign, ad set, or ad name"
-          className="w-full max-w-md rounded border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400"
+          className="w-full max-w-md rounded border border-subtle px-3 py-2 text-sm text-fg placeholder:text-muted"
         />
-        <label className="flex flex-col gap-1 text-xs text-slate-600">
+        <label className="flex flex-col gap-1 text-xs text-muted">
           Columns
           <select
             value={preset}
             onChange={(e) => setPreset(e.target.value as ColumnPreset)}
-            className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            className="rounded border border-subtle bg-surface px-3 py-2 text-sm text-fg"
           >
             <option value="standard">Standard</option>
             <option value="rma">RMA Performance Tracking</option>
@@ -466,19 +466,19 @@ export default function MetaAdsTable({
       </div>
 
       {includeFunnelColumns ? (
-        <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+        <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
           <span>Unmatched leads: {formatInteger(unmatchedLeadCount)}</span>
           <InfoTip text={INSIGHTS_TOOLTIPS.creativeUnmatched} />
-          <span className="text-slate-400">
+          <span className="text-muted">
             (utm_content vs Meta ad id, then ad name)
           </span>
         </p>
       ) : null}
 
-      <div className="overflow-x-auto rounded border border-slate-200">
+      <div className="overflow-x-auto rounded border border-subtle">
         <table className="min-w-[1200px] w-full border-collapse text-sm">
           <thead>
-            <tr className="bg-slate-50 text-slate-700">
+            <tr className="bg-surface-2 text-fg">
               <th className="px-4 py-3 text-left">Name</th>
               {columns.map((col) => {
                 const isActive = col.sortable && sortKey === col.key;
@@ -502,7 +502,7 @@ export default function MetaAdsTable({
                     }
                     title={col.sortable ? "Click to sort" : undefined}
                   >
-                    <span className={isActive ? "font-medium text-blue-700" : ""}>
+                    <span className={isActive ? "font-medium text-accent-text" : ""}>
                       {col.label}
                     </span>
                   </th>
@@ -510,12 +510,12 @@ export default function MetaAdsTable({
               })}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-subtle">
             {sortedCampaigns.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length + 1}
-                  className="px-4 py-10 text-center text-slate-500"
+                  className="px-4 py-10 text-center text-muted"
                 >
                   {searching
                     ? "No matching campaigns, ad sets, or ads."
@@ -555,7 +555,7 @@ export default function MetaAdsTable({
           </tbody>
           {totals && (
             <tfoot>
-              <tr className="border-t-2 border-slate-300 bg-slate-50 font-medium text-slate-900">
+              <tr className="border-t-2 border-subtle bg-surface-2 font-medium text-fg">
                 <td className="px-4 py-3 text-left">Total</td>
                 <MetricCells m={totals} columns={columns} />
               </tr>
@@ -594,7 +594,7 @@ function CampaignBlock({
 }) {
   return (
     <>
-      <tr className="hover:bg-slate-50/60">
+      <tr className="hover:bg-surface-2/60">
         <td className="max-w-[280px] px-4 py-3 text-left">
           <button
             type="button"
@@ -605,12 +605,12 @@ function CampaignBlock({
             <Chevron open={open} />
             <span className="min-w-0">
               <span
-                className="block truncate font-medium text-slate-900"
+                className="block truncate font-medium text-fg"
                 title={campaign.campaign_name ?? undefined}
               >
                 {campaign.campaign_name ?? "—"}
               </span>
-              <span className="text-[11px] text-slate-500">Campaign</span>
+              <span className="text-[11px] text-muted">Campaign</span>
             </span>
           </button>
         </td>
@@ -657,7 +657,7 @@ function AdSetBlock({
 }) {
   return (
     <>
-      <tr className="hover:bg-slate-50/60">
+      <tr className="hover:bg-surface-2/60">
         <td className="max-w-[280px] px-4 py-3 text-left">
           <button
             type="button"
@@ -668,12 +668,12 @@ function AdSetBlock({
             <Chevron open={open} />
             <span className="min-w-0">
               <span
-                className="block truncate text-slate-900"
+                className="block truncate text-fg"
                 title={adSet.ad_set_name ?? undefined}
               >
                 {adSet.ad_set_name ?? "—"}
               </span>
-              <span className="text-[11px] text-slate-500">Ad set</span>
+              <span className="text-[11px] text-muted">Ad set</span>
             </span>
           </button>
         </td>
@@ -681,7 +681,7 @@ function AdSetBlock({
       </tr>
       {open &&
         ads.map((ad) => (
-          <tr key={ad.ad_id} className="hover:bg-slate-50/60">
+          <tr key={ad.ad_id} className="hover:bg-surface-2/60">
             <td className="max-w-[280px] px-4 py-3 text-left">
               <div className="flex items-center gap-2 pl-10">
                 {ad.creative_thumbnail_url ? (
@@ -694,12 +694,12 @@ function AdSetBlock({
                 ) : null}
                 <span className="min-w-0">
                   <span
-                    className="block truncate text-slate-900"
+                    className="block truncate text-fg"
                     title={ad.ad_name ?? undefined}
                   >
                     {ad.ad_name ?? "—"}
                   </span>
-                  <span className="text-[11px] text-slate-500">Ad</span>
+                  <span className="text-[11px] text-muted">Ad</span>
                 </span>
               </div>
             </td>

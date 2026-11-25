@@ -1,12 +1,16 @@
 import { test, expect, type Page, type Request } from "@playwright/test";
+import { config as loadEnv } from "dotenv";
+
+loadEnv({ path: ".env.local" });
+loadEnv();
 
 /**
  * Drawer open/close is client state + history.pushState/replaceState.
  * Must not refetch the Work Queue list. Read-only (no note writes).
  */
 
-const email = process.env.E2E_MEMBER_EMAIL;
-const password = process.env.E2E_MEMBER_PASSWORD;
+const email = process.env.E2E_MEMBER_EMAIL || process.env.TEST_MEMBER_EMAIL;
+const password = process.env.E2E_MEMBER_PASSWORD || process.env.TEST_MEMBER_PASSWORD;
 
 async function login(page: Page) {
   await page.goto("/login");

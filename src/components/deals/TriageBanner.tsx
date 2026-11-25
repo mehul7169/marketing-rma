@@ -28,7 +28,7 @@ export default function TriageBanner({
   return (
     <div
       data-testid="deals-triage-banner"
-      className="flex items-center gap-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+      className="flex items-center gap-3 rounded border border-warning-soft bg-warning-soft px-3 py-2 text-sm text-warning"
     >
       <button
         type="button"
@@ -40,7 +40,7 @@ export default function TriageBanner({
       <button
         type="button"
         aria-label="Dismiss"
-        className="rounded px-2 py-0.5 text-xs text-amber-800 hover:bg-amber-100"
+        className="rounded px-2 py-0.5 text-xs text-warning hover:bg-warning-soft"
         onClick={() => {
           try {
             window.localStorage.setItem(keyFor(orgId), "1");

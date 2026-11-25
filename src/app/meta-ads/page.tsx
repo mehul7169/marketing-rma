@@ -123,7 +123,7 @@ export default async function MetaAdsPage({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Meta Ads Performance</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted">
             {fromISO} to {toISO}
           </p>
         </div>
@@ -135,12 +135,12 @@ export default async function MetaAdsPage({
       </div>
 
       {!hasAccounts ? (
-        <div className="rounded border border-slate-200 p-10 text-center text-sm text-slate-600">
+        <div className="rounded border border-subtle p-10 text-center text-sm text-muted">
           No lead-source ad account configured for this organization in
           ad_accounts.
         </div>
       ) : !hasAnyData ? (
-        <div className="rounded border border-slate-200 p-10 text-center text-sm text-slate-600">
+        <div className="rounded border border-subtle p-10 text-center text-sm text-muted">
           No data in this date range yet.
         </div>
       ) : (

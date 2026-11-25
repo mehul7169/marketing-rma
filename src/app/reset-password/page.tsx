@@ -218,7 +218,7 @@ export default function ResetPasswordPage() {
   if (ready === "loading") {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-sm text-slate-600">Verifying reset link…</p>
+        <p className="text-sm text-muted">Verifying reset link…</p>
       </div>
     );
   }
@@ -226,16 +226,16 @@ export default function ResetPasswordPage() {
   if (ready === "invalid") {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="w-full max-w-sm space-y-4 rounded border border-slate-200 p-6">
+        <div className="w-full max-w-sm space-y-4 rounded-card border border-subtle bg-surface p-6">
           <h1 className="page-title">Link expired or invalid</h1>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted">
             This password reset link is invalid or has already been used.
             Request a new one to continue.
           </p>
-          <p className="text-center text-sm text-slate-600">
+          <p className="text-center text-sm text-muted">
             <Link
               href="/forgot-password"
-              className="font-medium text-slate-900 underline"
+              className="font-medium text-fg underline"
             >
               Request a new reset link
             </Link>
@@ -249,16 +249,16 @@ export default function ResetPasswordPage() {
     <div className="flex min-h-[60vh] items-center justify-center">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 rounded border border-slate-200 p-6"
+        className="w-full max-w-sm space-y-4 rounded-card border border-subtle bg-surface p-6"
         aria-busy={submitting}
       >
         <h1 className="page-title">Set new password</h1>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-muted">
           Choose a new password for your account.
         </p>
 
         <div className="space-y-1">
-          <label htmlFor="password" className="text-xs text-slate-600">
+          <label htmlFor="password" className="text-xs text-muted">
             New password
           </label>
           <input
@@ -270,12 +270,12 @@ export default function ResetPasswordPage() {
             disabled={submitting}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900 disabled:opacity-60"
+            className="w-full rounded border border-subtle px-3 py-2 text-sm text-fg disabled:opacity-60"
           />
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="confirm-password" className="text-xs text-slate-600">
+          <label htmlFor="confirm-password" className="text-xs text-muted">
             Confirm new password
           </label>
           <input
@@ -287,11 +287,11 @@ export default function ResetPasswordPage() {
             disabled={submitting}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900 disabled:opacity-60"
+            className="w-full rounded border border-subtle px-3 py-2 text-sm text-fg disabled:opacity-60"
           />
         </div>
 
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="text-sm text-danger">{error}</p> : null}
 
         <button
           type="submit"

@@ -12,7 +12,7 @@ export default function DueFollowUpBadge({ reminders }: { reminders: LeadReminde
     <span className="relative ml-2 inline-block align-middle">
       <button
         type="button"
-        className="rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-800"
+        className="rounded-full border border-danger-soft bg-danger-soft px-1.5 py-0.5 text-[10px] font-medium text-danger"
         title={reminders.map((r) => r.text).join(" · ")}
         onClick={(e) => {
           e.preventDefault();
@@ -26,13 +26,13 @@ export default function DueFollowUpBadge({ reminders }: { reminders: LeadReminde
       </button>
       {open ? (
         <span
-          className="absolute left-0 z-20 mt-1 w-56 rounded border border-slate-200 bg-white px-3 py-2 text-left text-xs text-slate-700 shadow-sm"
+          className="absolute left-0 z-20 mt-1 w-56 rounded border border-subtle bg-surface px-3 py-2 text-left text-xs text-fg shadow-card"
           onClick={(e) => e.stopPropagation()}
         >
           {reminders.map((r) => (
             <span key={r.id} className="mb-1.5 block last:mb-0">
-              <span className="block text-slate-900">{r.text}</span>
-              <span className="text-slate-500">{formatDueFriendly(r.due_at)}</span>
+              <span className="block text-fg">{r.text}</span>
+              <span className="text-muted">{formatDueFriendly(r.due_at)}</span>
             </span>
           ))}
         </span>

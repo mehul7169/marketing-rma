@@ -21,7 +21,7 @@ export default function CustomFieldsPanel({
   });
 
   if (entries.length === 0) {
-    return <p className="text-sm text-slate-500">{emptyMessage}</p>;
+    return <p className="text-sm text-muted">{emptyMessage}</p>;
   }
 
   return (
@@ -46,8 +46,8 @@ export default function CustomFieldsPanel({
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-0.5 text-sm text-slate-900">{value || "—"}</div>
+      <div className="text-xs text-muted">{label}</div>
+      <div className="mt-0.5 text-sm text-fg">{value || "—"}</div>
     </div>
   );
 }

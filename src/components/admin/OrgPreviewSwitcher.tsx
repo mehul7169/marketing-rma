@@ -61,7 +61,7 @@ export default function OrgPreviewSwitcher({
         </label>
         <select
           id="org-preview-switcher"
-          className="max-w-[220px] rounded border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 disabled:opacity-60"
+          className="max-w-[220px] rounded border border-subtle bg-surface px-2 py-1.5 text-sm text-fg disabled:opacity-60"
           value={previewOrgId ?? ""}
           disabled={pending || reloading}
           onChange={(e) => onSelect(e.target.value)}
@@ -80,7 +80,7 @@ export default function OrgPreviewSwitcher({
             type="button"
             onClick={onExit}
             disabled={pending || reloading}
-            className="inline-flex items-center gap-1.5 rounded border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-sm text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded border border-warning-soft bg-warning-soft px-2.5 py-1.5 text-sm text-warning hover:bg-warning-soft disabled:opacity-60"
           >
             {pending || reloading ? (
               <Spinner size="xs" label="Switching org" />
@@ -91,10 +91,10 @@ export default function OrgPreviewSwitcher({
         {(pending || reloading) && !previewOrgId ? (
           <Spinner size="sm" label="Switching org" />
         ) : null}
-        {error ? <span className="text-xs text-red-600">{error}</span> : null}
+        {error ? <span className="text-xs text-danger">{error}</span> : null}
       </div>
       {reloading ? (
-        <div className="fixed inset-0 z-[100] overflow-auto bg-white p-6">
+        <div className="fixed inset-0 z-[100] overflow-auto bg-surface p-6">
           <OverviewPageSkeleton />
         </div>
       ) : null}

@@ -53,9 +53,9 @@ export default function CreateOrganizationForm() {
       {showForm ? (
         <form
           onSubmit={onSubmit}
-          className="max-w-md space-y-3 rounded border border-slate-200 bg-slate-50 p-4"
+          className="max-w-md space-y-3 rounded border border-subtle bg-surface-2 p-4"
         >
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
+          <label className="flex flex-col gap-1 text-xs text-muted">
             Name
             <input
               type="text"
@@ -66,10 +66,10 @@ export default function CreateOrganizationForm() {
                 if (!slugTouched) setSlug(formatOrgSlug(next));
               }}
               required
-              className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+              className="rounded border border-subtle bg-surface px-3 py-2 text-sm text-fg"
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
+          <label className="flex flex-col gap-1 text-xs text-muted">
             Slug
             <input
               type="text"
@@ -80,11 +80,11 @@ export default function CreateOrganizationForm() {
               }}
               required
               spellCheck={false}
-              className="rounded border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-900"
+              className="rounded border border-subtle bg-surface px-3 py-2 font-mono text-sm text-fg"
             />
           </label>
           {error ? (
-            <p className="text-sm text-red-600" role="alert">
+            <p className="text-sm text-danger" role="alert">
               {error}
             </p>
           ) : null}

@@ -94,8 +94,8 @@ export function InsightsPageSkeleton() {
       </div>
       <ChartSkeleton className="h-48" />
       <div className="grid gap-4 lg:grid-cols-2">
-        <SkeletonBlock className="h-40 rounded border border-slate-200" />
-        <SkeletonBlock className="h-40 rounded border border-slate-200" />
+        <SkeletonBlock className="h-40 rounded border border-subtle" />
+        <SkeletonBlock className="h-40 rounded border border-subtle" />
       </div>
       <TableSkeleton rows={6} cols={5} />
     </Shell>
@@ -117,7 +117,7 @@ export function OverviewPageSkeleton() {
         {Array.from({ length: 5 }, (_, i) => (
           <div
             key={i}
-            className="rounded border border-slate-200 bg-white p-4"
+            className="rounded border border-subtle bg-surface p-4"
           >
             <SkeletonBlock className="mb-2 h-3 w-16" />
             <SkeletonBlock className="h-8 w-14" />
@@ -135,7 +135,7 @@ export function ClientsAdsPageSkeleton() {
     <Shell>
       <div className="shrink-0 space-y-4">
         <PageHeaderSkeleton />
-        <SkeletonBlock className="h-24 w-full max-w-xl rounded border border-slate-200" />
+        <SkeletonBlock className="h-24 w-full max-w-xl rounded border border-subtle" />
       </div>
       <TableSkeleton rows={6} cols={5} />
     </Shell>
@@ -152,7 +152,7 @@ export function LeadDetailPageSkeleton() {
         <SkeletonBlock className="h-5 w-28 rounded-full" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-3 rounded border border-slate-200 bg-white p-4">
+        <div className="space-y-3 rounded border border-subtle bg-surface p-4">
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="flex justify-between gap-4">
               <SkeletonBlock className="h-3 w-24" />
@@ -160,7 +160,7 @@ export function LeadDetailPageSkeleton() {
             </div>
           ))}
         </div>
-        <div className="space-y-3 rounded border border-slate-200 bg-white p-4">
+        <div className="space-y-3 rounded border border-subtle bg-surface p-4">
           {Array.from({ length: 5 }, (_, i) => (
             <SkeletonBlock key={i} className="h-10 w-full" />
           ))}

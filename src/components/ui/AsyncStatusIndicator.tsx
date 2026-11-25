@@ -21,7 +21,7 @@ export default function AsyncStatusIndicator({
     <span
       role="status"
       aria-label="Saved"
-      className="inline-flex h-3.5 w-3.5 items-center justify-center text-emerald-600"
+      className="inline-flex h-3.5 w-3.5 items-center justify-center text-success"
     >
       <svg
         viewBox="0 0 16 16"

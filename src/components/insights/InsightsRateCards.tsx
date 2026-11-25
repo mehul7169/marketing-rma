@@ -1,7 +1,11 @@
+"use client";
+
 import type { RateStat } from "@/lib/insights/metrics";
 import { INSIGHTS_TOOLTIPS } from "@/lib/insights/tooltips";
 import { formatInteger } from "@/lib/format";
 import InfoTip from "@/components/InfoTip";
+import { EnterStagger } from "@/components/ui/Enter";
+import Stat from "@/components/ui/Stat";
 
 function Card({
   label,
@@ -12,24 +16,30 @@ function Card({
   tip: string;
   stat: RateStat;
 }) {
-  const pct =
-    stat.rate === null
-      ? "—"
-      : `${Math.round(stat.rate).toLocaleString("en-IN")}%`;
-
   return (
     <div className="stat-card">
-      <div className="flex items-center gap-1.5 text-xs text-slate-600">
-        <span>{label}</span>
-        <InfoTip text={tip} />
-      </div>
-      <div className="mt-2 text-xl font-semibold text-slate-900">{pct}</div>
-      <p className="mt-1 text-xs text-slate-500">
-        <span data-testid={label === "Closure Rate" ? "insights-won-count" : undefined}>
-          {formatInteger(stat.numerator)}
-        </span>{" "}
-        of {formatInteger(stat.denominator)}
-      </p>
+      <Stat
+        label={
+          <span className="inline-flex items-center gap-1.5">
+            {label}
+            <InfoTip text={tip} />
+          </span>
+        }
+        value={stat.rate === null ? "—" : stat.rate}
+        format="percent0"
+        sub={
+          <>
+            <span
+              data-testid={
+                label === "Closure Rate" ? "insights-won-count" : undefined
+              }
+            >
+              {formatInteger(stat.numerator)}
+            </span>
+            {` of ${formatInteger(stat.denominator)}`}
+          </>
+        }
+      />
     </div>
   );
 }
@@ -46,7 +56,7 @@ export default function InsightsRateCards({
   closure: RateStat;
 }) {
   return (
-    <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <EnterStagger id="insights-rates" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Card
         label="Form-Qualified Rate"
         tip={INSIGHTS_TOOLTIPS.formQualified}
@@ -59,6 +69,6 @@ export default function InsightsRateCards({
       />
       <Card label="Show-Up Rate" tip={INSIGHTS_TOOLTIPS.showUp} stat={showUp} />
       <Card label="Closure Rate" tip={INSIGHTS_TOOLTIPS.closure} stat={closure} />
-    </section>
+    </EnterStagger>
   );
 }

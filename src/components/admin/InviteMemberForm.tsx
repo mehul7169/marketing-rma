@@ -50,9 +50,9 @@ export default function InviteMemberForm({ orgId }: { orgId: string }) {
       {showForm ? (
         <form
           onSubmit={onSubmit}
-          className="max-w-md space-y-3 rounded border border-slate-200 bg-slate-50 p-4"
+          className="max-w-md space-y-3 rounded border border-subtle bg-surface-2 p-4"
         >
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
+          <label className="flex flex-col gap-1 text-xs text-muted">
             Email
             <input
               type="email"
@@ -60,22 +60,22 @@ export default function InviteMemberForm({ orgId }: { orgId: string }) {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="off"
-              className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+              className="rounded border border-subtle bg-surface px-3 py-2 text-sm text-fg"
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
+          <label className="flex flex-col gap-1 text-xs text-muted">
             Role
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as Role)}
-              className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+              className="rounded border border-subtle bg-surface px-3 py-2 text-sm text-fg"
             >
               <option value="admin">admin</option>
               <option value="viewer">viewer</option>
             </select>
           </label>
           {error ? (
-            <p className="text-sm text-red-600" role="alert">
+            <p className="text-sm text-danger" role="alert">
               {error}
             </p>
           ) : null}

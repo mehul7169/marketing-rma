@@ -116,7 +116,7 @@ export default async function ClientAdsDetailPage({
       <div>
         <Link
           href="/clients-ads"
-          className="text-sm text-slate-600 hover:text-slate-900"
+          className="text-sm text-muted hover:text-fg"
         >
           ← Client Ads
         </Link>
@@ -128,15 +128,15 @@ export default async function ClientAdsDetailPage({
             accountId={account.id}
             initialName={account.client_name}
           />
-          <div className="space-y-1 text-sm text-slate-600">
+          <div className="space-y-1 text-sm text-muted">
             <div>
-              <span className="text-xs uppercase tracking-wide text-slate-500">
+              <span className="text-xs uppercase tracking-wide text-muted">
                 Meta Ad Account ID
               </span>
-              <div className="font-mono text-slate-800">
+              <div className="font-mono text-fg">
                 {account.meta_ad_account_id}
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-muted">
                 Read-only — stable identifier; only the display name can change.
               </div>
             </div>
@@ -167,12 +167,12 @@ export default async function ClientAdsDetailPage({
       />
 
       {isBackfilling && !hasAnyData ? (
-        <div className="rounded border border-amber-200 bg-amber-50 p-10 text-center text-sm text-amber-900">
+        <div className="rounded border border-warning-soft bg-warning-soft p-10 text-center text-sm text-warning">
           Backfilling historical data… Campaign metrics will appear here when
           the pull finishes.
         </div>
       ) : !hasAnyData ? (
-        <div className="rounded border border-slate-200 p-10 text-center text-sm text-slate-600">
+        <div className="rounded border border-subtle p-10 text-center text-sm text-muted">
           No data in this date range yet for {account.client_name}.
         </div>
       ) : (

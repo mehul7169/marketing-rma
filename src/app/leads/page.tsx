@@ -91,12 +91,12 @@ export default async function LeadsPage({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="page-title">Leads</h1>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-muted">
                 {`${total} in ${fromISO} to ${toISO}`}
                 {" · "}
                 <a
                   href="/leads/queue"
-                  className="underline decoration-slate-300 hover:text-slate-900"
+                  className="underline decoration-subtle hover:text-fg"
                 >
                   Work Queue
                 </a>
@@ -113,7 +113,7 @@ export default async function LeadsPage({
           </div>
 
           {kpi ? (
-            <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            <p className="rounded border border-subtle bg-surface-2 px-3 py-2 text-sm text-muted">
               {kpiBannerCopy(kpi)}
             </p>
           ) : null}

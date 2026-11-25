@@ -32,7 +32,8 @@ export default function WorkQueueCard({
   onLeadRollback,
   onSaveStart,
   onSaveEnd,
-  onError
+  onError,
+  fx
 }: {
   lead: LeadRow;
   activities: LeadActivityRow[];
@@ -50,6 +51,7 @@ export default function WorkQueueCard({
   onSaveStart?: () => void;
   onSaveEnd?: (ok: boolean) => void;
   onError?: (message: string) => void;
+  fx?: "flash" | "shake" | null;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -59,14 +61,16 @@ export default function WorkQueueCard({
       data-lead-id={lead.id}
       data-created-at={lead.created_at}
       data-next-action-at={lead.next_action_at ?? ""}
-      className="group rounded border border-slate-200 bg-white p-4 shadow-sm"
+      className={`group lift-card rounded border border-subtle bg-surface p-4 shadow-card ${
+        fx === "flash" ? "cell-flash" : fx === "shake" ? "motion-shake" : ""
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-slate-900 hover:underline"
+              className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-fg hover:underline"
               onClick={onOpen}
             >
               {lead.name || lead.email}
@@ -75,12 +79,12 @@ export default function WorkQueueCard({
             <button
               type="button"
               onClick={onOpen}
-              className="shrink-0 text-xs text-slate-400 hover:text-slate-700 hover:underline"
+              className="shrink-0 text-xs text-muted hover:text-fg hover:underline"
             >
               Open
             </button>
           </div>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-slate-600">
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-muted">
             <ContactWithCopy
               display={lead.phone || "—"}
               value={lead.phone}
@@ -105,12 +109,12 @@ export default function WorkQueueCard({
         <LeadStatusBadges lead={lead} />
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-4">
+      <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted sm:grid-cols-4">
         {extraFields && extraFields.length > 0 ? (
           extraFields.map((f) => (
             <div key={f.id}>
-              <dt className="text-slate-400">{f.label}</dt>
-              <dd className="mt-0.5 min-w-0 text-slate-800">
+              <dt className="text-muted">{f.label}</dt>
+              <dd className="mt-0.5 min-w-0 text-fg">
                 {renderEditableExtra(f, lead, editDisabled, onPlainField, onCustomField)}
               </dd>
             </div>
@@ -118,24 +122,24 @@ export default function WorkQueueCard({
         ) : (
           <>
             <div>
-              <dt className="text-slate-400">Last action</dt>
-              <dd className="mt-0.5 text-slate-800">{lead.last_action || "—"}</dd>
+              <dt className="text-muted">Last action</dt>
+              <dd className="mt-0.5 text-fg">{lead.last_action || "—"}</dd>
             </div>
             <div>
-              <dt className="text-slate-400">Next action</dt>
-              <dd className="mt-0.5 text-slate-800">
+              <dt className="text-muted">Next action</dt>
+              <dd className="mt-0.5 text-fg">
                 <FollowUpDate at={lead.next_action_at} />
               </dd>
             </div>
             <div>
-              <dt className="text-slate-400">Attempts</dt>
-              <dd className="mt-0.5 text-slate-800">
+              <dt className="text-muted">Attempts</dt>
+              <dd className="mt-0.5 text-fg">
                 {lead.contact_attempts ?? 0}
               </dd>
             </div>
             <div>
-              <dt className="text-slate-400">Source</dt>
-              <dd className="mt-0.5 text-slate-800">{lead.lead_source || "—"}</dd>
+              <dt className="text-muted">Source</dt>
+              <dd className="mt-0.5 text-fg">{lead.lead_source || "—"}</dd>
             </div>
           </>
         )}
@@ -154,16 +158,16 @@ export default function WorkQueueCard({
       />
 
       {historyOpen ? (
-        <ul className="mt-3 space-y-2 border-t border-slate-100 pt-3 text-xs text-slate-600">
+        <ul className="mt-3 space-y-2 border-t border-subtle pt-3 text-xs text-muted">
           {activities.length === 0 ? (
             <li>No activity yet.</li>
           ) : (
             activities.map((a) => (
               <li key={a.id} className="flex flex-wrap gap-x-2">
-                <span className="font-medium text-slate-800">{a.type}</span>
+                <span className="font-medium text-fg">{a.type}</span>
                 {a.outcome ? <span>· {a.outcome}</span> : null}
                 {a.note ? <span>· {a.note}</span> : null}
-                <span className="text-slate-400">
+                <span className="text-muted">
                   {formatISTDateTime(a.created_at)}
                 </span>
               </li>
@@ -190,7 +194,7 @@ function ContactWithCopy({
 }) {
   return (
     <span className="group inline-flex min-w-0 max-w-full items-center gap-1 whitespace-nowrap">
-      <span className={`truncate ${muted ? "italic text-slate-400" : ""}`} title={title}>
+      <span className={`truncate ${muted ? "italic text-muted" : ""}`} title={title}>
         {display}
       </span>
       <CopyValue value={value} hoverReveal kind={kind} />

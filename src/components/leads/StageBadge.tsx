@@ -1,3 +1,4 @@
+import { STAGE_PILL } from "@/components/ui/Badge";
 import type { PostCallStatus } from "@/lib/leads/computeStage";
 import {
   FOLLOW_UP_STYLES,
@@ -12,11 +13,11 @@ import { formatDueFriendly } from "@/lib/timezone";
 const PILL = "inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium";
 
 const STAGE_STYLES: Record<PipelineStage, string> = {
-  new: "bg-slate-100 text-slate-700",
-  contacted: "bg-sky-50 text-sky-900",
-  qualified: "bg-indigo-50 text-indigo-800",
-  call_booked: "bg-blue-50 text-blue-800",
-  showed_up: "bg-emerald-50 text-emerald-800"
+  new: STAGE_PILL.new,
+  contacted: STAGE_PILL.contacted,
+  qualified: STAGE_PILL.qualified,
+  call_booked: STAGE_PILL.call_booked,
+  showed_up: STAGE_PILL.showed_up
 };
 
 const POST_CALL_LABELS: Record<PostCallStatus, string> = {
@@ -87,17 +88,17 @@ export function LeadStatusBadges({
     <span className="inline-flex flex-wrap items-center gap-1">
       <StageBadge lead={lead} />
       {lead.is_dead ? (
-        <span className={`${PILL} bg-slate-200 text-slate-600`} title={reason ?? undefined}>
+        <span className={`${PILL} ${STAGE_PILL.dead}`} title={reason ?? undefined}>
           Dead{reason ? ` · ${reason}` : ""}
         </span>
       ) : null}
       {needsQualification(lead) ? (
-        <span className={`${PILL} bg-amber-50 text-amber-900`}>Needs qualification</span>
+        <span className={`${PILL} bg-warning-soft text-warning`}>Needs qualification</span>
       ) : null}
       {lead.form_qualified !== null ? (
         <span
           className={`${PILL} ${
-            lead.form_qualified ? "bg-teal-50 text-teal-800" : "bg-slate-100 text-slate-500"
+            lead.form_qualified ? "bg-success-soft text-success" : "bg-surface-2 text-muted"
           }`}
         >
           Form Qualified: {lead.form_qualified ? "Yes" : "No"}

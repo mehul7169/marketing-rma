@@ -21,6 +21,8 @@ import {
   type ReactNode
 } from "react";
 import { createPortal } from "react-dom";
+import { motion, useReducedMotion } from "motion/react";
+import { MOTION_OFF, DURATION, EASE_OUT, transitionReduced } from "@/lib/motion";
 
 const VIEWPORT_PAD = 8;
 const IS_JSDOM =
@@ -108,6 +110,8 @@ export default function ActionPopover({
   placement?: Placement;
   labelledBy?: string;
 }) {
+  const reduced = useReducedMotion();
+  const skipMotion = MOTION_OFF || reduced;
   const fallback = useMemo(() => viewportCenter(), []);
   const prevFocusRef = useRef<HTMLElement | null>(null);
   const { refs, floatingStyles, context } = useFloating({
@@ -159,11 +163,22 @@ export default function ActionPopover({
   const floating =
     open && typeof document !== "undefined"
       ? createPortal(
-          <div
+          <motion.div
             ref={refs.setFloating}
             style={floatingStyles}
+            initial={
+              skipMotion
+                ? false
+                : { opacity: 0, y: 4, scale: 0.98 }
+            }
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={
+              reduced
+                ? transitionReduced
+                : { duration: DURATION.fast, ease: EASE_OUT }
+            }
             {...getFloatingProps({
-              className: `z-[70] flex flex-col rounded border border-slate-200 bg-white shadow-lg ${panelClassName} ${widthClass}`,
+              className: `z-[70] flex flex-col rounded-card border border-subtle bg-surface shadow-card ${panelClassName} ${widthClass}`,
               "aria-labelledby": labelledBy,
               tabIndex: -1
             })}
@@ -175,11 +190,11 @@ export default function ActionPopover({
               {children}
             </div>
             {footer ? (
-              <div className="shrink-0 border-t border-slate-100 bg-white px-3 py-2">
+              <div className="shrink-0 border-t border-subtle bg-surface px-3 py-2">
                 {footer}
               </div>
             ) : null}
-          </div>,
+          </motion.div>,
           document.body
         )
       : null;

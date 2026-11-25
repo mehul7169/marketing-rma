@@ -59,14 +59,14 @@ function PopoverFooter({
     <div className="flex justify-end gap-2">
       <button
         type="button"
-        className="rounded border border-slate-200 px-2.5 py-1 text-sm"
+        className="rounded border border-subtle px-2.5 py-1 text-sm"
         onClick={onCancel}
       >
         Cancel
       </button>
       <button
         type="button"
-        className="rounded bg-slate-900 px-2.5 py-1 text-sm text-white disabled:opacity-60"
+        className="rounded-control bg-accent px-2.5 py-1 text-sm text-accent-fg disabled:opacity-60"
         disabled={saveDisabled}
         onClick={onSave}
       >
@@ -123,9 +123,9 @@ export default function WorkQueueLeadActions({
   const btn = compact
     ? "rounded border px-2 py-1 text-[11px] font-medium"
     : "rounded border px-3 py-1.5 text-xs font-medium";
-  const primaryBtn = `${btn} border-slate-800 bg-slate-900 text-white`;
-  const secondaryBtn = `${btn} border-slate-300 text-slate-800`;
-  const ghostBtn = `${btn} border-slate-200 text-slate-600 hover:bg-slate-50`;
+  const primaryBtn = `${btn} border-accent bg-accent text-accent-fg`;
+  const secondaryBtn = `${btn} border-subtle text-fg`;
+  const ghostBtn = `${btn} border-subtle text-muted hover:bg-surface-2`;
 
   if (preview.active) {
     return <OrgPreviewReadOnlyNotice />;
@@ -200,13 +200,13 @@ export default function WorkQueueLeadActions({
 
   const callForm = (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold text-slate-900">
+      <h3 className="text-sm font-semibold text-fg">
         {popover === "qualify_call" ? "Qualify call" : "Log call"}
       </h3>
-      <label className="block text-xs text-slate-600">
+      <label className="block text-xs text-muted">
         Outcome
         <select
-          className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+          className="mt-1 w-full rounded border border-subtle px-2 py-1.5 text-sm"
           value={outcome}
           onChange={(e) => setOutcome(e.target.value as LogCallOutcome)}
         >
@@ -217,43 +217,43 @@ export default function WorkQueueLeadActions({
         </select>
       </label>
       {outcome === "follow_up_needed" ? (
-        <label className="block text-xs text-slate-600">
+        <label className="block text-xs text-muted">
           Follow-up at
           <input
             type="datetime-local"
-            className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+            className="mt-1 w-full rounded border border-subtle px-2 py-1.5 text-sm"
             value={followUpAt}
             onChange={(e) => setFollowUpAt(e.target.value)}
           />
         </label>
       ) : null}
       {outcome === "qualified" && !lead.call_scheduled_for ? (
-        <label className="block text-xs text-slate-600">
+        <label className="block text-xs text-muted">
           Call scheduled for
           <input
             type="datetime-local"
             required
-            className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+            className="mt-1 w-full rounded border border-subtle px-2 py-1.5 text-sm"
             value={callAt}
             onChange={(e) => setCallAt(e.target.value)}
           />
         </label>
       ) : null}
       {outcome === "qualified" && lead.call_scheduled_for ? (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted">
           Keeping scheduled time: {formatISTDateTime(lead.call_scheduled_for)}
         </p>
       ) : null}
-      <label className="block text-xs text-slate-600">
+      <label className="block text-xs text-muted">
         Note (optional)
         <textarea
-          className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+          className="mt-1 w-full rounded border border-subtle px-2 py-1.5 text-sm"
           rows={2}
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
       </label>
-      {error ? <p className="text-xs text-red-600">{error}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
     </div>
   );
 
@@ -290,7 +290,7 @@ export default function WorkQueueLeadActions({
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">Add note</h3>
             <textarea
-              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className="w-full rounded border border-subtle px-2 py-1.5 text-sm"
               rows={3}
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -385,7 +385,7 @@ export default function WorkQueueLeadActions({
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Log show outcome</h3>
               <select
-                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                className="w-full rounded border border-subtle px-2 py-1.5 text-sm"
                 value={showOutcome}
                 onChange={(e) =>
                   setShowOutcome(e.target.value as "showed" | "no_show")
@@ -429,7 +429,7 @@ export default function WorkQueueLeadActions({
               <h3 className="text-sm font-semibold">Reschedule call</h3>
               <input
                 type="datetime-local"
-                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                className="w-full rounded border border-subtle px-2 py-1.5 text-sm"
                 value={rescheduleAt}
                 onChange={(e) => setRescheduleAt(e.target.value)}
               />

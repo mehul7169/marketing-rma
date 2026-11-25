@@ -37,10 +37,10 @@ function ActivityTable({
   empty: string;
 }) {
   return (
-    <div className="overflow-x-auto rounded border border-slate-200">
+    <div className="overflow-x-auto rounded border border-subtle">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="bg-slate-50 text-slate-700">
+          <tr className="bg-surface-2 text-fg">
             <th className="px-4 py-3 text-left">{firstHeader}</th>
             {COLUMNS.map((col) => (
               <th key={col.key} className="whitespace-nowrap px-4 py-3 text-right">
@@ -49,17 +49,17 @@ function ActivityTable({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200">
+        <tbody className="divide-y divide-subtle">
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={COLUMNS.length + 1} className="px-4 py-8 text-center text-slate-500">
+              <td colSpan={COLUMNS.length + 1} className="px-4 py-8 text-center text-muted">
                 {empty}
               </td>
             </tr>
           ) : (
             rows.map((r) => (
               <tr key={r.key}>
-                <td className="whitespace-nowrap px-4 py-3 text-left text-slate-900">{r.label}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-left text-fg">{r.label}</td>
                 <CountCells c={r.counts} />
               </tr>
             ))
@@ -67,7 +67,7 @@ function ActivityTable({
         </tbody>
         {rows.length > 0 ? (
           <tfoot>
-            <tr className="border-t-2 border-slate-300 bg-slate-50 font-medium text-slate-900">
+            <tr className="border-t-2 border-subtle bg-surface-2 font-medium text-fg">
               <td className="px-4 py-3 text-left">Total</td>
               <CountCells c={totals} />
             </tr>
@@ -82,7 +82,7 @@ export default function InsightsSetterActivity({ report }: { report: SetterActiv
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-muted">
           Organization — by day
         </h3>
         <ActivityTable
@@ -97,7 +97,7 @@ export default function InsightsSetterActivity({ report }: { report: SetterActiv
         />
       </div>
       <div className="space-y-2">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-muted">
           By setter
         </h3>
         <ActivityTable

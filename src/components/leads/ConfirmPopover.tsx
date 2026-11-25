@@ -49,7 +49,7 @@ export default function ConfirmPopover({
         <div className="flex justify-end gap-2">
           <button
             type="button"
-            className="rounded border border-slate-200 px-3 py-1.5 text-sm text-slate-700"
+            className="rounded border border-subtle px-3 py-1.5 text-sm text-fg"
             onClick={onCancel}
           >
             Cancel
@@ -70,19 +70,19 @@ export default function ConfirmPopover({
         </div>
       }
     >
-      <h2 id="confirm-title" className="text-sm font-medium text-slate-900">
+      <h2 id="confirm-title" className="text-sm font-medium text-fg">
         {title}
       </h2>
-      <p className="mt-1 text-sm text-slate-600">{message}</p>
+      <p className="mt-1 text-sm text-muted">{message}</p>
       {showDeadReason ? (
-        <label className="mt-3 block text-xs text-slate-600">
+        <label className="mt-3 block text-xs text-muted">
           Dead reason (optional)
           <select
             value={deadReason}
             onChange={(e) =>
               setDeadReason(e.target.value as DeadReasonCode | "")
             }
-            className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+            className="mt-1 w-full rounded border border-subtle px-3 py-2 text-sm text-fg"
           >
             <option value="">No reason</option>
             {DEAD_REASON_CODES.map((code) => (
@@ -94,12 +94,12 @@ export default function ConfirmPopover({
         </label>
       ) : null}
       {reasonRequired ? (
-        <label className="mt-3 block text-xs text-slate-600">
+        <label className="mt-3 block text-xs text-muted">
           {reasonLabel}
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+            className="mt-1 w-full rounded border border-subtle px-3 py-2 text-sm text-fg"
           />
         </label>
       ) : null}

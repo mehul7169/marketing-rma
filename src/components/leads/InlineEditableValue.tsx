@@ -85,7 +85,7 @@ export default function InlineEditableValue({
         }
       },
       className:
-        "w-full rounded border border-slate-300 bg-white px-1.5 py-0.5 text-sm text-slate-900 outline-none ring-2 ring-slate-300"
+        "w-full rounded border border-subtle bg-surface px-1.5 py-0.5 text-sm text-fg ring-2 ring-accent"
     };
 
     return multiline ? (
@@ -98,7 +98,7 @@ export default function InlineEditableValue({
   return (
     <button
       type="button"
-      className={`block w-full truncate rounded px-0.5 text-left hover:bg-slate-100 focus:bg-slate-100 focus:outline-none ${className}`}
+      className={`block w-full truncate rounded px-0.5 text-left hover:bg-surface-2 focus:bg-surface-2 ${className}`}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();

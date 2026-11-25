@@ -14,7 +14,8 @@ import {
 import DateRangePicker from "@/components/DateRangePicker";
 import WebsiteDailyTable from "@/components/website/WebsiteDailyTable";
 import WebsiteTrendSection from "@/components/website/WebsiteTrendSection";
-import { formatInteger, formatPercentNullable } from "@/lib/format";
+import { EnterStagger } from "@/components/ui/Enter";
+import Stat from "@/components/ui/Stat";
 
 export default async function WebsitePage({
   searchParams
@@ -69,7 +70,7 @@ export default async function WebsitePage({
           <h1 className="page-title">
             Website & Video Analytics
           </h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted">
             {fromISO} to {toISO}
           </p>
         </div>
@@ -86,53 +87,69 @@ export default async function WebsitePage({
           by source + campaign. */}
       <div className="flex items-center gap-3">
         <input type="checkbox" disabled checked className="h-4 w-4" />
-        <div className="text-xs text-slate-500">
+        <div className="text-xs text-muted">
           Break down by source (disabled until GA4 captures UTMs)
         </div>
       </div>
 
       {!hasAnyData ? (
-        <div className="rounded border border-slate-200 p-10 text-center text-sm text-slate-600">
+        <div className="rounded border border-subtle p-10 text-center text-sm text-muted">
           No data in this date range yet.
         </div>
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <EnterStagger id="website-kpis" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="stat-card">
-              <div className="text-xs text-slate-600">Landing Page Visits</div>
-              <div className="mt-2 text-xl font-semibold text-slate-900">
-                {formatInteger(totals.totalLandingPageVisits)}
-              </div>
+              <Stat
+                label="Landing Page Visits"
+                value={totals.totalLandingPageVisits}
+                format="integer"
+                size="md"
+              />
             </div>
             <div className="stat-card">
-              <div className="text-xs text-slate-600">Video Plays</div>
-              <div className="mt-2 text-xl font-semibold text-slate-900">
-                {formatInteger(totals.totalVideoPlays)}
-              </div>
+              <Stat
+                label="Video Plays"
+                value={totals.totalVideoPlays}
+                format="integer"
+                size="md"
+              />
             </div>
             <div className="stat-card">
-              <div className="text-xs text-slate-600">Average Watch %</div>
-              <div className="mt-2 text-xl font-semibold text-slate-900">
-                {formatPercentNullable(totals.averageWatchPercent)}
-              </div>
+              <Stat
+                label="Average Watch %"
+                value={
+                  totals.averageWatchPercent === null
+                    ? "—"
+                    : totals.averageWatchPercent
+                }
+                format="percent"
+                size="md"
+              />
             </div>
             <div className="stat-card">
-              <div className="text-xs text-slate-600">Form Completion Rate</div>
-              <div className="mt-2 text-xl font-semibold text-slate-900">
-                {formatPercentNullable(totals.formCompletionRatePercent)}
-              </div>
+              <Stat
+                label="Form Completion Rate"
+                value={
+                  totals.formCompletionRatePercent === null
+                    ? "—"
+                    : totals.formCompletionRatePercent
+                }
+                format="percent"
+                size="md"
+              />
             </div>
-          </section>
+          </EnterStagger>
 
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-slate-900">Trends</h2>
-            <div className="rounded border border-slate-200 p-4">
+            <h2 className="text-sm font-medium text-fg">Trends</h2>
+            <div className="rounded border border-subtle p-4">
               <WebsiteTrendSection trend={trendForChart} rangeDays={rangeDays} />
             </div>
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-slate-900">Daily</h2>
+            <h2 className="text-sm font-medium text-fg">Daily</h2>
             <WebsiteDailyTable rows={daily} />
           </section>
         </>

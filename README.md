@@ -10,9 +10,10 @@ Internal marketing + sales lifecycle dashboard (Meta Ads performance + website/v
 
 ## Tech Stack
 - Next.js 14 (App Router, TypeScript)
-- Tailwind CSS
+- Tailwind CSS 3.4 (semantic tokens in `globals.css` → `tailwind.config.ts`)
+- Inter via `next/font`. No Radix/shadcn — popovers use `@floating-ui/react`.
 - Supabase (Postgres) via `@supabase/supabase-js` (service role used server-side only)
-- Recharts (simple line charts)
+- Recharts (themed via CSS variables in `src/lib/ui/chartTheme.ts`)
 - Deployed on Vercel with Vercel Cron for scheduled data pulls
 
 ## Getting started locally
@@ -172,8 +173,16 @@ npx tsx --env-file=.env.local scripts/backfill.ts --source=meta --from=2020-01-0
 
 This script is **not** scheduled in `vercel.json` — run it manually once from your machine.
 
+## Design tokens
+Colours, radius, type and shadows live in `src/app/globals.css` (`:root` / `[data-theme="light"]`, `[data-theme="dark"]`). Components use `bg-surface`, `text-muted`, `border-subtle`, `bg-accent` — never raw hex. Lime `--accent` is one line to swap. Review every kit piece at `/dev/ui` (public, not in the nav). Sidebar collapse is stored in `localStorage` (`sidebar-collapsed`).
+
+Theme is Light / Dark / System (default System). The sidebar toggle writes `localStorage` key `theme` (try/catch) and a `theme` cookie so the root layout can SSR `data-theme`. A blocking `<head>` script applies the resolved theme before first paint and follows `prefers-color-scheme` when System is selected. Dark mode uses borders, not shadows.
+
+Motion presets live in `src/lib/motion.ts` (`fast` 120ms, `base` 200ms, `slow` 750ms, easing `[0.22, 1, 0.36, 1]`). Kit pieces use the `motion` package; simple hovers stay CSS. `prefers-reduced-motion` disables count-ups, entrance, shimmer and shake (opacity fades ≤150ms only). Drawers animate on open and unmount immediately on close. Entrance wrappers (`FadeIn` / `EnterStagger`) always animate **to** `opacity: 1` on mount and stay visible if the first-enter key was already consumed — never `useAnimationControls()` with a `set(hidden)` that might not start. Playwright has a `chromium-reduced-motion` project; `e2e/visual-integrity.spec.ts` runs with motion **on** and checks effective opacity plus contrast.
+
 ## Project structure
-- `src/app/` : App Router pages (`/`, `/meta-ads`, `/website`) and route handlers
+- `src/app/` : App Router pages (`/`, `/meta-ads`, `/website`, `/dev/ui`) and route handlers
+- `src/components/ui/` : token-based kit (Card, Stat, Segmented, Button, …)
 - `src/lib/db/` : Supabase data-access helpers per table (`meta_ads_daily`, `website_daily`, `cron_runs`)
 - `src/lib/leads/` : Stage computation used by every lead write
 - `src/app/api/ingest/` : Website form/booking ingest (Bearer `WEBSITE_INGEST_SECRET`)

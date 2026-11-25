@@ -75,7 +75,7 @@ export default function DealQuickActions({
             <button
               type="button"
               data-testid="deal-log-follow-up"
-              className="whitespace-nowrap rounded px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+              className="whitespace-nowrap rounded px-2 py-1 text-xs font-medium text-fg hover:bg-surface-2"
               onClick={() => setFollowUp(true)}
             >
               Log follow-up
@@ -102,7 +102,7 @@ export default function DealQuickActions({
             <button
               type="button"
               data-testid="deal-reopen"
-              className="rounded px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+              className="rounded px-2 py-1 text-xs font-medium text-fg hover:bg-surface-2"
               onClick={() => setMenu("reopen")}
             >
               Reopen
@@ -131,7 +131,7 @@ export default function DealQuickActions({
               type="button"
               data-testid="deal-more"
               aria-label="More deal actions"
-              className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              className="rounded px-2 py-1 text-xs text-muted hover:bg-surface-2 hover:text-fg"
               onClick={() => setMenu("more")}
             >
               ⋯
@@ -207,7 +207,7 @@ function MoreItem({
       type="button"
       role="menuitem"
       data-testid={testId}
-      className="px-3 py-1.5 text-left text-slate-700 hover:bg-slate-50"
+      className="px-3 py-1.5 text-left text-fg hover:bg-surface-2"
       onClick={onClick}
     >
       {children}
@@ -226,13 +226,13 @@ function StageForm({
 }) {
   return (
     <div className="space-y-1 p-1">
-      <button type="button" className="text-xs text-slate-500" onClick={onBack}>
+      <button type="button" className="text-xs text-muted" onClick={onBack}>
         ← Back
       </button>
       <button
         type="button"
         className={`block w-full rounded px-2 py-1.5 text-left text-sm ${
-          !current ? "bg-slate-100 font-medium" : "hover:bg-slate-50"
+          !current ? "bg-surface-2 font-medium" : "hover:bg-surface-2"
         }`}
         onClick={() => onPick(null)}
       >
@@ -243,7 +243,7 @@ function StageForm({
           key={s}
           type="button"
           className={`block w-full rounded px-2 py-1.5 text-left text-sm ${
-            current === s ? "bg-slate-100 font-medium" : "hover:bg-slate-50"
+            current === s ? "bg-surface-2 font-medium" : "hover:bg-surface-2"
           }`}
           onClick={() => onPick(s)}
         >
@@ -267,13 +267,13 @@ function OwnerForm({
 }) {
   return (
     <div className="space-y-1 p-1">
-      <button type="button" className="text-xs text-slate-500" onClick={onBack}>
+      <button type="button" className="text-xs text-muted" onClick={onBack}>
         ← Back
       </button>
       <button
         type="button"
         className={`block w-full rounded px-2 py-1.5 text-left text-sm ${
-          !current ? "bg-slate-100 font-medium" : "hover:bg-slate-50"
+          !current ? "bg-surface-2 font-medium" : "hover:bg-surface-2"
         }`}
         onClick={() => onPick(null)}
       >
@@ -284,7 +284,7 @@ function OwnerForm({
           key={m.userId}
           type="button"
           className={`block w-full rounded px-2 py-1.5 text-left text-sm ${
-            current === m.userId ? "bg-slate-100 font-medium" : "hover:bg-slate-50"
+            current === m.userId ? "bg-surface-2 font-medium" : "hover:bg-surface-2"
           }`}
           onClick={() => onPick(m.userId)}
         >
@@ -352,48 +352,48 @@ function ReopenForm({
       }}
     >
       <label className="block">
-        <span className="mb-1 block text-xs font-medium text-slate-600">Reason</span>
+        <span className="mb-1 block text-xs font-medium text-muted">Reason</span>
         <textarea
           data-testid="reopen-reason"
           rows={2}
-          className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+          className="w-full rounded border border-subtle px-2 py-1.5 text-sm"
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-medium text-slate-600">Next step</span>
+        <span className="mb-1 block text-xs font-medium text-muted">Next step</span>
         <input
           data-testid="reopen-next-step"
-          className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+          className="w-full rounded border border-subtle px-2 py-1.5 text-sm"
           value={nextStep}
           onChange={(e) => setNextStep(e.target.value)}
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-medium text-slate-600">When (IST)</span>
+        <span className="mb-1 block text-xs font-medium text-muted">When (IST)</span>
         <input
           data-testid="reopen-when"
           type="datetime-local"
-          className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+          className="w-full rounded border border-subtle px-2 py-1.5 text-sm"
           value={whenLocal}
           onChange={(e) => setWhenLocal(e.target.value)}
         />
       </label>
       {error ? (
-        <p className="text-xs text-red-600" data-testid="reopen-error">
+        <p className="text-xs text-danger" data-testid="reopen-error">
           {error}
         </p>
       ) : null}
       <div className="flex justify-end gap-2">
-        <button type="button" className="text-sm text-slate-500" onClick={onCancel}>
+        <button type="button" className="text-sm text-muted" onClick={onCancel}>
           Cancel
         </button>
         <button
           type="submit"
           data-testid="reopen-save"
           disabled={saving}
-          className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+          className="rounded-control bg-accent px-3 py-1.5 text-sm text-accent-fg disabled:opacity-60"
         >
           {saving ? "Saving…" : "Reopen"}
         </button>

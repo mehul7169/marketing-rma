@@ -24,11 +24,11 @@ export default function InsightsFilters({
   }
 
   return (
-    <label className="flex flex-col text-xs text-slate-600">
+    <label className="flex flex-col text-xs text-muted">
       Source
       <select
         multiple
-        className="mt-1 h-24 min-w-[160px] rounded border border-slate-200 px-2 py-1 text-sm"
+        className="mt-1 h-24 min-w-[160px] rounded border border-subtle px-2 py-1 text-sm"
         value={selectedSources}
         onChange={(e) => {
           const values = Array.from(e.target.selectedOptions).map((o) => o.value);
@@ -41,7 +41,7 @@ export default function InsightsFilters({
           </option>
         ))}
       </select>
-      <span className="mt-1 text-slate-500">
+      <span className="mt-1 text-muted">
         {selectedSources.length ? "Filtering selected sources" : "All sources (select to filter)"}
       </span>
     </label>

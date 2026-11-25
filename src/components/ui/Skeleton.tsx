@@ -6,7 +6,7 @@ export function SkeletonBlock({
 }) {
   return (
     <div
-      className={`animate-pulse rounded bg-slate-200/80 ${className}`}
+      className={`skeleton-shimmer rounded ${className}`}
       aria-hidden
     />
   );
@@ -39,7 +39,7 @@ export function StatCardsSkeleton({
       {Array.from({ length: count }, (_, i) => (
         <div
           key={i}
-          className="rounded border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-card border border-subtle bg-surface p-4 shadow-card"
         >
           <SkeletonBlock className="mb-3 h-3 w-20" />
           <SkeletonBlock className="h-7 w-24" />
@@ -58,7 +58,7 @@ export function ChartSkeleton({
 }) {
   return (
     <div
-      className={`rounded border border-slate-200 bg-white p-4 ${className}`}
+      className={`rounded-card border border-subtle bg-surface p-4 ${className}`}
       aria-hidden
     >
       <SkeletonBlock className="mb-4 h-4 w-32" />
@@ -77,15 +77,15 @@ export function TableSkeleton({
 }) {
   return (
     <div
-      className="min-h-0 flex-1 overflow-hidden rounded border border-slate-200 bg-white"
+      className="min-h-0 flex-1 overflow-hidden rounded-card border border-subtle bg-surface"
       aria-hidden
     >
-      <div className="flex gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
+      <div className="flex gap-3 border-b border-subtle bg-surface-2 px-4 py-3">
         {Array.from({ length: cols }, (_, i) => (
           <SkeletonBlock key={i} className="h-3 flex-1" />
         ))}
       </div>
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-subtle">
         {Array.from({ length: rows }, (_, r) => (
           <div key={r} className="flex gap-3 px-4 py-3">
             {Array.from({ length: cols }, (_, c) => (
@@ -112,7 +112,7 @@ export function CardGridSkeleton({
       {Array.from({ length: count }, (_, i) => (
         <div
           key={i}
-          className="rounded border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-card border border-subtle bg-surface p-4 shadow-card"
         >
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1 space-y-2">

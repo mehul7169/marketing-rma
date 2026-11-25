@@ -45,18 +45,18 @@ export default function DateRangePicker({
       }}
     >
       <div className="flex flex-col">
-        <label className="text-xs text-slate-600">From (IST)</label>
+        <label className="text-xs text-muted">From (IST)</label>
         <input
-          className="mt-1 w-40 rounded border border-slate-200 px-2 py-2 text-sm text-slate-900"
+          className="mt-1 w-40 rounded border border-subtle px-2 py-2 text-sm text-fg"
           type="date"
           value={isoToLocalDateValue(from)}
           onChange={(e) => setFrom(e.target.value)}
         />
       </div>
       <div className="flex flex-col">
-        <label className="text-xs text-slate-600">To (IST)</label>
+        <label className="text-xs text-muted">To (IST)</label>
         <input
-          className="mt-1 w-40 rounded border border-slate-200 px-2 py-2 text-sm text-slate-900"
+          className="mt-1 w-40 rounded border border-subtle px-2 py-2 text-sm text-fg"
           type="date"
           value={isoToLocalDateValue(to)}
           onChange={(e) => setTo(e.target.value)}
@@ -70,11 +70,11 @@ export default function DateRangePicker({
           Update
         </button>
         {hasCustomRange ? (
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-muted">
             Range via query params
           </div>
         ) : (
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-muted">
             Default: last {DEFAULT_DATE_RANGE_DAYS} days (IST)
           </div>
         )}

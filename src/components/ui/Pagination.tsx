@@ -23,7 +23,7 @@ export default function Pagination({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   if (totalPages <= 1 && total <= pageSize) {
     return (
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted">
         {total === 0 ? "No results" : `${total} result${total === 1 ? "" : "s"}`}
       </p>
     );
@@ -49,7 +49,7 @@ export default function Pagination({
       className="flex flex-wrap items-center justify-between gap-3"
       aria-label="Pagination"
     >
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted">
         {from}–{to} of {total}
       </p>
       <div className="flex flex-wrap items-center gap-1">
@@ -62,7 +62,7 @@ export default function Pagination({
           p === "…" ? (
             <span
               key={`ellipsis-${i}`}
-              className="px-1.5 text-xs text-slate-400"
+              className="px-1.5 text-xs text-muted"
             >
               …
             </span>
@@ -73,8 +73,8 @@ export default function Pagination({
               aria-current={p === safePage ? "page" : undefined}
               className={`min-w-[1.75rem] rounded-sm px-2 py-1 text-center text-xs ${
                 p === safePage
-                  ? "bg-sky-100 font-medium text-sky-950"
-                  : "text-slate-700 hover:bg-slate-100"
+                  ? "bg-accent-soft font-medium text-fg"
+                  : "text-fg hover:bg-surface-2"
               }`}
             >
               {p}
@@ -102,13 +102,13 @@ function PaginationLink({
 }) {
   if (disabled) {
     return (
-      <span className="rounded-sm px-2 py-1 text-xs text-slate-300">{label}</span>
+      <span className="rounded-sm px-2 py-1 text-xs text-muted">{label}</span>
     );
   }
   return (
     <Link
       href={href}
-      className="rounded-sm px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+      className="rounded-sm px-2 py-1 text-xs text-fg hover:bg-surface-2"
     >
       {label}
     </Link>

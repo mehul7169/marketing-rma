@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence } from "motion/react";
+import { FadeIn } from "@/components/ui/Enter";
 import { useRouter } from "next/navigation";
 import { dealAction } from "@/app/leads/actions";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
@@ -35,12 +37,12 @@ import { formatIST } from "@/lib/timezone";
 export type LastTouch = { note: string | null; actorEmail: string | null };
 
 const GROUP_LABEL_CLASS: Record<DealOpenGroupId, string> = {
-  overdue: "text-red-700",
-  needs_next_step: "text-amber-800",
-  today: "text-slate-800",
-  tomorrow: "text-slate-800",
-  this_week: "text-slate-800",
-  later: "text-slate-800"
+  overdue: "text-danger",
+  needs_next_step: "text-warning",
+  today: "text-fg",
+  tomorrow: "text-fg",
+  this_week: "text-fg",
+  later: "text-fg"
 };
 
 export default function DealsView({
@@ -105,13 +107,14 @@ export default function DealsView({
     <>
       <FilterPendingSurface className="flex min-h-0 flex-1 flex-col">
         {tabId === "open" ? (
+          <FadeIn id="deals-open-table" className="flex min-h-0 flex-1 flex-col">
           <ScrollableDataTable>
             {groups.length === 0 ? (
-              <p className="px-3 py-8 text-sm text-slate-500">No open deals.</p>
+              <p className="px-3 py-8 text-sm text-muted">No open deals.</p>
             ) : (
               <table className="scrollable-data-table w-full min-w-[64rem] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-xs text-slate-500">
+                  <tr className="border-b border-subtle text-xs text-muted">
                     <th className="px-3 py-2 font-medium">Lead</th>
                     <th className="px-3 py-2 font-medium">Stage</th>
                     <th className="px-3 py-2 font-medium">Next step</th>
@@ -128,14 +131,15 @@ export default function DealsView({
                     <tr>
                       <td
                         colSpan={7}
-                        className={`bg-slate-50 px-3 py-1.5 text-xs font-semibold ${GROUP_LABEL_CLASS[g.id]}`}
+                        className={`bg-surface-2 px-3 py-1.5 text-xs font-semibold ${GROUP_LABEL_CLASS[g.id]}`}
                       >
                         {DEAL_OPEN_GROUP_LABELS[g.id]}
-                        <span className="ml-1 font-normal text-slate-400">
+                        <span className="ml-1 font-normal text-muted">
                           {g.rows.length}
                         </span>
                       </td>
                     </tr>
+                    <AnimatePresence initial={false}>
                     {g.rows.map((lead) => (
                       <DealRow
                         key={lead.id}
@@ -153,11 +157,13 @@ export default function DealsView({
                         onSave={(action, payload) => save(lead, action, payload)}
                       />
                     ))}
+                    </AnimatePresence>
                   </tbody>
                 ))}
               </table>
             )}
           </ScrollableDataTable>
+          </FadeIn>
         ) : (
           <ClosedTable
             tabId={tabId}
@@ -221,13 +227,14 @@ function ClosedTable({
   const showValue = tabId !== "lost";
   const showLost = tabId !== "won";
   return (
+    <FadeIn id={`deals-${tabId}-table`} className="flex min-h-0 flex-1 flex-col">
     <ScrollableDataTable>
       {rows.length === 0 ? (
-        <p className="px-3 py-8 text-sm text-slate-500">No deals in this view.</p>
+        <p className="px-3 py-8 text-sm text-muted">No deals in this view.</p>
       ) : (
         <table className="scrollable-data-table w-full min-w-[56rem] text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-xs text-slate-500">
+            <tr className="border-b border-subtle text-xs text-muted">
               <th className="px-3 py-2 font-medium">Lead</th>
               <th className="px-3 py-2 font-medium">Status</th>
               <th className="px-3 py-2 font-medium">Closed date</th>
@@ -249,17 +256,17 @@ function ClosedTable({
               <tr
                 key={lead.id}
                 data-testid={`deal-row-${lead.id}`}
-                className="group cursor-pointer border-b border-slate-100 hover:bg-slate-50"
+                className="group cursor-pointer border-b border-subtle hover:bg-surface-2"
                 onClick={() => onOpen(lead.id)}
               >
                 <td className="px-3 py-2.5">
-                  <div className="font-medium text-slate-900">
+                  <div className="font-medium text-fg">
                     {lead.name || lead.email}
                   </div>
                 </td>
                 <td className="px-3 py-2.5">
                   <DealStagePill stage={lead.post_call_status} />
-                  <div className="mt-0.5 text-xs text-slate-500">
+                  <div className="mt-0.5 text-xs text-muted">
                     {lead.deal_closed === true
                       ? "Won"
                       : lead.deal_closed === false
@@ -267,7 +274,7 @@ function ClosedTable({
                         : "Open"}
                   </div>
                 </td>
-                <td className="px-3 py-2.5 text-xs text-slate-600">
+                <td className="px-3 py-2.5 text-xs text-muted">
                   {lead.closed_at ? formatIST(lead.closed_at, "d MMM yyyy") : "—"}
                 </td>
                 {showValue ? (
@@ -276,7 +283,7 @@ function ClosedTable({
                   </td>
                 ) : null}
                 {showLost ? (
-                  <td className="px-3 py-2.5 text-xs text-slate-600">
+                  <td className="px-3 py-2.5 text-xs text-muted">
                     {lostReasonLabel(lead.lost_reason) ?? "—"}
                   </td>
                 ) : null}
@@ -287,7 +294,7 @@ function ClosedTable({
                     }
                   />
                 </td>
-                <td className="px-3 py-2.5 text-xs text-slate-500">
+                <td className="px-3 py-2.5 text-xs text-muted">
                   {formatShowedDate(lead.call_showed_at) || "—"}
                 </td>
                 <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
@@ -306,5 +313,6 @@ function ClosedTable({
         </table>
       )}
     </ScrollableDataTable>
+    </FadeIn>
   );
 }

@@ -60,10 +60,10 @@ export default function MetaPerformanceDashboard({
 
       {funnelBreakdown ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-slate-900">Funnel by ad</h2>
+          <h2 className="text-sm font-medium text-fg">Funnel by ad</h2>
           {immature ? <CohortMaturityNote /> : null}
           <MetaAdFunnelTable rows={funnelBreakdown} />
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-muted">
             Landing page ads = attributed leads from lead_source facebook; Quickform
             ads = quickform_fb / quickform_ig. Opt-ins are landing-page only. Calls
             Booked, Showups, and Qualified Showups use the same milestone timestamps
@@ -74,14 +74,14 @@ export default function MetaPerformanceDashboard({
       ) : null}
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-slate-900">Trends</h2>
-        <div className="rounded border border-slate-200 p-4">
+        <h2 className="text-sm font-medium text-fg">Trends</h2>
+        <div className="rounded border border-subtle p-4">
           <MetaTrendSection trend={trend} rangeDays={rangeDays} />
         </div>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-slate-900">Campaigns</h2>
+        <h2 className="text-sm font-medium text-fg">Campaigns</h2>
         {includeFunnelColumns && immature ? <CohortMaturityNote /> : null}
         <MetaAdsTable
           rows={campaigns}
@@ -92,7 +92,7 @@ export default function MetaPerformanceDashboard({
             (mode === "client" ? "clients-ads-column-preset" : undefined)
           }
         />
-        <div className="text-xs text-slate-500">
+        <div className="text-xs text-muted">
           {includeFunnelColumns
             ? "Click a row to expand ad sets, then ads. Sort applies at every level. Funnel columns are cohort-based (leads created in this range, matched by utm_content → ad id, then ad name)."
             : "Click a row to expand ad sets, then ads. Sort applies at every level. Client accounts have no lead funnel columns."}

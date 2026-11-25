@@ -54,11 +54,11 @@ export default function PostCallSection({
   return (
     <div className="space-y-5">
       {preview.active ? <OrgPreviewReadOnlyNotice /> : null}
-      <p className="text-sm text-slate-900">{formatDealStatusLine(lead)}</p>
+      <p className="text-sm text-fg">{formatDealStatusLine(lead)}</p>
       <p>
         <Link
           href={`/deals?deal=${lead.id}`}
-          className="text-sm text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+          className="text-sm text-fg underline decoration-subtle underline-offset-2 hover:text-fg"
         >
           Open in Deals
         </Link>
@@ -67,14 +67,14 @@ export default function PostCallSection({
         disabled={preview.active}
         className="min-w-0 space-y-1.5 disabled:opacity-70"
       >
-        <div className="text-xs text-slate-600">Recording link</div>
+        <div className="text-xs text-muted">Recording link</div>
         {savedRecording && !editingRecording && recordingHref ? (
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="embed-frame flex flex-wrap items-center gap-3">
             <a
               href={recordingHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="max-w-full truncate text-sm text-slate-900 underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
+              className="max-w-full truncate text-sm text-accent-text underline decoration-subtle underline-offset-2"
             >
               {savedRecording}
             </a>
@@ -85,7 +85,7 @@ export default function PostCallSection({
                 setRecordingUrl(savedRecording);
                 setEditingRecording(true);
               }}
-              className="text-xs text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+              className="text-xs text-muted underline decoration-subtle underline-offset-2 hover:text-fg"
             >
               Edit
             </button>
@@ -98,7 +98,7 @@ export default function PostCallSection({
               placeholder="https://…"
               value={recordingUrl}
               onChange={(e) => setRecordingUrl(e.target.value)}
-              className="min-w-[12rem] flex-1 rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+              className="min-w-[12rem] flex-1 rounded border border-subtle px-3 py-2 text-sm text-fg"
             />
             <button
               type="button"

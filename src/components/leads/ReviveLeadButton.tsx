@@ -40,7 +40,7 @@ export default function ReviveLeadButton({
         type="button"
         onClick={onRevive}
         disabled={pending}
-        className="rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+        className="rounded border border-subtle bg-surface px-2 py-1 text-xs font-medium text-fg hover:bg-surface-2 disabled:opacity-60"
       >
         {pending ? "Reviving…" : "Revive"}
       </button>

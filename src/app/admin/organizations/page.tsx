@@ -11,17 +11,17 @@ export default async function AdminOrganizationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Organizations</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-2xl font-semibold text-fg">Organizations</h1>
+        <p className="mt-1 text-sm text-muted">
           Platform admin — create orgs and invite members.
         </p>
       </div>
 
       <CreateOrganizationForm />
 
-      <div className="overflow-x-auto rounded border border-slate-200">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+      <div className="overflow-x-auto rounded border border-subtle">
+        <table className="min-w-full divide-y divide-subtle text-sm">
+          <thead className="bg-surface-2 text-left text-xs uppercase tracking-wide text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Slug</th>
@@ -29,31 +29,31 @@ export default async function AdminOrganizationsPage() {
               <th className="px-4 py-3 font-medium">Members</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
+          <tbody className="divide-y divide-subtle bg-surface">
             {orgs.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-slate-500">
+                <td colSpan={4} className="px-4 py-6 text-muted">
                   No organizations yet.
                 </td>
               </tr>
             ) : (
               orgs.map((org) => (
-                <tr key={org.id} className="hover:bg-slate-50">
+                <tr key={org.id} className="hover:bg-surface-2">
                   <td className="px-4 py-3">
                     <Link
                       href={`/admin/organizations/${org.id}`}
-                      className="font-medium text-slate-900 hover:underline"
+                      className="font-medium text-fg hover:underline"
                     >
                       {org.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 font-mono text-slate-600">
+                  <td className="px-4 py-3 font-mono text-muted">
                     {org.slug}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">
+                  <td className="px-4 py-3 text-muted">
                     {formatISTDateTime(org.created_at)}
                   </td>
-                  <td className="px-4 py-3 tabular-nums text-slate-700">
+                  <td className="px-4 py-3 tabular-nums text-fg">
                     {org.member_count}
                   </td>
                 </tr>

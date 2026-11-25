@@ -1,7 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import Spinner from "@/components/ui/Spinner";
+import { MOTION_OFF, transitionBase } from "@/lib/motion";
 
 export const CONTROL_H = "h-8";
 
@@ -51,10 +53,10 @@ export function SearchIcon() {
 }
 
 export const ghostBtnClass =
-  `inline-flex ${CONTROL_H} items-center gap-1.5 rounded px-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900`;
+  `pressable inline-flex ${CONTROL_H} items-center gap-1.5 rounded px-2 text-sm text-muted hover:bg-surface-2 hover:text-fg`;
 
 export const ghostBtnActiveClass =
-  `inline-flex ${CONTROL_H} items-center gap-1.5 rounded bg-sky-50 px-2 text-sm font-medium text-sky-950`;
+  `inline-flex ${CONTROL_H} items-center gap-1.5 rounded-control bg-accent-soft px-2 text-sm font-medium text-fg`;
 
 export function ToolbarGhostButton({
   icon,
@@ -86,7 +88,7 @@ export function ToolbarGhostButton({
       {icon}
       <span className="max-[1024px]:hidden">{label}</span>
       {count ? (
-        <span className="tabular-nums text-slate-500" data-testid={testId ? `${testId}-count` : undefined}>
+        <span className="tabular-nums text-muted" data-testid={testId ? `${testId}-count` : undefined}>
           {count}
         </span>
       ) : null}
@@ -118,7 +120,7 @@ export function FilterSearchInput({
       <span className="sr-only" id={labelledBy}>
         {label}
       </span>
-      <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+      <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted">
         <SearchIcon />
       </span>
       <input
@@ -135,7 +137,7 @@ export function FilterSearchInput({
           }
         }}
         placeholder={placeholder}
-        className={`${CONTROL_H} w-full rounded border border-slate-200 bg-white pl-8 pr-8 text-sm text-slate-900 placeholder:text-slate-400`}
+        className={`${CONTROL_H} w-full rounded border border-subtle bg-surface pl-8 pr-8 text-sm text-fg placeholder:text-muted`}
         autoComplete="off"
       />
       {pending ? (
@@ -157,26 +159,45 @@ export function ViewModeSegment({
   value: "cards" | "table";
   onChange: (next: "cards" | "table") => void;
 }) {
+  const reduced = useReducedMotion();
+  const skipLayout = MOTION_OFF || reduced;
   return (
     <div
-      className={`inline-flex ${CONTROL_H} overflow-hidden rounded border border-slate-200`}
+      className={`inline-flex ${CONTROL_H} overflow-hidden rounded border border-subtle`}
       role="group"
       aria-label="View mode"
     >
-      {(["cards", "table"] as const).map((mode) => (
-        <button
-          key={mode}
-          type="button"
-          onClick={() => onChange(mode)}
-          className={`px-2.5 text-xs ${
-            value === mode
-              ? "bg-slate-100 font-medium text-slate-900"
-              : "bg-white text-slate-600 hover:bg-slate-50"
-          }`}
-        >
-          {mode === "cards" ? "Cards" : "Table"}
-        </button>
-      ))}
+      {(["cards", "table"] as const).map((mode) => {
+        const selected = value === mode;
+        return (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => onChange(mode)}
+            className={`relative px-2.5 text-xs ${
+              selected
+                ? "font-medium text-fg"
+                : "text-muted hover:bg-surface-2 hover:text-fg"
+            }`}
+          >
+            {selected ? (
+              skipLayout ? (
+                <span className="absolute inset-0 bg-surface-2" aria-hidden />
+              ) : (
+                <motion.span
+                  layoutId="view-mode-pill"
+                  className="absolute inset-0 bg-surface-2"
+                  transition={transitionBase}
+                  aria-hidden
+                />
+              )
+            ) : null}
+            <span className="relative z-10">
+              {mode === "cards" ? "Cards" : "Table"}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -199,20 +220,20 @@ export function FilterChip({
   return (
     <span
       data-testid={testId}
-      className={`inline-flex max-w-full ${CONTROL_H} items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-0 pl-2.5 pr-1 text-xs`}
+      className={`inline-flex max-w-full ${CONTROL_H} items-center gap-1 rounded-full border border-subtle bg-surface-2 py-0 pl-2.5 pr-1 text-xs`}
     >
       <button
         type="button"
         className="inline-flex min-w-0 items-center gap-1 truncate text-left"
         onClick={onEdit}
       >
-        <span className="text-slate-500">{field}</span>
-        {rest ? <span className="font-normal text-slate-800">{rest}</span> : null}
+        <span className="text-muted">{field}</span>
+        {rest ? <span className="font-normal text-fg">{rest}</span> : null}
       </button>
       <button
         type="button"
         aria-label={removeLabel}
-        className="rounded-full px-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-800"
+        className="rounded-full px-1.5 text-muted hover:bg-surface-2 hover:text-fg"
         onClick={onRemove}
       >
         ×
@@ -234,7 +255,7 @@ export function ChipTextLink({
     <button
       type="button"
       data-testid={testId}
-      className="text-xs text-slate-500 underline decoration-slate-300 hover:text-slate-900"
+      className="text-xs text-muted underline decoration-subtle hover:text-fg"
       onClick={onClick}
     >
       {children}
@@ -243,5 +264,5 @@ export function ChipTextLink({
 }
 
 export function ToolbarDivider() {
-  return <span className="mx-1 h-4 w-px bg-slate-200" aria-hidden />;
+  return <span className="mx-1 h-4 w-px bg-surface-2" aria-hidden />;
 }

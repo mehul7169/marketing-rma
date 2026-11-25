@@ -62,7 +62,7 @@ function matchesQuery(text: string | null | undefined, q: string): boolean {
 }
 
 function Dash() {
-  return <span className="text-slate-400">—</span>;
+  return <span className="text-muted">—</span>;
 }
 
 function MetricCells({ m }: { m: AdFunnelMetrics }) {
@@ -79,7 +79,7 @@ function MetricCells({ m }: { m: AdFunnelMetrics }) {
             <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
               {count === null ? <Dash /> : formatInteger(count)}
             </td>
-            <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-600">
+            <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-muted">
               {cost === null ? <Dash /> : formatCurrencyNullable(cost)}
             </td>
           </Fragment>
@@ -91,7 +91,7 @@ function MetricCells({ m }: { m: AdFunnelMetrics }) {
 
 function Chevron({ open }: { open: boolean }) {
   return (
-    <span className="inline-block w-3 shrink-0 text-slate-400" aria-hidden>
+    <span className="inline-block w-3 shrink-0 text-muted" aria-hidden>
       {open ? "▾" : "▸"}
     </span>
   );
@@ -114,10 +114,10 @@ function NameCell({
 }): ReactNode {
   const body = (
     <span className="min-w-0">
-      <span className="block truncate text-slate-900" title={name ?? undefined}>
+      <span className="block truncate text-fg" title={name ?? undefined}>
         {name ?? "—"}
       </span>
-      <span className="text-[11px] text-slate-500">
+      <span className="text-[11px] text-muted">
         {level}
         {" · "}
         {classification ? CLASSIFICATION_LABEL[classification] : "Unclassified"}
@@ -197,7 +197,7 @@ export default function MetaAdFunnelTable({ rows }: { rows: AdFunnelCampaignRow[
         aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
         title="Click to sort"
       >
-        <span className={active ? "font-medium text-blue-700" : ""}>{label}</span>
+        <span className={active ? "font-medium text-accent-text" : ""}>{label}</span>
       </th>
     );
   }
@@ -223,12 +223,12 @@ export default function MetaAdFunnelTable({ rows }: { rows: AdFunnelCampaignRow[
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search campaign, ad set, or ad name"
-        className="w-full max-w-md rounded border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400"
+        className="w-full max-w-md rounded border border-subtle px-3 py-2 text-sm text-fg placeholder:text-muted"
       />
-      <div className="overflow-x-auto rounded border border-slate-200">
+      <div className="overflow-x-auto rounded border border-subtle">
         <table className="min-w-[1400px] w-full border-collapse text-sm">
           <thead>
-            <tr className="bg-slate-50 text-slate-700">
+            <tr className="bg-surface-2 text-fg">
               <th className="px-4 py-3 text-left">Name</th>
               {header("spend", "Adspend")}
               {METRICS.flatMap(({ key, label, costLabel }) => [
@@ -237,10 +237,10 @@ export default function MetaAdFunnelTable({ rows }: { rows: AdFunnelCampaignRow[
               ])}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-subtle">
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={2 + METRICS.length * 2} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={2 + METRICS.length * 2} className="px-4 py-10 text-center text-muted">
                   {searching ? "No matching campaigns, ad sets, or ads." : "No data in this date range."}
                 </td>
               </tr>
@@ -250,7 +250,7 @@ export default function MetaAdFunnelTable({ rows }: { rows: AdFunnelCampaignRow[
                 const campaignNameMatched = matchesQuery(campaign.campaign_name, q);
                 return (
                   <Fragment key={campaign.campaign_id}>
-                    <tr className="hover:bg-slate-50/60">
+                    <tr className="hover:bg-surface-2/60">
                       <NameCell
                         name={campaign.campaign_name}
                         level="Campaign"
@@ -273,7 +273,7 @@ export default function MetaAdFunnelTable({ rows }: { rows: AdFunnelCampaignRow[
                         );
                         return (
                           <Fragment key={adSet.ad_set_id}>
-                            <tr className="hover:bg-slate-50/60">
+                            <tr className="hover:bg-surface-2/60">
                               <NameCell
                                 name={adSet.ad_set_name}
                                 level="Ad set"
@@ -286,7 +286,7 @@ export default function MetaAdFunnelTable({ rows }: { rows: AdFunnelCampaignRow[
                             </tr>
                             {adSetOpen &&
                               ads.map((ad) => (
-                                <tr key={ad.ad_id} className="hover:bg-slate-50/60">
+                                <tr key={ad.ad_id} className="hover:bg-surface-2/60">
                                   <NameCell
                                     name={ad.ad_name}
                                     level="Ad"
@@ -306,7 +306,7 @@ export default function MetaAdFunnelTable({ rows }: { rows: AdFunnelCampaignRow[
           </tbody>
           {totals && (
             <tfoot>
-              <tr className="border-t-2 border-slate-300 bg-slate-50 font-medium text-slate-900">
+              <tr className="border-t-2 border-subtle bg-surface-2 font-medium text-fg">
                 <td className="px-4 py-3 text-left">Total</td>
                 <MetricCells m={totals} />
               </tr>

@@ -66,24 +66,24 @@ export default function InsightsCreativeTable({
 
   return (
     <div className="space-y-2">
-      <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+      <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
         <span>Unmatched leads: {formatInteger(unmatchedLeadCount)}</span>
         <InfoTip text={INSIGHTS_TOOLTIPS.creativeUnmatched} />
-        <span className="text-slate-400">
+        <span className="text-muted">
           (utm_content vs Meta ad id, then ad name)
         </span>
       </p>
-      <div className="overflow-x-auto rounded border border-slate-200">
+      <div className="overflow-x-auto rounded border border-subtle">
         <table className="min-w-[900px] w-full border-collapse text-sm">
           <thead>
-            <tr className="bg-slate-50 text-slate-700">
+            <tr className="bg-surface-2 text-fg">
               <th className="px-4 py-3 text-left font-medium">Creative name</th>
               {COLUMNS.map(([key, label, tip]) => (
                 <th key={key} className="px-4 py-3 text-right font-medium">
                   <span className="inline-flex items-center justify-end gap-1">
                     <button
                       type="button"
-                      className="hover:text-slate-900"
+                      className="hover:text-fg"
                       onClick={() => toggle(key)}
                     >
                       {label}
@@ -95,10 +95,10 @@ export default function InsightsCreativeTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-subtle">
             {sorted.length === 0 && !unmatched ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={9} className="px-4 py-8 text-center text-muted">
                   No creatives in this range.
                 </td>
               </tr>
@@ -118,9 +118,9 @@ export default function InsightsCreativeTable({
 }
 
 function CreativeCells({ row, muted }: { row: CreativeRow; muted?: boolean }) {
-  const cls = muted ? "text-slate-500" : "text-slate-900";
+  const cls = muted ? "text-muted" : "text-fg";
   return (
-    <tr className={muted ? "bg-slate-50/80" : undefined}>
+    <tr className={muted ? "bg-surface-2/80" : undefined}>
       <td className={`px-4 py-3 ${cls}`}>
         <span className="inline-flex items-center gap-1.5">
           {row.name}

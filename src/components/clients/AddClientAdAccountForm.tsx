@@ -99,9 +99,9 @@ export default function AddClientAdAccountForm({
       {showForm ? (
         <form
           onSubmit={onSubmit}
-          className="max-w-md space-y-3 rounded border border-slate-200 bg-slate-50 p-4"
+          className="max-w-md space-y-3 rounded border border-subtle bg-surface-2 p-4"
         >
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
+          <label className="flex flex-col gap-1 text-xs text-muted">
             Organization
             <select
               value={orgChoice}
@@ -109,7 +109,7 @@ export default function AddClientAdAccountForm({
                 setOrgChoice(e.target.value);
                 setFormError(null);
               }}
-              className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+              className="rounded border border-subtle bg-surface px-3 py-2 text-sm text-fg"
             >
               <option value="">Select organization…</option>
               {organizations.map((org) => (
@@ -122,7 +122,7 @@ export default function AddClientAdAccountForm({
           </label>
 
           {creatingNew ? (
-            <label className="flex flex-col gap-1 text-xs text-slate-600">
+            <label className="flex flex-col gap-1 text-xs text-muted">
               New organization name
               <input
                 type="text"
@@ -130,15 +130,15 @@ export default function AddClientAdAccountForm({
                 onChange={(e) => setNewOrgName(e.target.value)}
                 placeholder="Acme Co"
                 autoComplete="off"
-                className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                className="rounded border border-subtle bg-surface px-3 py-2 text-sm text-fg"
               />
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-muted">
                 Slug is generated from the name (same as /admin/organizations).
               </span>
             </label>
           ) : null}
 
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
+          <label className="flex flex-col gap-1 text-xs text-muted">
             Ad Account ID
             <input
               type="text"
@@ -148,11 +148,11 @@ export default function AddClientAdAccountForm({
               placeholder="539253822308075"
               autoComplete="off"
               spellCheck={false}
-              className="rounded border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-900"
+              className="rounded border border-subtle bg-surface px-3 py-2 font-mono text-sm text-fg"
             />
           </label>
           {formError ? (
-            <p className="text-sm text-red-600" role="alert">
+            <p className="text-sm text-danger" role="alert">
               {formError}
             </p>
           ) : null}
@@ -224,7 +224,7 @@ export function ClientBackfillBanner({
 
   if (status === "pending") {
     return (
-      <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+      <div className="rounded border border-warning-soft bg-warning-soft px-3 py-2 text-sm text-warning">
         Backfilling historical data for{" "}
         <span className="font-medium">{clientName}</span>…
       </div>
@@ -233,7 +233,7 @@ export function ClientBackfillBanner({
 
   if (status === "error") {
     return (
-      <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+      <div className="rounded border border-danger-soft bg-danger-soft px-3 py-2 text-sm text-danger">
         Backfill error{error ? `: ${error}` : ""}. The account was saved; data
         may appear after the next hourly Meta cron.
       </div>

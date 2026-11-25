@@ -58,7 +58,7 @@ export default async function InsightsPage({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Insights</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted">
             {fromISO} to {toISO}
           </p>
         </div>
@@ -92,18 +92,18 @@ export default async function InsightsPage({
         {immature ? <CohortMaturityNote /> : null}
         <div className="grid gap-8 lg:grid-cols-3">
           <section className="space-y-3 lg:col-span-2">
-            <h2 className="text-sm font-medium text-slate-900">Ad creative</h2>
+            <h2 className="text-sm font-medium text-fg">Ad creative</h2>
             <InsightsCreativeTable
               rows={metrics.creatives}
               unmatchedLeadCount={metrics.unmatchedLeadCount}
             />
           </section>
           <section className="space-y-3">
-            <h2 className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+            <h2 className="flex items-center gap-1.5 text-sm font-medium text-fg">
               Source → calls booked
               <InfoTip text={INSIGHTS_TOOLTIPS.sourceBooked} />
             </h2>
-            <div className="rounded border border-slate-200 p-4">
+            <div className="rounded border border-subtle p-4">
               <InsightsSourceBooked rows={metrics.sourceBooked} />
             </div>
           </section>
@@ -111,17 +111,17 @@ export default async function InsightsPage({
       </div>
 
       <section className="space-y-3">
-        <h2 className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+        <h2 className="flex items-center gap-1.5 text-sm font-medium text-fg">
           Daily
           <InfoTip text={INSIGHTS_TOOLTIPS.dailyTrend} />
         </h2>
-        <div className="overflow-visible rounded border border-slate-200 p-4">
+        <div className="overflow-visible rounded border border-subtle p-4">
           <InsightsTrendSection trend={metrics.daily} rangeDays={rangeDays} />
         </div>
       </section>
 
       <section className="space-y-3">
-        <h2 className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+        <h2 className="flex items-center gap-1.5 text-sm font-medium text-fg">
           Setter activity
           <InfoTip text={INSIGHTS_TOOLTIPS.setterActivity} />
         </h2>

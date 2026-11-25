@@ -89,9 +89,9 @@ export function followUpState(
 
 /** grey future, amber today, red past. */
 export const FOLLOW_UP_STYLES: Record<FollowUpState, string> = {
-  upcoming: "bg-slate-100 text-slate-700",
-  today: "bg-amber-50 text-amber-900",
-  overdue: "bg-red-50 text-red-800"
+  upcoming: "bg-surface-2 text-fg",
+  today: "bg-warning-soft text-warning",
+  overdue: "bg-danger-soft text-danger"
 };
 
 // ---------------------------------------------------------------------------

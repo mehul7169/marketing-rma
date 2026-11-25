@@ -1,5 +1,6 @@
 "use client";
 
+import { useReducedMotion } from "motion/react";
 import {
   CartesianGrid,
   Legend,
@@ -10,6 +11,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import { chartAnimation } from "@/lib/motion";
 import { formatChartDateLabel } from "@/lib/utils/date";
 
 type TickFormatter = (value: number) => string;
@@ -37,25 +39,32 @@ export default function MultiMetricLineChart<
   tickInterval?: number;
 }) {
   const formatValue = tooltipFormatter ?? ((v: number) => v.toLocaleString("en-IN"));
+  const motion = chartAnimation(useReducedMotion());
 
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-          <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+          <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: "var(--text-muted)" }}
             tickFormatter={formatChartDateLabel}
             interval={tickInterval}
             minTickGap={12}
           />
           <YAxis
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: "var(--text-muted)" }}
             width={yAxisFormatter ? 56 : 40}
             tickFormatter={yAxisFormatter}
           />
           <Tooltip
+            contentStyle={{
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              color: "var(--text)",
+              borderRadius: 10
+            }}
             labelFormatter={formatChartDateLabel}
             formatter={(value: unknown, name: unknown) => {
               const formatted =
@@ -63,7 +72,26 @@ export default function MultiMetricLineChart<
               return [formatted, name as string];
             }}
           />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Legend
+            wrapperStyle={{ fontSize: 12 }}
+            content={({ payload }) => (
+              <ul className="flex flex-wrap justify-center gap-4 pt-1 text-xs text-fg">
+                {(payload ?? []).map((p) => (
+                  <li
+                    key={String(p.value)}
+                    className="inline-flex items-center gap-1.5"
+                  >
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: p.color }}
+                      aria-hidden
+                    />
+                    <span>{p.value}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          />
           {series.map((s) => (
             <Line
               key={s.dataKey}
@@ -74,6 +102,8 @@ export default function MultiMetricLineChart<
               strokeWidth={2}
               dot={data.length <= 14}
               activeDot={{ r: 4 }}
+              isAnimationActive={motion.isAnimationActive}
+              animationDuration={motion.animationDuration}
             />
           ))}
         </LineChart>

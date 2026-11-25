@@ -7,7 +7,7 @@ export default function DealOwnerAvatar({
 }) {
   if (!email) {
     return (
-      <span className="text-xs text-slate-400" data-testid="deal-owner-unassigned">
+      <span className="text-xs text-muted" data-testid="deal-owner-unassigned">
         Unassigned
       </span>
     );
@@ -16,13 +16,13 @@ export default function DealOwnerAvatar({
   const initials = name.slice(0, 2).toUpperCase();
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-xs text-slate-700"
+      className="inline-flex items-center gap-1.5 text-xs text-fg"
       title={email}
       data-testid="deal-owner"
     >
       <span
         aria-hidden
-        className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-[10px] font-medium text-slate-700"
+        className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-surface-2 text-[10px] font-medium text-fg"
       >
         {initials}
       </span>

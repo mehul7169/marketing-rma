@@ -19,6 +19,8 @@ import {
   renderLeadColumnCell
 } from "@/components/table-views/leadColumnCells";
 import AsyncStatusIndicator from "@/components/ui/AsyncStatusIndicator";
+import { EnterStagger, FadeIn } from "@/components/ui/Enter";
+import { cn } from "@/components/ui/cn";
 import { toastSuccess } from "@/components/ui/Toast";
 import Pagination from "@/components/ui/Pagination";
 import { useTableView } from "@/hooks/useTableView";
@@ -205,7 +207,7 @@ export default function WorkQueueView({
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         {trailing}
         <p
-          className={`rounded border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500 ${pendingClass}`}
+          className={`rounded border border-dashed border-subtle px-4 py-10 text-center text-sm text-muted ${pendingClass}`}
           aria-busy={pending}
         >
           {emptyMessage}
@@ -221,10 +223,11 @@ export default function WorkQueueView({
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
         {trailing}
         <div className={`min-h-0 flex-1 overflow-y-auto ${pendingClass}`} aria-busy={pending}>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <EnterStagger id="wq-cards" className="grid gap-4 lg:grid-cols-2">
             {filteredRows.map((lead) => (
               <WorkQueueCard
                 key={lead.id}
+                fx={grid.cellFx?.leadId === lead.id ? grid.cellFx.kind : null}
                 lead={lead}
                 activities={activitiesByLead[lead.id] ?? []}
                 editDisabled={editDisabled}
@@ -246,7 +249,7 @@ export default function WorkQueueView({
                 onOpen={() => grid.openDrawer(lead.id)}
               />
             ))}
-          </div>
+          </EnterStagger>
         </div>
         {pagination}
         {grid.confirm ? (
@@ -270,6 +273,7 @@ export default function WorkQueueView({
   return (
     <>
       {trailing}
+      <FadeIn id="wq-table" className="flex min-h-0 flex-1 flex-col">
       <ScrollableDataTable>
         <div className={pendingClass} aria-busy={pending}>
         <table
@@ -277,7 +281,7 @@ export default function WorkQueueView({
           style={{ tableLayout: "fixed", minWidth: tableMinWidth }}
         >
           <thead>
-            <tr className="bg-slate-50 text-slate-700">
+            <tr className="bg-surface-2 text-fg">
               {tableColumns.map((col) => (
                 <LeadTableHeaderCell
                   key={col.id}
@@ -291,7 +295,7 @@ export default function WorkQueueView({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-subtle">
             {filteredRows.map((lead) => (
               <tr
                 key={lead.id}
@@ -299,7 +303,11 @@ export default function WorkQueueView({
                 data-lead-id={lead.id}
                 data-created-at={lead.created_at}
                 data-next-action-at={lead.next_action_at ?? ""}
-                className="group cursor-pointer hover:bg-slate-50/60"
+                className={cn(
+                  "group cursor-pointer hover:bg-surface-2/60",
+                  grid.cellFx?.leadId === lead.id && grid.cellFx.kind === "flash" && "cell-flash",
+                  grid.cellFx?.leadId === lead.id && grid.cellFx.kind === "shake" && "motion-shake"
+                )}
                 onClick={(e) => {
                   const t = e.target as HTMLElement;
                   if (
@@ -363,6 +371,7 @@ export default function WorkQueueView({
         </table>
         </div>
       </ScrollableDataTable>
+      </FadeIn>
       <div className="shrink-0 pt-2">{pagination}</div>
       {grid.confirm ? (
         <ConfirmPopover

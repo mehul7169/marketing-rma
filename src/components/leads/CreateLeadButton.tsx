@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { MOTION_OFF, transitionBase } from "@/lib/motion";
 import { usePathname, useSearchParams } from "next/navigation";
 import { withLeadParam } from "@/lib/leads/leadHref";
 import { createManualLeadAction } from "@/app/leads/actions";
@@ -31,6 +33,8 @@ export default function CreateLeadButton({
   const nameRef = useRef<HTMLInputElement>(null);
   const pathname = usePathname();
   const search = useSearchParams();
+  const reduced = useReducedMotion();
+  const skipMotion = MOTION_OFF || reduced;
 
   useEffect(() => {
     if (open) nameRef.current?.focus();
@@ -77,8 +81,8 @@ export default function CreateLeadButton({
   }
 
   const inputClass = (err?: string) =>
-    `mt-1 w-full rounded border px-3 py-2 text-sm text-slate-900 ${
-      err ? "border-red-400" : "border-slate-200"
+    `mt-1 w-full rounded border px-3 py-2 text-sm text-fg ${
+      err ? "border-danger" : "border-subtle"
     }`;
 
   return (
@@ -98,13 +102,16 @@ export default function CreateLeadButton({
       </button>
 
       {open ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4"
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !submitting) close();
           }}
+          initial={skipMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={transitionBase}
         >
-          <form
+          <motion.form
             role="dialog"
             aria-modal="true"
             aria-labelledby="create-lead-title"
@@ -113,18 +120,21 @@ export default function CreateLeadButton({
               if (e.key === "Escape" && !submitting) close();
             }}
             noValidate
-            className="w-full max-w-md space-y-4 rounded border border-slate-200 bg-white p-5 shadow-lg"
+            className="w-full max-w-md space-y-4 rounded border border-subtle bg-surface p-5 shadow-card"
+            initial={skipMotion ? false : { opacity: 0, y: 4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={transitionBase}
           >
             <div>
-              <h2 id="create-lead-title" className="text-base font-medium text-slate-900">
+              <h2 id="create-lead-title" className="text-base font-medium text-fg">
                 Create Lead
               </h2>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-muted">
                 For referrals and leads added by hand — not from ads or forms.
               </p>
             </div>
 
-            <label className="block text-xs text-slate-600">
+            <label className="block text-xs text-muted">
               Name *
               <input
                 ref={nameRef}
@@ -134,11 +144,11 @@ export default function CreateLeadButton({
                 autoComplete="off"
               />
               {fieldErrors.name ? (
-                <span className="mt-1 block text-red-600">{fieldErrors.name}</span>
+                <span className="mt-1 block text-danger">{fieldErrors.name}</span>
               ) : null}
             </label>
 
-            <label className="block text-xs text-slate-600">
+            <label className="block text-xs text-muted">
               Phone *
               <input
                 type="tel"
@@ -149,11 +159,11 @@ export default function CreateLeadButton({
                 autoComplete="off"
               />
               {fieldErrors.phone ? (
-                <span className="mt-1 block text-red-600">{fieldErrors.phone}</span>
+                <span className="mt-1 block text-danger">{fieldErrors.phone}</span>
               ) : null}
             </label>
 
-            <label className="block text-xs text-slate-600">
+            <label className="block text-xs text-muted">
               Email
               <input
                 type="email"
@@ -162,15 +172,15 @@ export default function CreateLeadButton({
                 className={inputClass(fieldErrors.email)}
                 autoComplete="off"
               />
-              <span className="mt-1 block text-slate-500">
+              <span className="mt-1 block text-muted">
                 Optional — leave blank if unknown (shown as “No email”).
               </span>
               {fieldErrors.email ? (
-                <span className="mt-1 block text-red-600">{fieldErrors.email}</span>
+                <span className="mt-1 block text-danger">{fieldErrors.email}</span>
               ) : null}
             </label>
 
-            <label className="block text-xs text-slate-600">
+            <label className="block text-xs text-muted">
               Source *
               <select
                 value={form.source}
@@ -184,11 +194,11 @@ export default function CreateLeadButton({
                 ))}
               </select>
               {fieldErrors.source ? (
-                <span className="mt-1 block text-red-600">{fieldErrors.source}</span>
+                <span className="mt-1 block text-danger">{fieldErrors.source}</span>
               ) : null}
             </label>
 
-            <label className="block text-xs text-slate-600">
+            <label className="block text-xs text-muted">
               Notes
               <textarea
                 value={form.notes}
@@ -199,7 +209,7 @@ export default function CreateLeadButton({
             </label>
 
             {formError ? (
-              <p className="text-sm text-red-600" role="alert">
+              <p className="text-sm text-danger" role="alert">
                 {formError}{" "}
                 {existingLeadId ? (
                   <a
@@ -208,7 +218,7 @@ export default function CreateLeadButton({
                       search?.toString() ?? "",
                       existingLeadId
                     )}
-                    className="underline decoration-red-300 underline-offset-2"
+                    className="underline decoration-danger underline-offset-2"
                   >
                     Open existing lead
                   </a>
@@ -221,7 +231,7 @@ export default function CreateLeadButton({
                 type="button"
                 disabled={submitting}
                 onClick={close}
-                className="rounded border border-slate-200 px-3 py-1.5 text-sm text-slate-700"
+                className="rounded border border-subtle px-3 py-1.5 text-sm text-fg"
               >
                 Cancel
               </button>
@@ -233,8 +243,8 @@ export default function CreateLeadButton({
                 {submitting ? "Creating…" : "Create lead"}
               </button>
             </div>
-          </form>
-        </div>
+          </motion.form>
+        </motion.div>
       ) : null}
     </>
   );

@@ -93,7 +93,7 @@ export default function LeadFollowUps({
     <div className="space-y-4">
       {preview.active ? <OrgPreviewReadOnlyNotice /> : null}
       {active.length === 0 ? (
-        <p className="text-sm text-slate-500">No open follow-ups.</p>
+        <p className="text-sm text-muted">No open follow-ups.</p>
       ) : (
         <ul className="space-y-2">
           {active.map((r) => (
@@ -104,23 +104,23 @@ export default function LeadFollowUps({
 
       <fieldset disabled={preview.active} className="min-w-0 disabled:opacity-70">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <label className="min-w-0 flex-1 text-xs text-slate-600">
+          <label className="min-w-0 flex-1 text-xs text-muted">
             Add follow-up
             <input
               type="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="e.g. Call back at 5pm"
-              className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+              className="mt-1 w-full rounded border border-subtle px-3 py-2 text-sm text-fg"
             />
           </label>
-          <label className="text-xs text-slate-600">
+          <label className="text-xs text-muted">
             Due (IST, optional)
             <input
               type="datetime-local"
               value={due}
               onChange={(e) => setDue(e.target.value)}
-              className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900"
+              className="mt-1 w-full rounded border border-subtle px-3 py-2 text-sm text-fg"
             />
           </label>
           <button
@@ -138,7 +138,7 @@ export default function LeadFollowUps({
         <div>
           <button
             type="button"
-            className="text-xs text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+            className="text-xs text-muted underline decoration-subtle underline-offset-2 hover:text-fg"
             onClick={() => setShowResolved((v) => !v)}
           >
             {showResolved ? "Hide" : "Show"} resolved ({resolved.length})
@@ -166,7 +166,7 @@ function ReminderRow({
   onResolve?: (id: string) => void;
 }) {
   return (
-    <li className="flex items-start gap-2 rounded border border-slate-200 px-3 py-2">
+    <li className="flex items-start gap-2 rounded border border-subtle px-3 py-2">
       <input
         type="checkbox"
         className="mt-1"
@@ -176,10 +176,10 @@ function ReminderRow({
         aria-label={reminder.resolved ? "Resolved" : "Mark resolved"}
       />
       <div className="min-w-0 flex-1">
-        <div className={`text-sm ${reminder.resolved ? "text-slate-500 line-through" : "text-slate-900"}`}>
+        <div className={`text-sm ${reminder.resolved ? "text-muted line-through" : "text-fg"}`}>
           {reminder.text}
         </div>
-        <div className="mt-0.5 text-xs text-slate-500">
+        <div className="mt-0.5 text-xs text-muted">
           {formatDueFriendly(reminder.due_at)}
           {reminder.created_by ? ` · ${reminder.created_by}` : ""}
         </div>

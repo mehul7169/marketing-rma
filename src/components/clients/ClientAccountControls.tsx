@@ -62,7 +62,7 @@ export function ClientNameEditor({
             setEditing(true);
             setError(null);
           }}
-          className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+          className="rounded border border-subtle px-2 py-1 text-xs text-muted hover:bg-surface-2"
         >
           Edit name
         </button>
@@ -73,13 +73,13 @@ export function ClientNameEditor({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-end gap-2">
-        <label className="flex min-w-[240px] flex-1 flex-col gap-1 text-xs text-slate-600">
+        <label className="flex min-w-[240px] flex-1 flex-col gap-1 text-xs text-muted">
           Client name
           <input
             type="text"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            className="rounded border border-slate-200 px-3 py-2 text-lg font-semibold text-slate-900"
+            className="rounded border border-subtle px-3 py-2 text-lg font-semibold text-fg"
             autoFocus
           />
         </label>
@@ -99,13 +99,13 @@ export function ClientNameEditor({
             setEditing(false);
             setError(null);
           }}
-          className="rounded border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+          className="rounded border border-subtle px-3 py-2 text-sm text-muted hover:bg-surface-2"
         >
           Cancel
         </button>
       </div>
       {error ? (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-danger" role="alert">
           {error}
         </p>
       ) : null}
@@ -145,12 +145,12 @@ export function DeleteClientAccountButton({
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="rounded border border-red-200 px-3 py-2 text-sm text-red-700 hover:bg-red-50"
+          className="rounded border border-danger-soft px-3 py-2 text-sm text-danger hover:bg-danger-soft"
         >
           Delete Account
         </button>
         {error ? (
-          <p className="text-sm text-red-600" role="alert">
+          <p className="text-sm text-danger" role="alert">
             {error}
           </p>
         ) : null}
@@ -159,8 +159,8 @@ export function DeleteClientAccountButton({
   }
 
   return (
-    <div className="max-w-md space-y-3 rounded border border-red-200 bg-red-50 p-4">
-      <p className="text-sm text-red-900">
+    <div className="max-w-md space-y-3 rounded border border-danger-soft bg-danger-soft p-4">
+      <p className="text-sm text-danger">
         Delete <span className="font-medium">{clientName}</span>? This removes the
         account from the registry. Historical Meta spend rows are kept.
       </p>
@@ -169,7 +169,7 @@ export function DeleteClientAccountButton({
           type="button"
           disabled={deleting}
           onClick={() => void onDelete()}
-          className="rounded bg-red-700 px-3 py-2 text-sm text-white hover:bg-red-800 disabled:opacity-60"
+          className="rounded-control bg-danger px-3 py-2 text-sm text-danger-fg disabled:opacity-60"
         >
           {deleting ? "Deleting…" : "Yes, delete"}
         </button>
@@ -177,7 +177,7 @@ export function DeleteClientAccountButton({
           type="button"
           disabled={deleting}
           onClick={() => setConfirming(false)}
-          className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          className="rounded border border-subtle bg-surface px-3 py-2 text-sm text-fg hover:bg-surface-2"
         >
           Cancel
         </button>

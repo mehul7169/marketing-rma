@@ -56,10 +56,10 @@ function YesNoSelect({
   onChange: (next: "" | "yes" | "no") => void;
 }) {
   return (
-    <label className="flex flex-col text-xs text-slate-600">
+    <label className="flex flex-col text-xs text-muted">
       {label}
       <select
-        className="mt-1 h-8 min-w-[110px] rounded-sm border border-slate-200 px-2 text-sm"
+        className="mt-1 h-8 min-w-[110px] rounded-sm border border-subtle px-2 text-sm"
         value={value}
         onChange={(e) => onChange(e.target.value as "" | "yes" | "no")}
       >
@@ -188,7 +188,7 @@ export default function LeadsFilters({
             addNonce={addNonce}
             activeCount={activeCount}
           >
-            <div className="mb-3 flex flex-wrap items-end gap-3 border-b border-slate-100 pb-3">
+            <div className="mb-3 flex flex-wrap items-end gap-3 border-b border-subtle pb-3">
               <CheckboxMultiSelect
                 label="Source"
                 options={sourceOptions}
@@ -201,10 +201,10 @@ export default function LeadsFilters({
                 selected={state.stages}
                 onChange={(next) => patch({ stages: next as PipelineStage[] })}
               />
-              <label className="flex flex-col text-xs text-slate-600">
+              <label className="flex flex-col text-xs text-muted">
                 Dead
                 <select
-                  className="mt-1 h-8 min-w-[120px] rounded-sm border border-slate-200 px-2 text-sm"
+                  className="mt-1 h-8 min-w-[120px] rounded-sm border border-subtle px-2 text-sm"
                   value={state.dead}
                   onChange={(e) => patch({ dead: e.target.value as DeadFilter })}
                 >
@@ -235,7 +235,7 @@ export default function LeadsFilters({
                 type="button"
                 aria-pressed={state.needsQualification}
                 className={`h-8 rounded-sm border px-3 text-sm ${
-                  state.needsQualification ? "ui-active" : "border-slate-200 text-slate-700"
+                  state.needsQualification ? "ui-active" : "border-subtle text-fg"
                 }`}
                 onClick={() => patch({ needsQualification: !state.needsQualification })}
               >
@@ -261,7 +261,7 @@ export default function LeadsFilters({
             <button
               type="button"
               data-testid="cf-match-prefix"
-              className="text-xs text-slate-500 hover:text-slate-800"
+              className="text-xs text-muted hover:text-fg"
               onClick={() =>
                 patch({
                   customFilter: state.customFilter
@@ -296,11 +296,11 @@ export default function LeadsFilters({
           <ChipTextLink testId="cf-add-filter" onClick={() => openFilter({ add: true })}>
             + Add filter
           </ChipTextLink>
-          <span className="text-slate-300" aria-hidden>
+          <span className="text-muted" aria-hidden>
             ·
           </span>
           <ChipTextLink onClick={() => setSaveRequestKey((n) => n + 1)}>Save view</ChipTextLink>
-          <span className="text-slate-300" aria-hidden>
+          <span className="text-muted" aria-hidden>
             ·
           </span>
           <ChipTextLink onClick={() => apply(clearedLeadsFilterState(state))}>
@@ -309,7 +309,7 @@ export default function LeadsFilters({
         </div>
       ) : null}
       {note ? (
-        <p className="text-xs text-slate-500" data-testid="cf-yield-note">
+        <p className="text-xs text-muted" data-testid="cf-yield-note">
           {note}
         </p>
       ) : null}

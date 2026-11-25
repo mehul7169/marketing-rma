@@ -7,6 +7,7 @@ import { useLeadGrid } from "@/components/leads/useLeadGrid";
 import { ToolbarTrailing } from "@/components/leads/ToolbarPortal";
 import ColumnPicker from "@/components/table-views/ColumnPicker";
 import ScrollableDataTable from "@/components/table-views/ScrollableDataTable";
+import { FadeIn } from "@/components/ui/Enter";
 import {
   LeadTableHeaderCell,
   renderLeadColumnCell
@@ -47,13 +48,14 @@ export default function ConfigurableLeadsTable({
       <ToolbarTrailing>
         <ColumnPicker view={view} variant="ghost" />
       </ToolbarTrailing>
+      <FadeIn id="leads-table" className="flex min-h-0 flex-1 flex-col">
       <ScrollableDataTable>
         <table
           className="w-full border-collapse text-sm"
           style={{ tableLayout: "fixed", minWidth: tableMinWidth }}
         >
           <thead>
-            <tr className="bg-slate-50 text-slate-700">
+            <tr className="bg-surface-2 text-fg">
               {view.visibleColumns.map((col) => (
                 <LeadTableHeaderCell
                   key={col.id}
@@ -65,12 +67,12 @@ export default function ConfigurableLeadsTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-subtle">
             {grid.rows.length === 0 ? (
               <tr>
                 <td
                   colSpan={colCount}
-                  className="px-4 py-10 text-center text-slate-500"
+                  className="px-4 py-10 text-center text-muted"
                 >
                   No leads in this filter.
                 </td>
@@ -80,6 +82,9 @@ export default function ConfigurableLeadsTable({
                 <LeadRow
                   key={lead.id}
                   onOpen={() => grid.openDrawer(lead.id)}
+                  fx={
+                    grid.cellFx?.leadId === lead.id ? grid.cellFx.kind : null
+                  }
                 >
                   {view.visibleColumns.map((col) => (
                     <Fragment key={col.id}>
@@ -97,6 +102,7 @@ export default function ConfigurableLeadsTable({
           </tbody>
         </table>
       </ScrollableDataTable>
+      </FadeIn>
       {grid.confirm ? (
         <ConfirmPopover
           title={grid.confirm.title}

@@ -24,9 +24,9 @@ import { fromDatetimeLocalIST } from "@/lib/timezone";
 import type { LeadRow } from "@/lib/leads/types";
 
 const pillIdle =
-  "rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50";
+  "rounded-full border border-subtle px-2.5 py-1 text-xs text-fg hover:bg-surface-2";
 const pillOn =
-  "rounded-full border border-slate-900 bg-slate-900 px-2.5 py-1 text-xs font-medium text-white";
+  "rounded-pill border border-accent bg-accent px-2.5 py-1 text-xs font-medium text-accent-fg";
 
 export default function LogFollowUpForm({
   lead,
@@ -105,7 +105,7 @@ export default function LogFollowUpForm({
       {state.mode === "follow_up" ? (
         <>
           <fieldset>
-            <legend className="mb-1.5 text-xs font-medium text-slate-600">
+            <legend className="mb-1.5 text-xs font-medium text-muted">
               What happened
             </legend>
             <div className="flex flex-wrap gap-1.5">
@@ -124,20 +124,20 @@ export default function LogFollowUpForm({
           </fieldset>
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-600">Note</span>
+            <span className="mb-1 block text-xs font-medium text-muted">Note</span>
             <textarea
               ref={noteRef}
               data-testid="follow-up-note"
               rows={2}
               value={state.note}
               onChange={(e) => patch({ note: e.target.value })}
-              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className="w-full rounded border border-subtle px-2 py-1.5 text-sm"
               placeholder="Optional"
             />
           </label>
 
           <fieldset>
-            <legend className="mb-1.5 text-xs font-medium text-slate-600">
+            <legend className="mb-1.5 text-xs font-medium text-muted">
               Next step
             </legend>
             <div className="flex flex-wrap gap-1.5">
@@ -168,7 +168,7 @@ export default function LogFollowUpForm({
             {nextCustom ? (
               <input
                 data-testid="follow-up-next-custom"
-                className="mt-1.5 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                className="mt-1.5 w-full rounded border border-subtle px-2 py-1.5 text-sm"
                 value={state.nextStep}
                 onChange={(e) => patch({ nextStep: e.target.value })}
                 placeholder="What to do next"
@@ -177,7 +177,7 @@ export default function LogFollowUpForm({
           </fieldset>
 
           <fieldset>
-            <legend className="mb-1.5 text-xs font-medium text-slate-600">When</legend>
+            <legend className="mb-1.5 text-xs font-medium text-muted">When</legend>
             <div className="flex flex-wrap gap-1.5">
               {picks.map((p) => (
                 <button
@@ -194,14 +194,14 @@ export default function LogFollowUpForm({
             <input
               data-testid="follow-up-when"
               type="datetime-local"
-              className="mt-1.5 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className="mt-1.5 w-full rounded border border-subtle px-2 py-1.5 text-sm"
               value={state.whenLocal}
               onChange={(e) =>
                 patch({ whenLocal: e.target.value, confirmPast: false })
               }
             />
             {whenPast ? (
-              <label className="mt-1.5 flex items-center gap-2 text-xs text-amber-800">
+              <label className="mt-1.5 flex items-center gap-2 text-xs text-warning">
                 <input
                   type="checkbox"
                   data-testid="follow-up-confirm-past"
@@ -214,12 +214,12 @@ export default function LogFollowUpForm({
           </fieldset>
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-600">
+            <span className="mb-1 block text-xs font-medium text-muted">
               Stage
             </span>
             <select
               data-testid="follow-up-stage"
-              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className="w-full rounded border border-subtle px-2 py-1.5 text-sm"
               value={state.stage}
               onChange={(e) =>
                 patch({ stage: e.target.value as FollowUpFormState["stage"] })
@@ -240,27 +240,27 @@ export default function LogFollowUpForm({
       {state.mode === "won" ? (
         <div className="space-y-2">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-600">
+            <span className="mb-1 block text-xs font-medium text-muted">
               Value
             </span>
             <input
               data-testid="follow-up-value"
               type="number"
               min={0}
-              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className="w-full rounded border border-subtle px-2 py-1.5 text-sm"
               value={state.value}
               onChange={(e) => patch({ value: e.target.value })}
               placeholder="Optional"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-600">
+            <span className="mb-1 block text-xs font-medium text-muted">
               Closed (IST)
             </span>
             <input
               data-testid="follow-up-closed"
               type="datetime-local"
-              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className="w-full rounded border border-subtle px-2 py-1.5 text-sm"
               value={state.closedLocal}
               onChange={(e) => patch({ closedLocal: e.target.value })}
             />
@@ -271,7 +271,7 @@ export default function LogFollowUpForm({
       {state.mode === "lost" ? (
         <div className="space-y-2">
           <fieldset>
-            <legend className="mb-1.5 text-xs font-medium text-slate-600">
+            <legend className="mb-1.5 text-xs font-medium text-muted">
               Lost reason
             </legend>
             <div className="flex flex-wrap gap-1.5">
@@ -289,7 +289,7 @@ export default function LogFollowUpForm({
             </div>
           </fieldset>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-600">
+            <span className="mb-1 block text-xs font-medium text-muted">
               Note
             </span>
             <textarea
@@ -297,7 +297,7 @@ export default function LogFollowUpForm({
               data-testid="follow-up-lost-note"
               value={state.note}
               onChange={(e) => patch({ note: e.target.value })}
-              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className="w-full rounded border border-subtle px-2 py-1.5 text-sm"
               placeholder="Optional"
             />
           </label>
@@ -305,7 +305,7 @@ export default function LogFollowUpForm({
       ) : null}
 
       {error ? (
-        <p className="text-xs text-red-600" data-testid="follow-up-error">
+        <p className="text-xs text-danger" data-testid="follow-up-error">
           {error}
         </p>
       ) : null}
@@ -315,7 +315,7 @@ export default function LogFollowUpForm({
           type="submit"
           data-testid="follow-up-save"
           disabled={saving}
-          className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+          className="rounded-control bg-accent px-3 py-1.5 text-sm text-accent-fg disabled:opacity-60"
         >
           {saving ? "Saving…" : saveLabel}
         </button>
@@ -324,7 +324,7 @@ export default function LogFollowUpForm({
             <button
               type="button"
               data-testid="follow-up-mark-won"
-              className="text-sm text-slate-600 hover:text-slate-900"
+              className="text-sm text-muted hover:text-fg"
               onClick={() => patch({ mode: "won" })}
             >
               Mark won
@@ -332,7 +332,7 @@ export default function LogFollowUpForm({
             <button
               type="button"
               data-testid="follow-up-mark-lost"
-              className="text-sm text-slate-600 hover:text-slate-900"
+              className="text-sm text-muted hover:text-fg"
               onClick={() => patch({ mode: "lost" })}
             >
               Mark lost
@@ -341,7 +341,7 @@ export default function LogFollowUpForm({
         ) : (
           <button
             type="button"
-            className="text-sm text-slate-600 hover:text-slate-900"
+            className="text-sm text-muted hover:text-fg"
             onClick={() => patch({ mode: "follow_up" })}
           >
             Back
@@ -350,7 +350,7 @@ export default function LogFollowUpForm({
         {onCancel && !embedded ? (
           <button
             type="button"
-            className="ml-auto text-sm text-slate-500 hover:text-slate-800"
+            className="ml-auto text-sm text-muted hover:text-fg"
             onClick={onCancel}
           >
             Cancel

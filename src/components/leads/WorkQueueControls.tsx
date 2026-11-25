@@ -39,6 +39,9 @@ import {
   type QueueSort,
   type QueueTabId
 } from "@/lib/leads/workQueueParams";
+import CountUp from "@/components/ui/CountUp";
+import TabInk from "@/components/ui/TabInk";
+import { formatInteger } from "@/lib/format";
 
 export default function WorkQueueControls({
   view,
@@ -141,7 +144,7 @@ export default function WorkQueueControls({
   return (
     <div className="space-y-2" data-testid="queue-controls">
       <div
-        className="flex flex-wrap items-end gap-x-6 border-b border-slate-200"
+        className="flex flex-wrap items-end gap-x-6 border-b border-subtle"
         role="tablist"
         aria-label="Work Queue tabs"
       >
@@ -170,19 +173,22 @@ export default function WorkQueueControls({
                   filter: tab.id === "all" ? current.filter : null
                 });
               }}
-              className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-0.5 pb-2 text-sm ${
-                active
-                  ? "border-slate-900 font-medium text-slate-900"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
+              className={`relative -mb-px inline-flex items-center gap-1.5 border-b-2 border-transparent px-0.5 pb-2 text-sm ${
+                active ? "font-medium text-fg" : "text-muted hover:text-fg"
               }`}
             >
               {tab.label}
               <span
                 data-testid={`queue-count-${tab.id}`}
-                className="tabular-nums text-slate-400"
+                className="tabular-nums text-muted"
               >
-                {counts[tab.id] ?? 0}
+                <CountUp
+                  value={counts[tab.id] ?? 0}
+                  format={formatInteger}
+                  speed="badge"
+                />
               </span>
+              <TabInk active={active} layoutId="queue-tabs-ink" />
             </a>
           );
         })}
@@ -225,7 +231,7 @@ export default function WorkQueueControls({
             <select
               data-testid="queue-sort"
               aria-label="Sort"
-              className="h-8 max-w-[9.5rem] cursor-pointer border-0 bg-transparent text-sm text-slate-600 max-[1024px]:sr-only"
+              className="h-8 max-w-[9.5rem] cursor-pointer border-0 bg-transparent text-sm text-muted max-[1024px]:sr-only"
               value={sort}
               onChange={(e) => go({ sort: e.target.value as QueueSort })}
             >
@@ -254,7 +260,7 @@ export default function WorkQueueControls({
             <button
               type="button"
               data-testid="cf-match-prefix"
-              className="text-xs text-slate-500 hover:text-slate-800"
+              className="text-xs text-muted hover:text-fg"
               onClick={() =>
                 go({
                   customFilter: customFilter
@@ -306,11 +312,11 @@ export default function WorkQueueControls({
           <ChipTextLink testId="cf-add-filter" onClick={() => openFilter({ add: true })}>
             + Add filter
           </ChipTextLink>
-          <span className="text-slate-300" aria-hidden>
+          <span className="text-muted" aria-hidden>
             ·
           </span>
           <ChipTextLink onClick={() => setSaveRequestKey((n) => n + 1)}>Save view</ChipTextLink>
-          <span className="text-slate-300" aria-hidden>
+          <span className="text-muted" aria-hidden>
             ·
           </span>
           <ChipTextLink
@@ -328,7 +334,7 @@ export default function WorkQueueControls({
         </div>
       ) : null}
       {note ? (
-        <p className="text-xs text-slate-500" data-testid="cf-yield-note">
+        <p className="text-xs text-muted" data-testid="cf-yield-note">
           {note}
         </p>
       ) : null}

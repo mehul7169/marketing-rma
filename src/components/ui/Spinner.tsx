@@ -22,7 +22,7 @@ export default function Spinner({
       className={`inline-flex shrink-0 items-center justify-center ${className}`}
     >
       <span
-        className={`${dim} animate-spin rounded-full border-slate-300 border-t-sky-600`}
+        className={`${dim} animate-spin rounded-full border-subtle border-t-accent`}
         aria-hidden
       />
       <span className="sr-only">{label}</span>

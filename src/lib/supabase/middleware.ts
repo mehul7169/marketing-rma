@@ -92,9 +92,10 @@ export async function updateSession(request: NextRequest) {
   // link establishes a temporary session before updateUser({ password }).
   const isPasswordRecoveryPage = isForgotPassword || isResetPassword;
   const isAuthPage = isLogin || isSignup;
+  const isDevUi = pathname === "/dev" || pathname.startsWith("/dev/");
 
   if (!user) {
-    if (isAuthPage || isPasswordRecoveryPage) return supabaseResponse;
+    if (isAuthPage || isPasswordRecoveryPage || isDevUi) return supabaseResponse;
     return NextResponse.redirect(new URL("/login", request.url));
   }
 

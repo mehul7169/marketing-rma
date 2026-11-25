@@ -1,10 +1,6 @@
-import {
-  formatCurrency,
-  formatCurrencyNullable,
-  formatInteger,
-  formatPercent,
-  formatPeriodComparison
-} from "@/lib/format";
+import { formatPeriodComparison } from "@/lib/format";
+import { EnterStagger } from "@/components/ui/Enter";
+import Stat from "@/components/ui/Stat";
 
 type Totals = {
   totalSpend: number;
@@ -12,11 +8,6 @@ type Totals = {
   blendedCostPerLead: number | null;
   averageCtrPercent: number;
 };
-
-function ComparisonSubtext({ text }: { text: string | null }) {
-  if (!text) return null;
-  return <p className="mt-1 text-xs text-slate-500">{text}</p>;
-}
 
 export default function MetaSummaryCards({
   totals,
@@ -30,14 +21,13 @@ export default function MetaSummaryCards({
   const prior = priorTotals;
 
   return (
-    <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <EnterStagger id="meta-summary" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <div className="stat-card">
-        <div className="text-xs text-slate-600">Total Spend</div>
-        <div className="mt-2 text-xl font-semibold text-slate-900">
-          {formatCurrency(totals.totalSpend)}
-        </div>
-        <ComparisonSubtext
-          text={
+        <Stat
+          label="Total Spend"
+          value={totals.totalSpend}
+          format="currency"
+          sub={
             prior
               ? formatPeriodComparison(
                   totals.totalSpend,
@@ -49,12 +39,11 @@ export default function MetaSummaryCards({
         />
       </div>
       <div className="stat-card">
-        <div className="text-xs text-slate-600">Total Leads</div>
-        <div className="mt-2 text-xl font-semibold text-slate-900">
-          {formatInteger(totals.totalLeads)}
-        </div>
-        <ComparisonSubtext
-          text={
+        <Stat
+          label="Total Leads"
+          value={totals.totalLeads}
+          format="integer"
+          sub={
             prior
               ? formatPeriodComparison(
                   totals.totalLeads,
@@ -66,12 +55,15 @@ export default function MetaSummaryCards({
         />
       </div>
       <div className="stat-card">
-        <div className="text-xs text-slate-600">Blended Cost / Lead</div>
-        <div className="mt-2 text-xl font-semibold text-slate-900">
-          {formatCurrencyNullable(totals.blendedCostPerLead)}
-        </div>
-        <ComparisonSubtext
-          text={
+        <Stat
+          label="Blended Cost / Lead"
+          value={
+            totals.blendedCostPerLead === null
+              ? "—"
+              : totals.blendedCostPerLead
+          }
+          format="currency"
+          sub={
             prior &&
             totals.blendedCostPerLead !== null &&
             prior.blendedCostPerLead !== null
@@ -85,12 +77,11 @@ export default function MetaSummaryCards({
         />
       </div>
       <div className="stat-card">
-        <div className="text-xs text-slate-600">Average CTR%</div>
-        <div className="mt-2 text-xl font-semibold text-slate-900">
-          {formatPercent(totals.averageCtrPercent)}
-        </div>
-        <ComparisonSubtext
-          text={
+        <Stat
+          label="Average CTR%"
+          value={totals.averageCtrPercent}
+          format="percent"
+          sub={
             prior
               ? formatPeriodComparison(
                   totals.averageCtrPercent,
@@ -101,6 +92,6 @@ export default function MetaSummaryCards({
           }
         />
       </div>
-    </section>
+    </EnterStagger>
   );
 }

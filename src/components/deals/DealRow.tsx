@@ -1,5 +1,7 @@
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
+import { MOTION_OFF, transitionBase } from "@/lib/motion";
 import DealOwnerAvatar from "@/components/deals/DealOwnerAvatar";
 import DealQuickActions, { type DealMember } from "@/components/deals/DealQuickActions";
 import DealStagePill from "@/components/deals/DealStagePill";
@@ -32,6 +34,8 @@ export default function DealRow({
   onOpen: () => void;
   onSave: (action: DealAction, payload: DealPayload) => Promise<boolean>;
 }) {
+  const reduced = useReducedMotion();
+  const skip = MOTION_OFF || reduced;
   const missing = needsNextStep(lead);
   const due = formatDealDueAt(lead.next_action_at);
   const touch = formatLastTouch({
@@ -42,14 +46,19 @@ export default function DealRow({
   });
 
   return (
-    <tr
+    <motion.tr
+      layout={!skip}
+      initial={skip ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={skip ? undefined : { opacity: 0 }}
+      transition={transitionBase}
       data-testid={`deal-row-${lead.id}`}
-      className="group cursor-pointer border-b border-slate-100 hover:bg-slate-50"
+      className="group cursor-pointer border-b border-subtle hover:bg-surface-2"
       onClick={onOpen}
     >
       <td className="px-3 py-2.5 align-top">
-        <div className="font-medium text-slate-900">{lead.name || lead.email}</div>
-        <div className="text-xs text-slate-500">{formatShowedDate(lead.call_showed_at)}</div>
+        <div className="font-medium text-fg">{lead.name || lead.email}</div>
+        <div className="text-xs text-muted">{formatShowedDate(lead.call_showed_at)}</div>
       </td>
       <td className="px-3 py-2.5 align-top">
         <DealStagePill stage={lead.post_call_status} />
@@ -57,12 +66,12 @@ export default function DealRow({
       <td className="px-3 py-2.5 align-top">
         {missing ? (
           preview ? (
-            <span className="text-xs font-medium text-amber-800">Set next step</span>
+            <span className="text-xs font-medium text-warning">Set next step</span>
           ) : (
             <button
               type="button"
               data-testid="deal-set-next-step"
-              className="text-xs font-medium text-amber-800 hover:underline"
+              className="text-xs font-medium text-warning hover:underline"
               onClick={(e) => {
                 e.stopPropagation();
                 const btn = (e.currentTarget.closest("tr") as HTMLElement | null)
@@ -75,9 +84,9 @@ export default function DealRow({
           )
         ) : (
           <div>
-            <div className="text-sm text-slate-800">{lead.next_step}</div>
+            <div className="text-sm text-fg">{lead.next_step}</div>
             <div
-              className={`text-xs ${overdue ? "text-red-600" : "text-slate-500"}`}
+              className={`text-xs ${overdue ? "text-danger" : "text-muted"}`}
               data-testid="deal-due"
             >
               {due}
@@ -86,14 +95,14 @@ export default function DealRow({
         )}
       </td>
       <td className="max-w-[16rem] px-3 py-2.5 align-top">
-        <div className="truncate text-xs text-slate-600" title={touch}>
+        <div className="truncate text-xs text-muted" title={touch}>
           {touch || "—"}
         </div>
       </td>
       <td className="px-3 py-2.5 align-top">
         <DealOwnerAvatar email={ownerEmail} />
       </td>
-      <td className="px-3 py-2.5 align-top text-sm tabular-nums text-slate-800">
+      <td className="px-3 py-2.5 align-top text-sm tabular-nums text-fg">
         {lead.deal_value != null ? formatCurrencyNullable(lead.deal_value) : ""}
       </td>
       <td className="px-3 py-2.5 align-top">
@@ -106,6 +115,6 @@ export default function DealRow({
           />
         </div>
       </td>
-    </tr>
+    </motion.tr>
   );
 }

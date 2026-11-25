@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { MOTION_OFF, transitionBase, transitionReduced } from "@/lib/motion";
 
 export type ToastTone = "error" | "success";
 
@@ -54,6 +56,7 @@ export function resetToasts() {
 }
 
 export function Toaster() {
+  const reduced = useReducedMotion();
   const [items, setItems] = useState<ToastItem[]>(stack);
 
   useEffect(() => {
@@ -72,14 +75,24 @@ export function Toaster() {
       data-testid="toast-stack"
     >
       {items.map((t) => (
-        <div
+        <motion.div
           key={t.id}
+          layout={!MOTION_OFF}
+          initial={
+            MOTION_OFF
+              ? false
+              : reduced
+                ? { opacity: 0 }
+                : { opacity: 0, y: 16 }
+          }
+          animate={{ opacity: 1, y: 0 }}
+          transition={reduced ? transitionReduced : transitionBase}
           role={t.tone === "error" ? "alert" : "status"}
           data-testid={`toast-${t.tone}`}
-          className={`pointer-events-auto rounded border px-4 py-3 text-sm shadow-lg ${
+          className={`pointer-events-auto rounded-control border px-4 py-3 text-sm shadow-card ${
             t.tone === "error"
-              ? "border-red-200 bg-red-50 text-red-900"
-              : "border-emerald-200 bg-emerald-50 text-emerald-900"
+              ? "border-danger-soft bg-danger-soft text-danger"
+              : "border-success-soft bg-success-soft text-success"
           }`}
         >
           <div className="flex items-start gap-3">
@@ -88,8 +101,8 @@ export function Toaster() {
               type="button"
               className={
                 t.tone === "error"
-                  ? "text-red-700 hover:text-red-900"
-                  : "text-emerald-700 hover:text-emerald-900"
+                  ? "text-danger hover:opacity-80"
+                  : "text-success hover:opacity-80"
               }
               onClick={() => dismissToast(t.id)}
               aria-label="Dismiss"
@@ -97,7 +110,7 @@ export function Toaster() {
               ×
             </button>
           </div>
-        </div>
+        </motion.div>
       ))}
     </div>
   );

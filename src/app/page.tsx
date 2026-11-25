@@ -9,7 +9,8 @@ import {
   type KpiKey
 } from "@/lib/leads/lifecycleDefinitions";
 import { kpiLeadsHref } from "@/lib/leads/listFilterParams";
-import { formatCurrency, formatInteger, formatPercent } from "@/lib/format";
+import { EnterStagger } from "@/components/ui/Enter";
+import Stat from "@/components/ui/Stat";
 import {
   clampDateRange,
   defaultFromISO,
@@ -67,7 +68,7 @@ export default async function HomePage({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Funnel overview</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-muted">
             {fromISO} to {toISO}
           </p>
         </div>
@@ -83,7 +84,7 @@ export default async function HomePage({
       <div className="flex flex-wrap gap-2">
         <a
           href={`/?from=${fromISO}&to=${toISO}`}
-          className={`rounded border px-3 py-1.5 text-sm ${!source ? "ui-active" : "border-slate-200 text-slate-700"}`}
+          className={`rounded border px-3 py-1.5 text-sm ${!source ? "ui-active" : "border-subtle text-fg"}`}
         >
           All sources
         </a>
@@ -91,42 +92,52 @@ export default async function HomePage({
           <a
             key={s}
             href={`/?from=${fromISO}&to=${toISO}&source=${encodeURIComponent(s)}`}
-            className={`rounded border px-3 py-1.5 text-sm ${source === s ? "ui-active" : "border-slate-200 text-slate-700"}`}
+            className={`rounded border px-3 py-1.5 text-sm ${source === s ? "ui-active" : "border-subtle text-fg"}`}
           >
             {s}
           </a>
         ))}
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <EnterStagger id="home-rates" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="stat-card">
-          <div className="text-xs text-slate-600">Booked Rate</div>
-          <div className="mt-2 text-xl font-semibold">
-            {formatPercent(rate(counts.calls_booked, counts.leads))}
-          </div>
+          <Stat
+            label="Booked Rate"
+            value={rate(counts.calls_booked, counts.leads)}
+            format="percent"
+            size="md"
+          />
         </div>
         <div className="stat-card">
-          <div className="text-xs text-slate-600">Show-up Rate</div>
-          <div className="mt-2 text-xl font-semibold">
-            {formatPercent(rate(counts.showups, counts.calls_booked))}
-          </div>
+          <Stat
+            label="Show-up Rate"
+            value={rate(counts.showups, counts.calls_booked)}
+            format="percent"
+            size="md"
+          />
         </div>
         <div className="stat-card">
-          <div className="text-xs text-slate-600">Closing Rate</div>
-          <div className="mt-2 text-xl font-semibold">
-            {formatPercent(rate(counts.deals_closed, counts.showups))}
-          </div>
+          <Stat
+            label="Closing Rate"
+            value={rate(counts.deals_closed, counts.showups)}
+            format="percent"
+            size="md"
+          />
         </div>
         <div className="stat-card">
-          <div className="text-xs text-slate-600">Total Revenue</div>
-          <div className="mt-2 text-xl font-semibold">{formatCurrency(revenue)}</div>
+          <Stat
+            label="Total Revenue"
+            value={revenue}
+            format="currency"
+            size="md"
+          />
         </div>
-      </section>
+      </EnterStagger>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-slate-900">Funnel</h2>
+        <h2 className="text-sm font-medium text-fg">Funnel</h2>
         {immature ? <CohortMaturityNote /> : null}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <EnterStagger id="home-funnel" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {HOME_FUNNEL_KPIS.map((kpi, i) => {
             const count = counts[kpi];
             const prev = i === 0 ? counts.leads : counts[HOME_FUNNEL_KPIS[i - 1]!];
@@ -135,32 +146,31 @@ export default async function HomePage({
               <a
                 key={kpi}
                 href={kpiLeadsHref(kpi, range, { sources })}
-                className="rounded border border-slate-200 p-4 hover:border-slate-300"
+                className="lift-card rounded border border-subtle p-4 hover:border-subtle"
               >
-                <div className="text-xs text-slate-600">{KPI_DEFINITIONS[kpi].label}</div>
-                <div className="mt-2 text-xl font-semibold text-slate-900">
-                  {formatInteger(count)}
-                </div>
-                <div className="mt-1 text-xs text-slate-500">
-                  {i === 0 ? "in this range" : `${cvr.toFixed(0)}% of previous`}
-                </div>
+                <Stat
+                  label={KPI_DEFINITIONS[kpi].label}
+                  value={count}
+                  format="integer"
+                  sub={i === 0 ? "in this range" : `${cvr.toFixed(0)}% of previous`}
+                />
               </a>
             );
           })}
-        </div>
+        </EnterStagger>
       </section>
 
       <div className="flex gap-4 text-sm">
-        <a href="/insights" className="text-slate-700 hover:text-slate-900">
+        <a href="/insights" className="text-fg hover:text-fg">
           Insights →
         </a>
-        <a href="/leads" className="text-slate-700 hover:text-slate-900">
+        <a href="/leads" className="text-fg hover:text-fg">
           Open leads CRM →
         </a>
-        <a href="/meta-ads" className="text-slate-700 hover:text-slate-900">
+        <a href="/meta-ads" className="text-fg hover:text-fg">
           Meta Ads →
         </a>
-        <a href="/website" className="text-slate-700 hover:text-slate-900">
+        <a href="/website" className="text-fg hover:text-fg">
           Website analytics →
         </a>
       </div>

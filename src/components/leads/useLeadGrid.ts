@@ -36,6 +36,12 @@ export type GridConfirm = {
 
 export type GridConfirmSpec = Omit<GridConfirm, "lead">;
 
+export type CellFx = {
+  leadId: string;
+  kind: "flash" | "shake";
+  nonce: number;
+};
+
 export function useLeadGrid(
   initialRows: LeadRow[],
   opts?: { belongs?: (lead: LeadRow) => boolean }
@@ -44,6 +50,10 @@ export function useLeadGrid(
   const drawer = useLeadDrawerParam();
   const [rows, setRows] = useState(initialRows);
   const [confirm, setConfirm] = useState<GridConfirm | null>(null);
+  const [cellFx, setCellFx] = useState<CellFx | null>(null);
+  const pingFx = useCallback((leadId: string, kind: CellFx["kind"]) => {
+    setCellFx({ leadId, kind, nonce: Date.now() });
+  }, []);
 
   useEffect(() => {
     setRows(initialRows);
@@ -112,11 +122,15 @@ export function useLeadGrid(
         });
         if (plan.ok) optimistic = plan.patch;
       }
-      if (optimistic) applyLead(lead.id, optimistic);
+      if (optimistic) {
+        applyLead(lead.id, optimistic);
+        pingFx(lead.id, "flash");
+      }
       void leadLifecycleAction(lead.id, action, payload)
         .then((res) => {
           if (!res.ok) {
             restore(lead);
+            pingFx(lead.id, "shake");
             fail(lead, res.error);
             return;
           }
@@ -124,10 +138,11 @@ export function useLeadGrid(
         })
         .catch((err) => {
           restore(lead);
+          pingFx(lead.id, "shake");
           fail(lead, err instanceof Error ? err.message : "Save failed");
         });
     },
-    [applyLead, fail, preview.active, restore]
+    [applyLead, fail, pingFx, preview.active, restore]
   );
 
   const requestConfirm = useCallback((lead: LeadRow, spec: GridConfirmSpec) => {
@@ -210,10 +225,12 @@ export function useLeadGrid(
       }
 
       applyLead(lead.id, patch);
+      pingFx(lead.id, "flash");
       void saveLeadPlainFieldsAction(lead.id, serverInput)
         .then((res) => {
           if (!res.ok) {
             restore(previous);
+            pingFx(lead.id, "shake");
             fail(lead, res.error);
             return;
           }
@@ -221,10 +238,11 @@ export function useLeadGrid(
         })
         .catch((err) => {
           restore(previous);
+          pingFx(lead.id, "shake");
           fail(lead, err instanceof Error ? err.message : "Save failed");
         });
     },
-    [applyLead, fail, preview.active, requestConfirm, restore]
+    [applyLead, fail, pingFx, preview.active, requestConfirm, restore]
   );
 
   const commitCustomField = useCallback(
@@ -236,12 +254,14 @@ export function useLeadGrid(
         [key]: raw.trim() || null
       };
       applyLead(lead.id, { custom_fields });
+      pingFx(lead.id, "flash");
       void saveLeadPlainFieldsAction(lead.id, {
         custom_fields: { [key]: raw.trim() || null }
       })
         .then((res) => {
           if (!res.ok) {
             restore(previous);
+            pingFx(lead.id, "shake");
             fail(lead, res.error);
             return;
           }
@@ -249,10 +269,11 @@ export function useLeadGrid(
         })
         .catch((err) => {
           restore(previous);
+          pingFx(lead.id, "shake");
           fail(lead, err instanceof Error ? err.message : "Save failed");
         });
     },
-    [applyLead, fail, preview.active, restore]
+    [applyLead, fail, pingFx, preview.active, restore]
   );
 
   const editHandlersFor = useCallback(
@@ -293,6 +314,7 @@ export function useLeadGrid(
     requestConfirm,
     applyLead,
     restore,
+    cellFx,
     openDrawer: drawer.open
   };
 }

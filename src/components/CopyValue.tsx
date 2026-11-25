@@ -52,7 +52,7 @@ export default function CopyValue({
       aria-label={copied ? "Copied" : actionLabel}
       title={copied ? "Copied" : actionLabel}
       data-testid={testId}
-      className={`inline-flex h-4 w-4 shrink-0 items-center justify-center text-slate-400 hover:text-slate-600 ${
+      className={`inline-flex h-4 w-4 shrink-0 items-center justify-center text-muted hover:text-fg ${
         hoverReveal
           ? "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
           : ""

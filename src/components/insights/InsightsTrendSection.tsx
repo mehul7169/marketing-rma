@@ -9,9 +9,9 @@ import { getChartTickInterval } from "@/lib/utils/date";
 const MIN_TREND_DAYS = 3;
 
 const SERIES = [
-  { dataKey: "callsBooked", label: "Calls booked", color: "#1d4ed8" },
-  { dataKey: "showUpCalls", label: "Show-up calls", color: "#0284c7" },
-  { dataKey: "dealsClosed", label: "Deals closed", color: "#059669" }
+  { dataKey: "callsBooked", label: "Calls booked", color: "var(--accent)" },
+  { dataKey: "showUpCalls", label: "Show-up calls", color: "var(--neutral-series)" },
+  { dataKey: "dealsClosed", label: "Deals closed", color: "var(--success)" }
 ];
 
 export default function InsightsTrendSection({
@@ -32,25 +32,25 @@ export default function InsightsTrendSection({
     );
     return (
       <div className="space-y-3">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-muted">
           Not enough data yet to show a trend — check back once more days have
           been pulled in.
         </p>
         {rows.length > 0 ? (
-          <div className="overflow-x-auto rounded border border-slate-200">
+          <div className="overflow-x-auto rounded border border-subtle">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 text-left text-slate-700">
+                <tr className="bg-surface-2 text-left text-fg">
                   <th className="px-4 py-2 font-medium">Date</th>
                   <th className="px-4 py-2 text-right font-medium">Calls booked</th>
                   <th className="px-4 py-2 text-right font-medium">Show-up calls</th>
                   <th className="px-4 py-2 text-right font-medium">Deals closed</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-subtle">
                 {rows.map((row) => (
                   <tr key={row.date}>
-                    <td className="px-4 py-2 text-slate-900">
+                    <td className="px-4 py-2 text-fg">
                       {formatCalendarDate(row.date, "d MMM yyyy")}
                     </td>
                     <td className="px-4 py-2 text-right">

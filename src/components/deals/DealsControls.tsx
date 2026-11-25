@@ -39,7 +39,9 @@ import {
   DEAL_STAGE_LABELS,
   DEAL_STAGES
 } from "@/lib/deals/dealLifecycle";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatInteger } from "@/lib/format";
+import CountUp from "@/components/ui/CountUp";
+import TabInk from "@/components/ui/TabInk";
 import { addIstCalendarDays, todayISTDateString } from "@/lib/timezone";
 import type { DealMember } from "@/components/deals/DealQuickActions";
 import { actorDisplayName } from "@/lib/deals/dealGroups";
@@ -165,34 +167,32 @@ export default function DealsControls({
       {
         id: "overdue" as const,
         label: "Overdue",
-        value: String(metrics.overdue),
-        className: "text-red-700",
-        tile: "border-red-200 bg-red-50"
+        value: metrics.overdue,
+        className: "text-danger",
+        tile: "border-danger-soft bg-danger-soft"
       },
       {
         id: "today" as const,
         label: "Due today",
-        value: String(metrics.dueToday),
-        className: "text-slate-900",
-        tile: "border-slate-200 bg-white"
+        value: metrics.dueToday,
+        className: "text-fg",
+        tile: "border-subtle bg-surface"
       },
       {
         id: "needs_next_step" as const,
         label: "Needs next step",
-        value: String(metrics.needsNextStep),
-        className: "text-amber-800",
-        tile: "border-amber-200 bg-amber-50"
+        value: metrics.needsNextStep,
+        className: "text-warning",
+        tile: "border-warning-soft bg-warning-soft"
       },
       {
         id: "won_month" as const,
         label: "Won this month",
-        value: String(metrics.wonThisMonth),
-        sub:
-          metrics.wonThisMonthValue > 0
-            ? formatCurrency(metrics.wonThisMonthValue)
-            : undefined,
-        className: "text-slate-900",
-        tile: "border-slate-200 bg-white"
+        value: metrics.wonThisMonth,
+        subValue:
+          metrics.wonThisMonthValue > 0 ? metrics.wonThisMonthValue : undefined,
+        className: "text-fg",
+        tile: "border-subtle bg-surface"
       }
     ],
     [metrics]
@@ -201,7 +201,7 @@ export default function DealsControls({
   return (
     <div className="space-y-2" data-testid="deals-controls">
       <div
-        className="flex flex-wrap items-end gap-x-6 border-b border-slate-200"
+        className="flex flex-wrap items-end gap-x-6 border-b border-subtle"
         role="tablist"
         aria-label="Deal status"
       >
@@ -221,19 +221,22 @@ export default function DealsControls({
                 e.preventDefault();
                 go({ tab: tab.id, metric: null, from: null, to: null });
               }}
-              className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-0.5 pb-2 text-sm ${
-                active
-                  ? "border-slate-900 font-medium text-slate-900"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
+              className={`relative -mb-px inline-flex items-center gap-1.5 border-b-2 border-transparent px-0.5 pb-2 text-sm ${
+                active ? "font-medium text-fg" : "text-muted hover:text-fg"
               }`}
             >
               {tab.label}
               <span
                 data-testid={`deals-count-${tab.id}`}
-                className="tabular-nums text-slate-400"
+                className="tabular-nums text-muted"
               >
-                {counts[tab.id] ?? 0}
+                <CountUp
+                  value={counts[tab.id] ?? 0}
+                  format={formatInteger}
+                  speed="badge"
+                />
               </span>
+              <TabInk active={active} layoutId="deals-tabs-ink" />
             </a>
           );
         })}
@@ -256,7 +259,7 @@ export default function DealsControls({
             <select
               data-testid="deals-owner"
               aria-label="Owner"
-              className="h-8 max-w-[9.5rem] cursor-pointer border-0 bg-transparent text-sm text-slate-600"
+              className="h-8 max-w-[9.5rem] cursor-pointer border-0 bg-transparent text-sm text-muted"
               value={view.owner ?? ""}
               onChange={(e) => go({ owner: e.target.value || null })}
             >
@@ -275,7 +278,7 @@ export default function DealsControls({
             <select
               data-testid="deals-stage"
               aria-label="Stage"
-              className="h-8 max-w-[10rem] cursor-pointer border-0 bg-transparent text-sm text-slate-600"
+              className="h-8 max-w-[10rem] cursor-pointer border-0 bg-transparent text-sm text-muted"
               value={view.stages[0] ?? ""}
               onChange={(e) => go({ stage: e.target.value || null })}
             >
@@ -315,7 +318,7 @@ export default function DealsControls({
             <select
               data-testid="deals-sort"
               aria-label="Sort"
-              className="h-8 max-w-[9.5rem] cursor-pointer border-0 bg-transparent text-sm text-slate-600 max-[1024px]:sr-only"
+              className="h-8 max-w-[9.5rem] cursor-pointer border-0 bg-transparent text-sm text-muted max-[1024px]:sr-only"
               value={view.sort}
               onChange={(e) => go({ sort: e.target.value as DealSort })}
             >
@@ -334,7 +337,7 @@ export default function DealsControls({
           {conditions.length >= 2 ? (
             <button
               type="button"
-              className="text-xs text-slate-500 hover:text-slate-800"
+              className="text-xs text-muted hover:text-fg"
               onClick={() =>
                 go({
                   customFilter: view.customFilter
@@ -401,7 +404,7 @@ export default function DealsControls({
           <ChipTextLink testId="cf-add-filter" onClick={() => openFilter({ add: true })}>
             + Add filter
           </ChipTextLink>
-          <span className="text-slate-300" aria-hidden>
+          <span className="text-muted" aria-hidden>
             ·
           </span>
           <ChipTextLink
@@ -451,16 +454,18 @@ export default function DealsControls({
                   metric: (view.metric === t.id ? null : t.id) as DealMetricId | null
                 });
               }}
-              className={`rounded border px-3 py-2 text-left ${t.tile} ${
-                active ? "ring-1 ring-slate-900" : ""
+              className={`pressable lift-card rounded border px-3 py-2 text-left ${t.tile} ${
+                active ? "ring-1 ring-fg" : ""
               }`}
             >
-              <div className="text-[11px] text-slate-500">{t.label}</div>
+              <div className="text-[11px] text-muted">{t.label}</div>
               <div className={`text-lg font-semibold tabular-nums ${t.className}`}>
-                {t.value}
+                <CountUp value={t.value} format={formatInteger} />
               </div>
-              {t.sub ? (
-                <div className="text-[11px] text-slate-500">{t.sub}</div>
+              {t.subValue != null ? (
+                <div className="text-[11px] text-muted">
+                  <CountUp value={t.subValue} format={formatCurrency} />
+                </div>
               ) : null}
             </button>
           );
@@ -541,7 +546,7 @@ function DateRangeControl({
           className={ghostBtnClass}
         >
           {field}
-          <span className="max-[1024px]:hidden text-slate-400">{label}</span>
+          <span className="max-[1024px]:hidden text-muted">{label}</span>
         </button>
       }
     >
@@ -549,7 +554,7 @@ function DateRangeControl({
         {tab === "open" ? (
           <button
             type="button"
-            className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+            className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-surface-2"
             onClick={() => {
               onApply(null, null);
               setOpen(false);
@@ -560,7 +565,7 @@ function DateRangeControl({
         ) : null}
         <button
           type="button"
-          className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+          className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-surface-2"
           onClick={() => {
             onApply(rollingFromISO(today), today);
             setOpen(false);
@@ -570,7 +575,7 @@ function DateRangeControl({
         </button>
         <button
           type="button"
-          className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+          className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-surface-2"
           onClick={() => {
             onApply(addIstCalendarDays(today, -29), today);
             setOpen(false);
@@ -579,11 +584,11 @@ function DateRangeControl({
           Last 30 days
         </button>
         <div className="grid grid-cols-2 gap-2 pt-1">
-          <label className="text-xs text-slate-500">
+          <label className="text-xs text-muted">
             From
             <input
               type="date"
-              className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-sm"
+              className="mt-1 w-full rounded border border-subtle px-2 py-1 text-sm"
               defaultValue={from}
               onBlur={(e) => {
                 const nextFrom = e.target.value;
@@ -591,11 +596,11 @@ function DateRangeControl({
               }}
             />
           </label>
-          <label className="text-xs text-slate-500">
+          <label className="text-xs text-muted">
             To
             <input
               type="date"
-              className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-sm"
+              className="mt-1 w-full rounded border border-subtle px-2 py-1 text-sm"
               defaultValue={to}
               onBlur={(e) => {
                 const nextTo = e.target.value;

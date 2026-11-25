@@ -43,7 +43,7 @@ export default function ScrollableDataTable({
   return (
     <div className={`flex min-h-0 flex-1 flex-col gap-3 ${className}`.trim()}>
       {toolbar ? <div className="w-full shrink-0">{toolbar}</div> : null}
-      <div className="scrollable-data-table min-h-0 flex-1 overflow-auto rounded border border-slate-200">
+      <div className="scrollable-data-table min-h-0 flex-1 overflow-auto rounded border border-subtle">
         {children}
       </div>
     </div>

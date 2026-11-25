@@ -68,11 +68,11 @@ export default function ForgotPasswordPage() {
   if (done) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="w-full max-w-sm space-y-4 rounded border border-slate-200 p-6">
+        <div className="w-full max-w-sm space-y-4 rounded-card border border-subtle bg-surface p-6">
           <h1 className="page-title">Check your email</h1>
-          <p className="text-sm text-slate-600">{GENERIC_SUCCESS}</p>
-          <p className="text-center text-sm text-slate-600">
-            <Link href="/login" className="font-medium text-slate-900 underline">
+          <p className="text-sm text-muted">{GENERIC_SUCCESS}</p>
+          <p className="text-center text-sm text-muted">
+            <Link href="/login" className="font-medium text-fg underline">
               Back to log in
             </Link>
           </p>
@@ -85,16 +85,16 @@ export default function ForgotPasswordPage() {
     <div className="flex min-h-[60vh] items-center justify-center">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 rounded border border-slate-200 p-6"
+        className="w-full max-w-sm space-y-4 rounded-card border border-subtle bg-surface p-6"
         aria-busy={submitting}
       >
         <h1 className="page-title">Forgot password</h1>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-muted">
           Enter your account email and we&apos;ll send a reset link.
         </p>
 
         <div className="space-y-1">
-          <label htmlFor="email" className="text-xs text-slate-600">
+          <label htmlFor="email" className="text-xs text-muted">
             Email
           </label>
           <input
@@ -105,11 +105,11 @@ export default function ForgotPasswordPage() {
             disabled={submitting}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-900 disabled:opacity-60"
+            className="w-full rounded border border-subtle px-3 py-2 text-sm text-fg disabled:opacity-60"
           />
         </div>
 
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="text-sm text-danger">{error}</p> : null}
 
         <button
           type="submit"
@@ -120,8 +120,8 @@ export default function ForgotPasswordPage() {
           {submitting ? "Sending…" : "Send reset link"}
         </button>
 
-        <p className="text-center text-sm text-slate-600">
-          <Link href="/login" className="font-medium text-slate-900 underline">
+        <p className="text-center text-sm text-muted">
+          <Link href="/login" className="font-medium text-fg underline">
             Back to log in
           </Link>
         </p>

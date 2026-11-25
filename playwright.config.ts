@@ -35,5 +35,14 @@ export default defineConfig({
         stdout: "pipe",
         stderr: "pipe"
       },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }]
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium-reduced-motion",
+      use: {
+        ...devices["Desktop Chrome"],
+        contextOptions: { reducedMotion: "reduce" }
+      }
+    }
+  ]
 });

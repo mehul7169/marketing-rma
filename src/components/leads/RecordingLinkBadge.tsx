@@ -10,7 +10,7 @@ export default function RecordingLinkBadge({ url }: { url: string | null | undef
       title="Recording link saved"
     >
       <span
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-subtle bg-surface-2 text-muted"
         aria-hidden
       >
         <svg

@@ -1,15 +1,23 @@
 "use client";
 
+import { cn } from "@/components/ui/cn";
+
 export default function LeadRow({
   onOpen,
-  children
+  children,
+  fx
 }: {
   onOpen?: () => void;
   children: React.ReactNode;
+  fx?: "flash" | "shake" | null;
 }) {
   return (
     <tr
-      className="group cursor-pointer hover:bg-slate-50/60"
+      className={cn(
+        "group cursor-pointer hover:bg-surface-2/60",
+        fx === "flash" && "cell-flash",
+        fx === "shake" && "motion-shake"
+      )}
       onClick={(e) => {
         const t = e.target as HTMLElement;
         if (

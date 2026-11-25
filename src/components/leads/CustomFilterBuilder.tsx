@@ -31,7 +31,7 @@ import {
 } from "@/lib/leads/filterFields";
 
 const CONTROL =
-  `${CONTROL_H} rounded-sm border border-slate-200 bg-white px-2 text-xs text-slate-800`;
+  `${CONTROL_H} rounded-sm border border-subtle bg-surface px-2 text-xs text-fg`;
 
 function FieldSelect({
   fields,
@@ -112,7 +112,7 @@ function ValueInput({
           value={pair[0] ?? ""}
           onChange={(e) => onChange([Number(e.target.value), Number(pair[1] ?? 0)])}
         />
-        <span className="text-slate-400">–</span>
+        <span className="text-muted">–</span>
         <input
           type="number"
           data-testid="cf-value-max"
@@ -133,7 +133,7 @@ function ValueInput({
           value={String(pair[0] ?? "")}
           onChange={(e) => onChange([e.target.value, String(pair[1] ?? "")])}
         />
-        <span className="text-slate-400">–</span>
+        <span className="text-muted">–</span>
         <input
           type="date"
           className={`min-w-0 flex-1 ${CONTROL}`}
@@ -172,7 +172,7 @@ function ValueInput({
       <select
         multiple
         data-testid="cf-value"
-        className="max-h-24 min-h-8 w-full rounded-sm border border-slate-200 bg-white px-1 py-1 text-xs"
+        className="max-h-24 min-h-8 w-full rounded-sm border border-subtle bg-surface px-1 py-1 text-xs"
         value={selected}
         onChange={(e) =>
           onChange(Array.from(e.target.selectedOptions).map((o) => o.value))
@@ -209,7 +209,7 @@ function ToggleSwitch({
   testId?: string;
 }) {
   return (
-    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+    <label className="inline-flex items-center gap-2 text-xs text-muted">
       <span>{label}</span>
       <button
         type="button"
@@ -217,12 +217,12 @@ function ToggleSwitch({
         aria-checked={checked}
         data-testid={testId}
         className={`relative h-5 w-9 rounded-full ${
-          checked ? "bg-sky-600" : "bg-slate-200"
+          checked ? "bg-accent" : "bg-surface-2"
         }`}
         onClick={() => onChange(!checked)}
       >
         <span
-          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-[left] ${
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-surface transition-[left] ${
             checked ? "left-4" : "left-0.5"
           }`}
         />
@@ -350,11 +350,11 @@ export default function CustomFilterBuilder({
     >
       <div data-testid="cf-popover">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <p id="cf-popover-title" className="text-sm text-slate-700">
+          <p id="cf-popover-title" className="text-sm text-fg">
             Match{" "}
             <select
               data-testid="cf-match"
-              className={`${CONTROL_H} rounded-sm border border-slate-200 bg-white px-1.5 text-sm text-slate-900`}
+              className={`${CONTROL_H} rounded-sm border border-subtle bg-surface px-1.5 text-sm text-fg`}
               value={draft.match}
               onChange={(e) => setMatch(e.target.value as CustomFilterMatch)}
             >
@@ -425,7 +425,7 @@ export default function CustomFilterBuilder({
                 <button
                   type="button"
                   aria-label={`Remove ${customConditionChipLabel(c)}`}
-                  className={`${CONTROL_H} rounded-sm px-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800`}
+                  className={`${CONTROL_H} rounded-sm px-1.5 text-muted hover:bg-surface-2 hover:text-fg`}
                   onClick={() =>
                     setDraft((p) => ({
                       ...p,
@@ -443,7 +443,7 @@ export default function CustomFilterBuilder({
         <button
           type="button"
           data-testid="cf-add"
-          className="mt-3 text-xs text-slate-600 hover:text-slate-900"
+          className="mt-3 text-xs text-muted hover:text-fg"
           onClick={() =>
             setDraft((prev) => ({
               ...prev,
