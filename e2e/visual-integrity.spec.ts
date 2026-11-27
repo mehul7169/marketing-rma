@@ -77,6 +77,76 @@ async function settle(page: Page) {
   await page.waitForTimeout(1500);
 }
 
+const POPOVER_SHOTS = path.join("e2e", "screenshots", "popovers");
+
+function failIfPinnedToOrigin(
+  trigger: { x: number; y: number },
+  pop: { x: number; y: number }
+) {
+  if (trigger.x > 8 || trigger.y > 8) {
+    expect(
+      pop.x <= 4 && pop.y <= 4,
+      "popover top-left is at viewport (0,0) while the trigger is elsewhere"
+    ).toBe(false);
+  }
+}
+
+async function assertAnchoredToTrigger(
+  page: Page,
+  trigger: import("@playwright/test").Locator,
+  opts?: { saveName?: string | RegExp; shot?: string; theme?: string }
+) {
+  const pop = page.locator("[data-action-popover]").last();
+  await expect(pop).toBeVisible();
+  await page.waitForTimeout(200);
+  const t = await trigger.boundingBox();
+  const p = await pop.boundingBox();
+  expect(t, "trigger bounding box").toBeTruthy();
+  expect(p, "popover bounding box").toBeTruthy();
+  failIfPinnedToOrigin(t!, p!);
+
+  const vp = page.viewportSize()!;
+  expect(p!.x).toBeGreaterThanOrEqual(-1);
+  expect(p!.y).toBeGreaterThanOrEqual(-1);
+  expect(p!.x + p!.width).toBeLessThanOrEqual(vp.width + 1);
+  expect(p!.y + p!.height).toBeLessThanOrEqual(vp.height + 1);
+
+  const gapX =
+    p!.x > t!.x + t!.width
+      ? p!.x - (t!.x + t!.width)
+      : t!.x > p!.x + p!.width
+        ? t!.x - (p!.x + p!.width)
+        : 0;
+  expect(
+    gapX <= 24,
+    `popover x=${p!.x.toFixed(1)} w=${p!.width.toFixed(1)} not within 24px of trigger x=${t!.x.toFixed(1)} w=${t!.width.toFixed(1)} (gap=${gapX.toFixed(1)})`
+  ).toBe(true);
+
+  const gapY =
+    p!.y > t!.y + t!.height
+      ? p!.y - (t!.y + t!.height)
+      : t!.y > p!.y + p!.height
+        ? t!.y - (p!.y + p!.height)
+        : 0;
+  expect(
+    gapY <= 24,
+    `popover y=${p!.y.toFixed(1)} h=${p!.height.toFixed(1)} not within 24px of trigger y=${t!.y.toFixed(1)} h=${t!.height} (gap=${gapY.toFixed(1)})`
+  ).toBe(true);
+
+  if (opts?.saveName) {
+    const save = pop.getByRole("button", { name: opts.saveName });
+    await expect(save).toBeVisible();
+    await expect(save).toBeEnabled();
+  }
+
+  if (opts?.shot && opts.theme) {
+    mkdirSync(POPOVER_SHOTS, { recursive: true });
+    await pop.screenshot({
+      path: path.join(POPOVER_SHOTS, `${opts.shot}-${opts.theme}.png`)
+    });
+  }
+}
+
 async function screenshotBaseline(page: Page, id: string, theme: string) {
   await expect(page).toHaveScreenshot(`${id}-${theme}.png`, {
     animations: "allow",
@@ -417,7 +487,7 @@ test.describe("visual integrity (motion on)", () => {
       await page.keyboard.press("Escape");
 
       await page.getByTestId("cf-saved").click();
-      await expect(page.locator("div.absolute.z-30.w-72")).toBeVisible({
+      await expect(page.getByTestId("cf-saved-menu")).toBeVisible({
         timeout: 5_000
       });
       await settle(page);
@@ -487,6 +557,135 @@ test.describe("visual integrity login", () => {
       await settle(page);
       await assertVisualIntegrity(page, `login ${theme}`);
       await screenshotBaseline(page, "login", theme);
+    }
+  });
+});
+
+test.describe("popover anchoring (motion on)", () => {
+  test.skip(!email || !password, "needs E2E/TEST member creds");
+  test.setTimeout(180_000);
+
+  test("Log Call, Stage Actions, Cancel booking, Deals, Filter, Views", async ({
+    page
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page, email!, password!);
+
+    for (const theme of ["light", "dark"] as const) {
+      await page.goto("/");
+      await setTheme(page, theme);
+
+      await page.goto("/leads/queue?view=cards&tab=all");
+      await page.waitForLoadState("networkidle");
+      const firstLog = page.getByRole("button", { name: "Log Call" }).first();
+      await expect(firstLog).toBeVisible({ timeout: 20_000 });
+      await firstLog.click();
+      await assertAnchoredToTrigger(page, firstLog, {
+        saveName: "Save",
+        shot: "wq-card-log-call",
+        theme
+      });
+      await page.keyboard.press("Escape");
+
+      const logs = page.getByRole("button", { name: "Log Call" });
+      const lastLog = logs.nth(Math.max(0, (await logs.count()) - 1));
+      await lastLog.scrollIntoViewIfNeeded();
+      await lastLog.click();
+      await assertAnchoredToTrigger(page, lastLog, {
+        saveName: "Save",
+        shot: "wq-card-log-call-bottom",
+        theme
+      });
+      await page.keyboard.press("Escape");
+
+      await page.goto("/leads/queue?view=table&tab=all");
+      await page.waitForLoadState("networkidle");
+      await expect(page.getByTestId("work-queue-row").first()).toBeVisible({
+        timeout: 20_000
+      });
+      const columnsBtn = page.getByRole("button", { name: "Columns" });
+      if (await columnsBtn.count()) {
+        await columnsBtn.click();
+        const stageCol = page.locator("#col-stage");
+        if ((await stageCol.count()) && !(await stageCol.isChecked())) {
+          await stageCol.check();
+        }
+        const schedCol = page.locator("#col-call_scheduled_for");
+        if ((await schedCol.count()) && !(await schedCol.isChecked())) {
+          await schedCol.check();
+        }
+        await page.keyboard.press("Escape");
+      }
+      const actions = page.getByRole("button", { name: "Actions" }).first();
+      await actions.scrollIntoViewIfNeeded();
+      await expect(actions).toBeVisible({ timeout: 20_000 });
+      await actions.click();
+      await assertAnchoredToTrigger(page, actions, {
+        shot: "wq-table-stage-actions",
+        theme
+      });
+      await page.keyboard.press("Escape");
+
+      await page.goto("/leads/queue?view=table&tab=meetings_booked");
+      await page.waitForLoadState("networkidle");
+      const cancel = page.getByTestId("cancel-booking-button").first();
+      if (await cancel.count()) {
+        await cancel.scrollIntoViewIfNeeded();
+        await cancel.click();
+        await assertAnchoredToTrigger(page, cancel, {
+          saveName: "Cancel booking",
+          shot: "wq-table-cancel-booking",
+          theme
+        });
+        await page.keyboard.press("Escape");
+      }
+
+      await page.goto("/deals?tab=open");
+      await page.waitForLoadState("networkidle");
+      const follow = page.getByTestId("deal-log-follow-up").first();
+      if (await follow.count()) {
+        await follow.scrollIntoViewIfNeeded();
+        await follow.click();
+        await assertAnchoredToTrigger(page, follow, {
+          shot: "deals-log-follow-up",
+          theme
+        });
+        await page.keyboard.press("Escape");
+      }
+
+      await page.goto("/leads/queue?view=table&tab=all");
+      await page.waitForLoadState("networkidle");
+      const filterBtn = page.getByTestId("cf-filter");
+      await filterBtn.click();
+      await assertAnchoredToTrigger(page, filterBtn, {
+        shot: "filter-popover",
+        theme
+      });
+      await page.keyboard.press("Escape");
+
+      const viewsBtn = page.getByTestId("cf-saved");
+      await viewsBtn.click();
+      await assertAnchoredToTrigger(page, viewsBtn, {
+        shot: "views-menu",
+        theme
+      });
+      await page.keyboard.press("Escape");
+
+      const collapse = page.getByRole("button", { name: "Collapse sidebar" });
+      if (await collapse.isVisible()) await collapse.click();
+      await page.goto("/leads/queue?view=cards&tab=all");
+      await page.waitForLoadState("networkidle");
+      const logCollapsed = page.getByRole("button", { name: "Log Call" }).first();
+      await expect(logCollapsed).toBeVisible({ timeout: 20_000 });
+      await logCollapsed.click();
+      await assertAnchoredToTrigger(page, logCollapsed, {
+        saveName: "Save",
+        shot: "wq-card-log-call-collapsed",
+        theme
+      });
+      await page.keyboard.press("Escape");
+      const expand = page.getByRole("button", { name: "Expand sidebar" });
+      if (await expand.isVisible()) await expand.click();
     }
   });
 });

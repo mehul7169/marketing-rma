@@ -1,11 +1,13 @@
 "use client";
 
 import {
+  FloatingPortal,
   autoUpdate,
   flip,
   offset,
   shift,
   size,
+  useClick,
   useDismiss,
   useFloating,
   useInteractions,
@@ -20,9 +22,9 @@ import {
   type ReactElement,
   type ReactNode
 } from "react";
-import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "motion/react";
-import { MOTION_OFF, DURATION, EASE_OUT, transitionReduced } from "@/lib/motion";
+import { popoverMotion } from "@/components/ui/Enter";
+import { MOTION_OFF } from "@/lib/motion";
 
 const VIEWPORT_PAD = 8;
 const IS_JSDOM =
@@ -83,6 +85,32 @@ function viewportCenter(): VirtualElement {
   };
 }
 
+/** Scale/fade origin on the inner panel, opposite the placement side. */
+export function originFromPlacement(placement: Placement): string {
+  const [side, align] = placement.split("-");
+  const y =
+    side === "top"
+      ? "bottom"
+      : side === "bottom"
+        ? "top"
+        : align === "end"
+          ? "bottom"
+          : align === "start"
+            ? "top"
+            : "center";
+  const x =
+    side === "left"
+      ? "right"
+      : side === "right"
+        ? "left"
+        : align === "end"
+          ? "right"
+          : align === "start"
+            ? "left"
+            : "center";
+  return `${y} ${x}`;
+}
+
 export default function ActionPopover({
   open,
   onOpenChange,
@@ -131,6 +159,7 @@ export default function ActionPopover({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trigger, reference, fallback]);
 
+  const click = useClick(context);
   const dismiss = useDismiss(context, {
     escapeKey: true,
     outsidePress: true,
@@ -138,6 +167,7 @@ export default function ActionPopover({
   });
   const roleIx = useRole(context, { role });
   const { getReferenceProps, getFloatingProps } = useInteractions([
+    click,
     dismiss,
     roleIx
   ]);
@@ -161,28 +191,29 @@ export default function ActionPopover({
   }, [open]);
 
   const floating =
-    open && typeof document !== "undefined"
-      ? createPortal(
+    open && typeof document !== "undefined" ? (
+      <FloatingPortal>
+        {/* Positioning only. Motion must not live here — it would overwrite
+            floatingStyles.transform and pin the panel at 0,0. */}
+        <div
+          ref={refs.setFloating}
+          style={floatingStyles}
+          {...getFloatingProps({
+            className: `z-[70] ${widthClass}`,
+            "aria-labelledby": labelledBy,
+            tabIndex: -1
+          })}
+          data-action-popover=""
+        >
           <motion.div
-            ref={refs.setFloating}
-            style={floatingStyles}
-            initial={
-              skipMotion
-                ? false
-                : { opacity: 0, y: 4, scale: 0.98 }
-            }
-            animate={{ opacity: 1, y: 0, scale: 1 }}
+            data-action-popover-panel=""
+            className={`flex max-h-[inherit] flex-col rounded-card border border-subtle bg-surface shadow-card ${panelClassName}`}
+            style={{ transformOrigin: originFromPlacement(context.placement) }}
+            initial={skipMotion ? false : popoverMotion.initial}
+            animate={skipMotion ? { opacity: 1 } : popoverMotion.animate}
             transition={
-              reduced
-                ? transitionReduced
-                : { duration: DURATION.fast, ease: EASE_OUT }
+              skipMotion ? { duration: 0 } : popoverMotion.transition
             }
-            {...getFloatingProps({
-              className: `z-[70] flex flex-col rounded-card border border-subtle bg-surface shadow-card ${panelClassName} ${widthClass}`,
-              "aria-labelledby": labelledBy,
-              tabIndex: -1
-            })}
-            data-action-popover=""
           >
             <div
               className={`min-h-0 flex-1 overflow-y-auto ${bodyClassName}`.trim()}
@@ -194,10 +225,10 @@ export default function ActionPopover({
                 {footer}
               </div>
             ) : null}
-          </motion.div>,
-          document.body
-        )
-      : null;
+          </motion.div>
+        </div>
+      </FloatingPortal>
+    ) : null;
 
   return (
     <>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import ActionPopover from "@/components/leads/ActionPopover";
 
 export type MultiSelectOption = { value: string; label: string };
 
@@ -17,24 +18,7 @@ export default function CheckboxMultiSelect({
   onChange: (next: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const selectedSet = new Set(selected);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
 
   function toggle(value: string) {
     const next = selectedSet.has(value)
@@ -54,25 +38,36 @@ export default function CheckboxMultiSelect({
         : `${selected.length} selected`;
 
   return (
-    <div ref={rootRef} className="relative flex flex-col text-xs text-muted">
+    <div className="flex flex-col text-xs text-muted">
       <span>{label}</span>
-      <button
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={`${label} filter`}
-        className="mt-1 flex min-w-[160px] items-center justify-between gap-2 rounded border border-subtle bg-surface px-2 py-2 text-left text-sm text-fg"
-        onClick={() => setOpen((o) => !o)}
+      <ActionPopover
+        open={open}
+        onOpenChange={setOpen}
+        placement="bottom-start"
+        role="menu"
+        widthClass="min-w-[160px]"
+        bodyClassName="py-1"
+        trigger={
+          <button
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-label={`${label} filter`}
+            className="mt-1 flex min-w-[160px] items-center justify-between gap-2 rounded border border-subtle bg-surface px-2 py-2 text-left text-sm text-fg"
+            onClick={() => setOpen((o) => !o)}
+          >
+            <span className="truncate">{summary}</span>
+            <span aria-hidden className="text-muted">
+              ▾
+            </span>
+          </button>
+        }
       >
-        <span className="truncate">{summary}</span>
-        <span aria-hidden className="text-muted">▾</span>
-      </button>
-      {open ? (
         <div
           role="listbox"
           aria-multiselectable
           aria-label={label}
-          className="absolute left-0 top-full z-20 mt-1 max-h-72 min-w-full overflow-auto rounded border border-subtle bg-surface py-1 shadow-card"
+          className="max-h-72 overflow-auto"
         >
           {options.length === 0 ? (
             <p className="px-3 py-2 text-sm text-muted">No options</p>
@@ -101,7 +96,7 @@ export default function CheckboxMultiSelect({
             </button>
           ) : null}
         </div>
-      ) : null}
+      </ActionPopover>
     </div>
   );
 }

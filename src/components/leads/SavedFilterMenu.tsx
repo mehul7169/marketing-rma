@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import ActionPopover from "@/components/leads/ActionPopover";
 import { useFilterPending } from "@/components/leads/FilterPending";
 import { ToolbarGhostButton, ViewsIcon } from "@/components/leads/FilterToolbar";
 import type { NamedLeadFilter } from "@/lib/leads/namedFilters";
@@ -29,7 +30,6 @@ export default function SavedFilterMenu({
   const [name, setName] = useState("");
   const [shared, setShared] = useState(false);
   const [list, setList] = useState(items);
-  const rootRef = useRef<HTMLDivElement>(null);
   const prevSave = useRef(saveRequestKey);
   const path = pageKey === "leads-queue" ? "/leads/queue" : "/leads";
 
@@ -44,18 +44,6 @@ export default function SavedFilterMenu({
       }
     }
   }, [saveRequestKey]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) {
-        setOpen(false);
-        setSaving(false);
-      }
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
 
   function applyItem(item: NamedLeadFilter) {
     const params = new URLSearchParams(item.query);
@@ -114,15 +102,26 @@ export default function SavedFilterMenu({
   const team = list.filter((f) => f.shared);
 
   return (
-    <div ref={rootRef} className="relative">
-      <ToolbarGhostButton
-        testId="cf-saved"
-        label="Views"
-        icon={<ViewsIcon />}
-        onClick={() => setOpen((v) => !v)}
-      />
-      {open ? (
-        <div className="absolute right-0 z-30 mt-1 w-72 rounded border border-subtle bg-surface p-2 text-xs shadow-card">
+    <ActionPopover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setSaving(false);
+      }}
+      placement="bottom-end"
+      role="menu"
+      widthClass="w-72"
+      bodyClassName="p-2"
+      trigger={
+        <ToolbarGhostButton
+          testId="cf-saved"
+          label="Views"
+          icon={<ViewsIcon />}
+          onClick={() => setOpen((v) => !v)}
+        />
+      }
+    >
+      <div data-testid="cf-saved-menu" className="text-xs">
           {personal.length === 0 && team.length === 0 ? (
             <p className="px-1 py-2 text-muted">No saved views yet.</p>
           ) : null}
@@ -213,9 +212,8 @@ export default function SavedFilterMenu({
               </>
             )}
           </div>
-        </div>
-      ) : null}
-    </div>
+      </div>
+    </ActionPopover>
   );
 }
 

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cn } from "@/components/ui/cn";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
@@ -22,15 +22,13 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: ButtonSize;
 };
 
-export default function Button({
-  variant = "primary",
-  size = "md",
-  className,
-  type = "button",
-  ...props
-}: ButtonProps) {
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = "primary", size = "md", className, type = "button", ...props },
+  ref
+) {
   return (
     <button
+      ref={ref}
       type={type}
       className={cn(
         "pressable inline-flex items-center justify-center gap-1.5 rounded-control font-medium disabled:opacity-60",
@@ -41,4 +39,6 @@ export default function Button({
       {...props}
     />
   );
-}
+});
+
+export default Button;

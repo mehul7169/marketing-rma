@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import ActionPopover from "@/components/leads/ActionPopover";
 import type { UseTableViewResult } from "@/hooks/useTableView";
 
 export default function ColumnPicker({
@@ -13,154 +14,148 @@ export default function ColumnPicker({
   const [open, setOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) {
-      if (!panelRef.current?.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
 
   return (
-    <div className="relative" ref={panelRef}>
-      <button
-        type="button"
-        title="Columns"
-        aria-label="Columns"
-        className={
-          variant === "menu"
-            ? "block w-full rounded-sm px-1 py-1 text-left text-fg hover:bg-surface-2"
-            : variant === "ghost"
-              ? "inline-flex h-8 items-center gap-1.5 rounded px-2 text-sm text-muted hover:bg-surface-2 hover:text-fg"
-              : "rounded border border-subtle px-3 py-1.5 text-sm text-fg hover:bg-surface-2"
-        }
-        onClick={() => setOpen((v) => !v)}
-      >
-        {variant === "ghost" ? (
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <path
-              d="M3.5 2.5h2v11h-2v-11Zm3.5 0h2v11H7v-11Zm3.5 0h2v11h-2v-11Z"
-              stroke="currentColor"
-              strokeWidth="1.25"
-            />
-          </svg>
-        ) : null}
-        <span className={variant === "ghost" ? "max-[1024px]:hidden" : undefined}>
-          Columns
-        </span>
-        {view.saving ? (
-          <span className="ml-1 text-xs text-muted">saving…</span>
-        ) : null}
-      </button>
-      {open ? (
-        <div className="absolute right-0 z-40 mt-2 w-80 rounded border border-subtle bg-surface p-3 shadow-card">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-fg">Show / order</p>
-            <button
-              type="button"
-              className="text-xs text-muted underline hover:text-fg"
-              onClick={() => view.resetToDefault()}
-            >
-              Reset to default
-            </button>
-          </div>
-          {view.error ? (
-            <p className="mb-2 text-xs text-danger">{view.error}</p>
+    <ActionPopover
+      open={open}
+      onOpenChange={setOpen}
+      placement="bottom-end"
+      widthClass="w-80"
+      bodyClassName="p-3"
+      trigger={
+        <button
+          type="button"
+          title="Columns"
+          aria-label="Columns"
+          className={
+            variant === "menu"
+              ? "block w-full rounded-sm px-1 py-1 text-left text-fg hover:bg-surface-2"
+              : variant === "ghost"
+                ? "inline-flex h-8 items-center gap-1.5 rounded px-2 text-sm text-muted hover:bg-surface-2 hover:text-fg"
+                : "rounded border border-subtle px-3 py-1.5 text-sm text-fg hover:bg-surface-2"
+          }
+          onClick={() => setOpen((v) => !v)}
+        >
+          {variant === "ghost" ? (
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path
+                d="M3.5 2.5h2v11h-2v-11Zm3.5 0h2v11H7v-11Zm3.5 0h2v11h-2v-11Z"
+                stroke="currentColor"
+                strokeWidth="1.25"
+              />
+            </svg>
           ) : null}
-          <ul className="max-h-80 space-y-1 overflow-y-auto">
-            {view.columns.map((col, index) => (
-              <li
-                key={col.id}
-                draggable
-                onDragStart={(e) => {
-                  setDragId(col.id);
-                  e.dataTransfer.effectAllowed = "move";
-                  e.dataTransfer.setData("text/plain", col.id);
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                  if (overId !== col.id) setOverId(col.id);
-                }}
-                onDragLeave={() => {
-                  if (overId === col.id) setOverId(null);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const from =
-                    e.dataTransfer.getData("text/plain") || dragId || "";
-                  if (from) view.reorderColumn(from, col.id);
-                  setDragId(null);
-                  setOverId(null);
-                }}
-                onDragEnd={() => {
-                  setDragId(null);
-                  setOverId(null);
-                }}
-                className={`flex items-center gap-2 rounded px-1 py-1 hover:bg-surface-2 ${
-                  overId === col.id && dragId !== col.id
-                    ? "bg-surface-2 ring-1 ring-subtle"
-                    : ""
-                } ${dragId === col.id ? "opacity-50" : ""}`}
-              >
-                <span
-                  className="cursor-grab touch-none select-none px-0.5 text-muted active:cursor-grabbing"
-                  title="Drag to reorder"
-                  aria-hidden
-                >
-                  ⋮⋮
-                </span>
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5"
-                  checked={col.visible}
-                  onChange={(e) =>
-                    view.setColumnVisible(col.id, e.target.checked)
-                  }
-                  id={`col-${col.id}`}
-                />
-                <label
-                  htmlFor={`col-${col.id}`}
-                  className="min-w-0 flex-1 truncate text-sm text-fg"
-                  title={col.id}
-                >
-                  {view.labelFor(col.id)}
-                  {col.id.startsWith("custom_fields.") ? (
-                    <span className="ml-1 text-[10px] text-muted">
-                      custom
-                    </span>
-                  ) : null}
-                </label>
-                <div className="flex shrink-0 gap-0.5">
-                  <button
-                    type="button"
-                    className="rounded border border-subtle px-1.5 py-0.5 text-xs text-muted disabled:opacity-30"
-                    disabled={index === 0}
-                    onClick={() => view.moveColumn(col.id, "up")}
-                    aria-label="Move up"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border border-subtle px-1.5 py-0.5 text-xs text-muted disabled:opacity-30"
-                    disabled={index === view.columns.length - 1}
-                    onClick={() => view.moveColumn(col.id, "down")}
-                    aria-label="Move down"
-                  >
-                    ↓
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <span className={variant === "ghost" ? "max-[1024px]:hidden" : undefined}>
+            Columns
+          </span>
+          {view.saving ? (
+            <span className="ml-1 text-xs text-muted">saving…</span>
+          ) : null}
+        </button>
+      }
+    >
+      <div data-testid="column-picker-menu">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-xs font-medium text-fg">Show / order</p>
+          <button
+            type="button"
+            className="text-xs text-muted underline hover:text-fg"
+            onClick={() => view.resetToDefault()}
+          >
+            Reset to default
+          </button>
         </div>
-      ) : null}
-    </div>
+        {view.error ? (
+          <p className="mb-2 text-xs text-danger">{view.error}</p>
+        ) : null}
+        <ul className="max-h-80 space-y-1 overflow-y-auto">
+          {view.columns.map((col, index) => (
+            <li
+              key={col.id}
+              draggable
+              onDragStart={(e) => {
+                setDragId(col.id);
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", col.id);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (overId !== col.id) setOverId(col.id);
+              }}
+              onDragLeave={() => {
+                if (overId === col.id) setOverId(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const from =
+                  e.dataTransfer.getData("text/plain") || dragId || "";
+                if (from) view.reorderColumn(from, col.id);
+                setDragId(null);
+                setOverId(null);
+              }}
+              onDragEnd={() => {
+                setDragId(null);
+                setOverId(null);
+              }}
+              className={`flex items-center gap-2 rounded px-1 py-1 hover:bg-surface-2 ${
+                overId === col.id && dragId !== col.id
+                  ? "bg-surface-2 ring-1 ring-subtle"
+                  : ""
+              } ${dragId === col.id ? "opacity-50" : ""}`}
+            >
+              <span
+                className="cursor-grab touch-none select-none px-0.5 text-muted active:cursor-grabbing"
+                title="Drag to reorder"
+                aria-hidden
+              >
+                ⋮⋮
+              </span>
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5"
+                checked={col.visible}
+                onChange={(e) =>
+                  view.setColumnVisible(col.id, e.target.checked)
+                }
+                id={`col-${col.id}`}
+              />
+              <label
+                htmlFor={`col-${col.id}`}
+                className="min-w-0 flex-1 truncate text-sm text-fg"
+                title={col.id}
+              >
+                {view.labelFor(col.id)}
+                {col.id.startsWith("custom_fields.") ? (
+                  <span className="ml-1 text-[10px] text-muted">
+                    custom
+                  </span>
+                ) : null}
+              </label>
+              <div className="flex shrink-0 gap-0.5">
+                <button
+                  type="button"
+                  className="rounded border border-subtle px-1.5 py-0.5 text-xs text-muted disabled:opacity-30"
+                  disabled={index === 0}
+                  onClick={() => view.moveColumn(col.id, "up")}
+                  aria-label="Move up"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="rounded border border-subtle px-1.5 py-0.5 text-xs text-muted disabled:opacity-30"
+                  disabled={index === view.columns.length - 1}
+                  onClick={() => view.moveColumn(col.id, "down")}
+                  aria-label="Move down"
+                >
+                  ↓
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </ActionPopover>
   );
 }

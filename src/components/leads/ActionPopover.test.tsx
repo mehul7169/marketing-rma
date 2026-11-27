@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
-import ActionPopover from "@/components/leads/ActionPopover";
+import ActionPopover, {
+  originFromPlacement
+} from "@/components/leads/ActionPopover";
 
 function Harness() {
   const [open, setOpen] = useState(false);
@@ -28,6 +30,20 @@ function Harness() {
 }
 
 describe("ActionPopover", () => {
+  it("keeps Floating UI styles on an outer node, separate from the motion panel", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Log Call" }));
+    const panel = screen.getByText("Outcome options").closest(
+      "[data-action-popover-panel]"
+    ) as HTMLElement | null;
+    const popover = panel?.closest("[data-action-popover]") as HTMLElement | null;
+    expect(popover).toBeTruthy();
+    expect(panel).toBeTruthy();
+    expect(popover).not.toBe(panel);
+    expect(popover?.style.position).toBe("fixed");
+    expect(document.body.contains(popover)).toBe(true);
+  });
+
   it("portals content to document.body so overflow parents cannot clip it", () => {
     const { container } = render(
       <div style={{ overflow: "hidden", height: 40 }}>
@@ -49,6 +65,12 @@ describe("ActionPopover", () => {
     expect(screen.getByText("Outcome options")).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByText("Outcome options")).not.toBeInTheDocument();
+  });
+
+  it("maps placement to the opposite transform origin", () => {
+    expect(originFromPlacement("bottom-start")).toBe("top left");
+    expect(originFromPlacement("top-end")).toBe("bottom right");
+    expect(originFromPlacement("right")).toBe("center left");
   });
 
   it("closes on outside click", () => {

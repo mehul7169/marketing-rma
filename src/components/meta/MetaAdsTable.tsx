@@ -14,6 +14,7 @@ import {
   formatInteger,
   formatPercent
 } from "@/lib/format";
+import ActionPopover from "@/components/leads/ActionPopover";
 import InfoTip from "@/components/InfoTip";
 import { INSIGHTS_TOOLTIPS } from "@/lib/insights/tooltips";
 
@@ -277,40 +278,40 @@ function ActionsSummary({ actions }: { actions: MetaActionEntry[] }) {
   }
 
   return (
-    <div className="relative inline-block text-left">
-      <button
-        type="button"
-        className="text-xs text-muted underline decoration-subtle underline-offset-2 hover:text-fg"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((v) => !v);
-        }}
-        onBlur={() => {
-          // Delay so a click inside the panel can register first.
-          window.setTimeout(() => setOpen(false), 150);
-        }}
-        aria-expanded={open}
-      >
-        {count} action type{count === 1 ? "" : "s"}
-      </button>
-      {open ? (
-        <div className="absolute right-0 z-20 mt-1 max-h-56 w-64 overflow-y-auto rounded border border-subtle bg-surface px-3 py-2 text-left shadow-card">
-          <ul className="space-y-1">
-            {actions.map((a) => (
-              <li
-                key={a.action_type}
-                className="flex justify-between gap-3 text-[11px] text-fg"
-              >
-                <span className="min-w-0 break-all">{a.action_type}</span>
-                <span className="shrink-0 tabular-nums text-fg">
-                  {formatInteger(Number(a.value) || 0)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
+    <ActionPopover
+      open={open}
+      onOpenChange={setOpen}
+      placement="bottom-end"
+      widthClass="w-64"
+      bodyClassName="px-3 py-2"
+      trigger={
+        <button
+          type="button"
+          className="text-xs text-muted underline decoration-subtle underline-offset-2 hover:text-fg"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }}
+          aria-expanded={open}
+        >
+          {count} action type{count === 1 ? "" : "s"}
+        </button>
+      }
+    >
+      <ul data-testid="meta-actions-summary" className="max-h-56 space-y-1 overflow-y-auto">
+        {actions.map((a) => (
+          <li
+            key={a.action_type}
+            className="flex justify-between gap-3 text-[11px] text-fg"
+          >
+            <span className="min-w-0 break-all">{a.action_type}</span>
+            <span className="shrink-0 tabular-nums text-fg">
+              {formatInteger(Number(a.value) || 0)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </ActionPopover>
   );
 }
 
