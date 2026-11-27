@@ -32,6 +32,10 @@ import type { SetterActivityUser } from "@/lib/insights/setterActivity";
 import type { CustomFilter } from "@/lib/leads/customFilter";
 import { kpiLeadsHref } from "@/lib/leads/listFilterParams";
 import type { KpiKey } from "@/lib/leads/lifecycleDefinitions";
+import {
+  emptyCancelledBookings,
+  type CancelledBookingsStat
+} from "@/lib/leads/cancelledBookings";
 import { formatCalendarDate } from "@/lib/timezone";
 import { getPriorPeriod } from "@/lib/utils/date";
 
@@ -97,6 +101,7 @@ export type HomeDashboard = {
   setters: SetterBoardRow[];
   closers: Array<CloserRow & { rank: number }>;
   ads: HomeAds | null;
+  cancelledBookings: CancelledBookingsStat;
 };
 
 export function trafficCustomFilter(
@@ -122,7 +127,8 @@ function kpiSub(
   key: HomeKpiTile["key"],
   counts: HomeKpiCounts,
   paidLeads: number,
-  wonValue: number
+  wonValue: number,
+  cancelled: number
 ): string {
   if (key === "leads") return paidShare(paidLeads, counts.leads);
   if (key === "calls_booked") {
@@ -130,7 +136,7 @@ function kpiSub(
       counts.leads <= 0
         ? 0
         : Math.round((counts.calls_booked / counts.leads) * 100);
-    return `${pct}% of leads`;
+    return `${pct}% of leads · ${cancelled} cancelled`;
   }
   if (key === "showups") {
     const pct =
@@ -157,6 +163,7 @@ export function assembleHomeDashboard(opts: {
     stale: boolean;
     lastDataDate: string | null;
   } | null;
+  cancelledBookings?: CancelledBookingsStat;
 }): HomeDashboard {
   const {
     range,
@@ -167,6 +174,7 @@ export function assembleHomeDashboard(opts: {
     monthlyTarget,
     closerLabels
   } = opts;
+  const cancelledBookings = opts.cancelledBookings ?? emptyCancelledBookings();
   const { fromISO, toISO } = rangeToFromTo(range, todayISO);
   const scoped = filterTraffic(opts.leads, traffic);
   const counts = countKpis(scoped, fromISO, toISO);
@@ -239,28 +247,28 @@ export function assembleHomeDashboard(opts: {
       key: "leads",
       label: "Leads",
       value: counts.leads,
-      sub: kpiSub("leads", counts, paidLeads, rangeWon.revenue),
+      sub: kpiSub("leads", counts, paidLeads, rangeWon.revenue, cancelledBookings.total),
       delta: deltas.leads ?? null
     },
     {
       key: "calls_booked",
       label: "Calls booked",
       value: counts.calls_booked,
-      sub: kpiSub("calls_booked", counts, paidLeads, rangeWon.revenue),
+      sub: kpiSub("calls_booked", counts, paidLeads, rangeWon.revenue, cancelledBookings.total),
       delta: deltas.calls_booked ?? null
     },
     {
       key: "showups",
       label: "Showups",
       value: counts.showups,
-      sub: kpiSub("showups", counts, paidLeads, rangeWon.revenue),
+      sub: kpiSub("showups", counts, paidLeads, rangeWon.revenue, cancelledBookings.total),
       delta: deltas.showups ?? null
     },
     {
       key: "deals_closed",
       label: "Won",
       value: counts.deals_closed,
-      sub: kpiSub("deals_closed", counts, paidLeads, rangeWon.revenue),
+      sub: kpiSub("deals_closed", counts, paidLeads, rangeWon.revenue, cancelledBookings.total),
       delta: deltas.deals_closed ?? null
     }
   ];
@@ -344,6 +352,7 @@ export function assembleHomeDashboard(opts: {
     trendBucket: bucket,
     setters,
     closers,
-    ads
+    ads,
+    cancelledBookings
   };
 }

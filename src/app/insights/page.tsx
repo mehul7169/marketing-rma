@@ -85,6 +85,7 @@ export default async function InsightsPage({
           qualified={metrics.qualified}
           showUp={metrics.showUp}
           closure={metrics.closure}
+          cancelledBookings={metrics.cancelledBookings}
         />
       </div>
 

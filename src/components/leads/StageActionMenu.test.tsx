@@ -39,6 +39,39 @@ describe("StageActionMenu", () => {
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
+  it("opens Cancel booking from the menu when a booking exists", () => {
+    render(
+      <StageActionMenu
+        lead={makeLead({
+          first_contacted_at: "2026-10-01T00:00:00.000Z",
+          call_booked_at: "2026-10-21T10:00:00.000Z",
+          call_scheduled_for: "2026-10-25T10:00:00.000Z",
+          qualified: null
+        })}
+        onRun={vi.fn()}
+        onConfirm={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Cancel booking" }));
+    expect(screen.getByTestId("cancel-booking-form")).toBeInTheDocument();
+    expect(screen.getByTestId("cancel-reason-not_qualified")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByRole("button", { name: "Cancel booking" })).toBeInTheDocument();
+  });
+
+  it("hides Cancel booking when there is no booking", () => {
+    render(
+      <StageActionMenu lead={makeLead()} onRun={vi.fn()} onConfirm={vi.fn()} />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Actions" }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Cancel booking" })
+    ).not.toBeInTheDocument();
+  });
+
   it("disables Mark showed when there is no booking", () => {
     render(
       <StageActionMenu

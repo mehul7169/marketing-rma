@@ -8,6 +8,7 @@ import {
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
 import type { LeadCellEditHandlers } from "@/components/table-views/leadColumnCells";
 import { useLeadDrawerParam } from "@/components/leads/useLeadDrawerParam";
+import { toastCancelledBooking } from "@/components/leads/CancelBookingPopover";
 import { toastError } from "@/components/ui/Toast";
 import { lifecycleBlockReason } from "@/lib/leads/gridGuards";
 import { leadErrorToast } from "@/lib/leads/leadErrorToast";
@@ -135,6 +136,11 @@ export function useLeadGrid(
             return;
           }
           applyLead(lead.id, res.lead);
+          if (action === "cancel_booking" || action === "cancel_call") {
+            toastCancelledBooking(lead, res.lead, (restored) =>
+              applyLead(restored.id, restored)
+            );
+          }
         })
         .catch((err) => {
           restore(lead);
@@ -192,21 +198,7 @@ export function useLeadGrid(
         const trimmed = raw.trim();
         if (!trimmed) {
           if (!lead.call_booked_at) return;
-          requestConfirm(lead, {
-            columnId: "call_scheduled_for",
-            action: "cancel_call",
-            payload: {},
-            title: "Cancel call",
-            message: "Clearing the scheduled time cancels the booking.",
-            reasonRequired: true,
-            reasonLabel: "Why is this call being cancelled?",
-            confirmLabel: "Cancel call",
-            anchor:
-              typeof document !== "undefined" &&
-              document.activeElement instanceof HTMLElement
-                ? document.activeElement
-                : null
-          });
+          fail(lead, "Use Cancel booking to clear a booking.");
           return;
         }
         let iso: string;

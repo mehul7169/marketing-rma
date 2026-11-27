@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Toaster,
@@ -35,6 +35,24 @@ describe("Toaster", () => {
     act(() => {
       vi.advanceTimersByTime(4000);
     });
+    expect(screen.queryByTestId("toast-stack")).not.toBeInTheDocument();
+  });
+
+  it("renders an Undo action on a success toast", () => {
+    const onUndo = vi.fn();
+    render(<Toaster />);
+    act(() => {
+      toastSuccess("Booking cancelled", {
+        durationMs: 10 * 60 * 1000,
+        action: { label: "Undo", onClick: onUndo }
+      });
+    });
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(undo).toBeInTheDocument();
+    act(() => {
+      fireEvent.click(undo);
+    });
+    expect(onUndo).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("toast-stack")).not.toBeInTheDocument();
   });
 

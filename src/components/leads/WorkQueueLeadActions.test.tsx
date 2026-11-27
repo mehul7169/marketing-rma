@@ -28,7 +28,7 @@ describe("primaryWorkQueueActions", () => {
     ).toEqual(["log_call"]);
   });
 
-  it("Call Booked, needs qualification → Qualify Call", () => {
+  it("Call Booked, needs qualification → Qualified ✓", () => {
     expect(
       primaryWorkQueueActions(makeLead({ call_booked_at: BOOKED, qualified: null }))
     ).toEqual(["qualify"]);

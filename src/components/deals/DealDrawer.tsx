@@ -462,8 +462,9 @@ function BookingHistoryList({ entries }: { entries: BookingHistoryEntry[] }) {
     <ul className="space-y-1 text-xs text-muted">
       {[...entries].reverse().map((e, i) => (
         <li key={`${e.changed_at}-${i}`}>
-          {formatISTDateTime(e.previous_scheduled_for)} →{" "}
-          {formatISTDateTime(e.new_scheduled_for)}
+          {e.cancelled_at
+            ? `Cancelled${e.reason ? ` · ${e.reason}` : ""} · was ${formatISTDateTime(e.previous_scheduled_for)}`
+            : `${formatISTDateTime(e.previous_scheduled_for)} → ${formatISTDateTime(e.new_scheduled_for)}`}
         </li>
       ))}
     </ul>

@@ -6,6 +6,7 @@ import DueFollowUpBadge from "@/components/leads/DueFollowUpBadge";
 import InlineEditableValue from "@/components/leads/InlineEditableValue";
 import RecordingLinkBadge from "@/components/leads/RecordingLinkBadge";
 import ReviveLeadButton from "@/components/leads/ReviveLeadButton";
+import { CancelBookingButton } from "@/components/leads/CancelBookingPopover";
 import StageActionMenu, {
   type StageMenuConfirm
 } from "@/components/leads/StageActionMenu";
@@ -324,18 +325,28 @@ export function renderLeadColumnCell(
           edit={edit}
           className="whitespace-nowrap px-4 py-3 text-fg"
         >
-          {canEdit ? (
-            <InlineEditableValue
-              value={toDatetimeLocalIST(lead.call_scheduled_for)}
-              displayValue={fmtWhen(lead.call_scheduled_for)}
-              inputType="datetime-local"
-              onCommit={(next) =>
-                edit?.onPlainField?.("call_scheduled_for", next)
-              }
-            />
-          ) : (
-            fmtWhen(lead.call_scheduled_for)
-          )}
+          <span className="inline-flex items-center gap-1">
+            {canEdit ? (
+              <InlineEditableValue
+                value={toDatetimeLocalIST(lead.call_scheduled_for)}
+                displayValue={fmtWhen(lead.call_scheduled_for)}
+                inputType="datetime-local"
+                onCommit={(next) =>
+                  edit?.onPlainField?.("call_scheduled_for", next)
+                }
+              />
+            ) : (
+              fmtWhen(lead.call_scheduled_for)
+            )}
+            {canEdit ? (
+              <CancelBookingButton
+                lead={lead}
+                onRun={(payload) =>
+                  edit?.onLifecycle?.("cancel_booking", payload)
+                }
+              />
+            ) : null}
+          </span>
         </Cell>
       );
     case "call_booked_at":

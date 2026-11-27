@@ -52,4 +52,28 @@ describe("assembleHomeDashboard", () => {
     expect(dash.goal?.pace.status).toBe("behind");
     expect(dash.goal?.monthLabel).toMatch(/November/i);
   });
+
+  it("puts cancelled bookings on the Calls Booked KPI sub line", () => {
+    const dash = assembleHomeDashboard({
+      leads: [
+        makeLead({
+          id: "booked",
+          created_at: IN,
+          call_booked_at: IN
+        })
+      ],
+      range: "30d",
+      traffic: "all",
+      todayISO: "2026-11-23",
+      monthStart: "2026-11-01",
+      monthEnd: "2026-11-30",
+      monthlyTarget: null,
+      setters: [],
+      closerLabels: new Map(),
+      ads: null,
+      cancelledBookings: { total: 3, byReason: { not_qualified: 2, unreachable: 1 } }
+    });
+    const booked = dash.kpis.find((k) => k.key === "calls_booked");
+    expect(booked?.sub).toMatch(/3 cancelled/);
+  });
 });

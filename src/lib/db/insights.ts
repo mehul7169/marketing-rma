@@ -1,6 +1,8 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 import { getOrgMetaAdAccountIds } from "@/lib/ad-accounts/getRmaAccountId";
+import { listCancelledBookingsInRange } from "@/lib/db/lead_activities";
 import { listAllLeads, listDistinctLeadSources } from "@/lib/db/leads";
+import { summarizeCancelledBookings } from "@/lib/leads/cancelledBookings";
 import {
   computeInsights,
   normalizeCreativeKey,
@@ -132,15 +134,24 @@ export async function getInsightsData(
   orgId: string,
   sources?: string[]
 ): Promise<{ metrics: InsightsMetrics; sources: string[] }> {
-  const [leads, spendByCreative, knownAds, allSources] = await Promise.all([
+  const [leads, spendByCreative, knownAds, allSources, cancelledRows] =
+    await Promise.all([
     listAllLeads(orgId, sources),
     getMetaSpendByCreative(fromISO, toISO, orgId),
     listKnownAdsIndex(orgId),
-    listDistinctLeadSources(orgId)
+    listDistinctLeadSources(orgId),
+    listCancelledBookingsInRange(orgId, fromISO, toISO)
   ]);
 
+  const metrics = computeInsights(leads, spendByCreative, knownAds, fromISO, toISO);
+  metrics.cancelledBookings = summarizeCancelledBookings(
+    cancelledRows,
+    fromISO,
+    toISO
+  );
+
   return {
-    metrics: computeInsights(leads, spendByCreative, knownAds, fromISO, toISO),
+    metrics,
     sources: allSources
   };
 }

@@ -6,10 +6,16 @@ import { MOTION_OFF, transitionBase, transitionReduced } from "@/lib/motion";
 
 export type ToastTone = "error" | "success";
 
+export type ToastAction = {
+  label: string;
+  onClick: () => void;
+};
+
 export type ToastItem = {
   id: number;
   message: string;
   tone: ToastTone;
+  action?: ToastAction;
 };
 
 const ERROR_MS = 4000;
@@ -25,11 +31,16 @@ function emit() {
   for (const l of listeners) l(stack);
 }
 
-function pushToast(message: string, tone: ToastTone): number {
+function pushToast(
+  message: string,
+  tone: ToastTone,
+  opts?: { action?: ToastAction; durationMs?: number }
+): number {
   const id = nextId++;
-  stack = [...stack, { id, message, tone }].slice(-MAX_STACK);
+  stack = [...stack, { id, message, tone, action: opts?.action }].slice(-MAX_STACK);
   emit();
-  const ms = tone === "error" ? ERROR_MS : SUCCESS_MS;
+  const ms =
+    opts?.durationMs ?? (tone === "error" ? ERROR_MS : SUCCESS_MS);
   window.setTimeout(() => dismissToast(id), ms);
   return id;
 }
@@ -45,8 +56,11 @@ export function toastError(message: string): number {
   return pushToast(message, "error");
 }
 
-export function toastSuccess(message: string): number {
-  return pushToast(message, "success");
+export function toastSuccess(
+  message: string,
+  opts?: { action?: ToastAction; durationMs?: number }
+): number {
+  return pushToast(message, "success", opts);
 }
 
 /** Test-only: empty the stack. */
@@ -97,6 +111,18 @@ export function Toaster() {
         >
           <div className="flex items-start gap-3">
             <p className="flex-1">{t.message}</p>
+            {t.action ? (
+              <button
+                type="button"
+                className="shrink-0 text-sm font-medium underline"
+                onClick={() => {
+                  t.action?.onClick();
+                  dismissToast(t.id);
+                }}
+              >
+                {t.action.label}
+              </button>
+            ) : null}
             <button
               type="button"
               className={

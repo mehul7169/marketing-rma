@@ -147,7 +147,7 @@ export async function saveLeadPlainFieldsAction(
     const who = await actor();
     if (call_scheduled_for !== undefined) {
       if (!call_scheduled_for) {
-        return { ok: false, error: "Use Cancel call to clear a booking." };
+        return { ok: false, error: "Use Cancel booking to clear a booking." };
       }
       const orgId = await requireWritableOrgId();
       const lead = await getLeadById(id, orgId);

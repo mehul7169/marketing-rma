@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 import type { LeadActivityType } from "@/lib/leads/actionStatus";
+import { istDayEndUtcIso, istDayStartUtcIso } from "@/lib/timezone";
 
 export type LeadActivityRow = {
   id: string;
@@ -103,4 +104,35 @@ export async function listRecentLeadActivitiesForLeads(
     }
   }
   return map;
+}
+
+export async function listCancelledBookingsInRange(
+  orgId: string,
+  fromISO: string,
+  toISO: string
+): Promise<Array<{ type: string; outcome: string | null; created_at: string }>> {
+  if (!supabaseAdmin) return [];
+  const db = requireDb();
+  const rows: Array<{ type: string; outcome: string | null; created_at: string }> = [];
+  const page = 1000;
+  for (let offset = 0; ; offset += page) {
+    const { data, error } = await db
+      .from("lead_activities")
+      .select("type, outcome, created_at")
+      .eq("org_id", orgId)
+      .eq("type", "call_cancelled")
+      .gte("created_at", istDayStartUtcIso(fromISO))
+      .lte("created_at", istDayEndUtcIso(toISO))
+      .order("created_at", { ascending: true })
+      .range(offset, offset + page - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as Array<{
+      type: string;
+      outcome: string | null;
+      created_at: string;
+    }>;
+    rows.push(...batch);
+    if (batch.length < page) break;
+  }
+  return rows;
 }

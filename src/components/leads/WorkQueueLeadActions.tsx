@@ -19,13 +19,7 @@ import {
   tomorrowSameTimeLocalIST
 } from "@/lib/timezone";
 
-type PopoverKind =
-  | "log_call"
-  | "qualify_call"
-  | "show_outcome"
-  | "reschedule"
-  | "note"
-  | null;
+type PopoverKind = "log_call" | "show_outcome" | "reschedule" | "note" | null;
 
 function callPastDue(lead: LeadRow): boolean {
   if (!lead.call_scheduled_for || lead.call_showed !== null) return false;
@@ -201,7 +195,7 @@ export default function WorkQueueLeadActions({
   const callForm = (
     <div className="space-y-2">
       <h3 className="text-sm font-semibold text-fg">
-        {popover === "qualify_call" ? "Qualify call" : "Log call"}
+        Log call
       </h3>
       <label className="block text-xs text-muted">
         Outcome
@@ -325,31 +319,19 @@ export default function WorkQueueLeadActions({
           </ActionPopover>
         ) : null}
         {actions.includes("qualify") ? (
-          <ActionPopover
-            open={popover === "qualify_call"}
-            onOpenChange={(next) => setPopover(next ? "qualify_call" : null)}
-            trigger={
-              <button
-                type="button"
-                className={primaryBtn}
-                onClick={() => {
-                  setOutcome("no_answer");
-                  toggle("qualify_call");
-                }}
-              >
-                Qualify Call
-              </button>
-            }
-            footer={
-              <PopoverFooter
-                onCancel={() => setPopover(null)}
-                onSave={submitCallAttempt}
-                saveLabel="Save"
-              />
+          <button
+            type="button"
+            className={primaryBtn}
+            data-testid="wq-qualified-yes"
+            onClick={() =>
+              runBackground(
+                () => leadLifecycleAction(lead.id, "qualify", {}),
+                { qualified: true }
+              )
             }
           >
-            {callForm}
-          </ActionPopover>
+            Qualified ✓
+          </button>
         ) : null}
         {actions.includes("show") ? (
           <ActionPopover

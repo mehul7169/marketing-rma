@@ -16,7 +16,12 @@ import Stat from "@/components/ui/Stat";
 import StatStrip from "@/components/ui/StatStrip";
 import Tabs from "@/components/ui/Tabs";
 import SingleMetricLineChart from "@/components/charts/SingleMetricLineChart";
+import {
+  CancelBookingFields,
+  cancelHint
+} from "@/components/leads/CancelBookingPopover";
 import { formatInteger } from "@/lib/format";
+import { makeLead } from "@/test/fixtures";
 
 const RANGE = [
   { value: "today", label: "Today" },
@@ -59,6 +64,34 @@ function Kit() {
         <p className="text-title text-fg">Title 20</p>
         <p className="text-body text-fg">Body 14 — The quick brown fox.</p>
         <p className="section-label mt-2">Label 11 uppercase</p>
+      </div>
+
+      <div
+        data-testid="cancel-booking-kit"
+        className="max-w-sm rounded-control border border-subtle bg-surface p-3 shadow-card"
+      >
+        <CancelBookingFields
+          lead={makeLead({
+            call_booked_at: "2026-11-25T10:00:00.000Z",
+            call_scheduled_for: "2026-11-26T10:00:00.000Z",
+            qualified: null
+          })}
+          actorEmail={null}
+          reason="not_qualified"
+          onReason={() => {}}
+          note=""
+          onNote={() => {}}
+          followUpAt=""
+          onFollowUpAt={() => {}}
+          undoQualification={false}
+          onUndoQualification={() => {}}
+        />
+        <p className="mt-2 text-[11px] text-muted">{cancelHint("not_qualified")}</p>
+        <div className="mt-2 flex justify-end">
+          <button type="button" className="btn-brand text-sm">
+            Cancel booking
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

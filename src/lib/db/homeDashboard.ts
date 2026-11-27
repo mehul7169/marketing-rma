@@ -21,7 +21,9 @@ import {
 import { getOrganizationById } from "@/lib/db/organizations";
 import { getMetaAdsTotals } from "@/lib/db/meta_ads_daily";
 import { getSetterActivityReport } from "@/lib/db/setterActivity";
+import { listCancelledBookingsInRange } from "@/lib/db/lead_activities";
 import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
+import { summarizeCancelledBookings } from "@/lib/leads/cancelledBookings";
 import { todayISTDateString } from "@/lib/timezone";
 
 const PAGE = 1000;
@@ -113,13 +115,15 @@ async function computeHomeDashboard(
   const monthStart = istMonthStart(todayISO);
   const monthEnd = istMonthEnd(todayISO);
 
-  const [leads, org, setters, adsTotals, health, accountIds] = await Promise.all([
+  const [leads, org, setters, adsTotals, health, accountIds, cancelledRows] =
+    await Promise.all([
     listHomeLeads(orgId),
     getOrganizationById(orgId),
     getSetterActivityReport(orgId, fromISO, toISO),
     getMetaAdsTotals(fromISO, toISO, orgId),
     getMetaAdsHealth(orgId),
-    getOrgMetaAdAccountIds(orgId)
+    getOrgMetaAdAccountIds(orgId),
+    listCancelledBookingsInRange(orgId, fromISO, toISO)
   ]);
 
   const ownerIds = Array.from(
@@ -147,7 +151,8 @@ async function computeHomeDashboard(
           stale,
           lastDataDate: health.lastDataDate
         }
-      : null
+      : null,
+    cancelledBookings: summarizeCancelledBookings(cancelledRows, fromISO, toISO)
   });
 }
 

@@ -3,7 +3,18 @@ import {
   nextTouchpointAt,
   type CallAttemptOutcome
 } from "@/lib/leads/actionStatus";
-import type { BookingHistoryEntry, DeadReasonCode, LeadRow } from "@/lib/leads/types";
+import {
+  CANCEL_BOOKING_UNDO_MS,
+  isWorkQueueQualifyAndBook,
+  latestCancelEntry
+} from "@/lib/leads/cancelBooking";
+import type {
+  BookingHistoryEntry,
+  CancelBookingReason,
+  DeadReasonCode,
+  LeadRow
+} from "@/lib/leads/types";
+import { isCancelBookingReason } from "@/lib/leads/types";
 
 /**
  * Pure planner for every lifecycle action: validation, the lead patch, and the
@@ -19,6 +30,8 @@ export type LifecycleAction =
   | "book_call"
   | "reschedule_call"
   | "cancel_call"
+  | "cancel_booking"
+  | "undo_cancel_booking"
   | "mark_showed"
   | "mark_no_show"
   | "clear_show"
@@ -41,8 +54,10 @@ export type LifecyclePayload = {
   /** log_call_attempt */
   outcome?: LogCallOutcome;
   note?: string | null;
-  /** Required for clear_qualification, clear_show, cancel_call. */
+  /** Required for clear_qualification, clear_show, cancel_booking. */
   reason?: string | null;
+  /** logged_by_mistake on a Work Queue qualify+book. */
+  undoQualification?: boolean;
   /** mark_dead */
   deadReason?: DeadReasonCode | null;
   /** ISO. follow_up_needed outcome, set_follow_up. */
@@ -73,15 +88,19 @@ export const LIFECYCLE_ERRORS = {
   bookBeforeContact: "Log a call attempt before booking a call.",
   alreadyBooked: "This call is already booked. Reschedule it instead.",
   notBooked: "There is no booked call on this lead.",
-  cancelAfterShow: "This call already happened. Clear the show outcome before cancelling.",
+  cancelAfterShow: "This call already happened. Mark the deal lost instead.",
   showedNeedsBooking: "Book a call before marking it as showed.",
   qualifyDead: "This lead is dead. Revive it before qualifying.",
   notDead: "This lead is not dead.",
   alreadyDead: "This lead is already dead.",
   reasonRequired: "Give a short reason.",
+  cancelReasonRequired: "Pick a cancel reason.",
+  otherNoteRequired: "Add a note for Other.",
   scheduledForRequired: "Pick a date and time for the call.",
   followUpRequired: "Pick a follow-up date.",
-  invalidOutcome: "Invalid call outcome."
+  invalidOutcome: "Invalid call outcome.",
+  nothingToUndo: "There is no cancelled booking to restore.",
+  undoExpired: "Undo window has closed. Book the call again."
 } as const;
 
 /** dead_reason values (codes and legacy text) that mean "disqualified by setter". */
@@ -115,6 +134,27 @@ function historyEntry(d: Draft, scheduledFor: string, ctx: Ctx): BookingHistoryE
       new_scheduled_for: scheduledFor,
       source: ctx.source === "cal_com" ? "cal_com" : "manual",
       changed_by: ctx.actor.email ?? ctx.source
+    }
+  ];
+}
+
+function cancelHistoryEntry(
+  d: Draft,
+  ctx: Ctx,
+  reason: CancelBookingReason
+): BookingHistoryEntry[] {
+  return [
+    ...(d.lead.booking_history ?? []),
+    {
+      changed_at: ctx.now,
+      previous_scheduled_for: d.lead.call_scheduled_for,
+      new_scheduled_for: null,
+      source: d.lead.booking_source ?? (ctx.source === "cal_com" ? "cal_com" : "manual"),
+      changed_by: ctx.actor.email ?? ctx.source,
+      cancelled_at: ctx.now,
+      reason,
+      by: ctx.actor.email ?? ctx.source,
+      previous_call_booked_at: d.lead.call_booked_at
     }
   ];
 }
@@ -208,17 +248,72 @@ const rescheduleCall: Step = (d, p, ctx) => {
   return null;
 };
 
-const cancelCall: Step = (d, p, ctx) => {
+const cancelBooking: Step = (d, p, ctx) => {
   if (!d.lead.call_booked_at) return LIFECYCLE_ERRORS.notBooked;
   if (d.lead.call_showed === true) return LIFECYCLE_ERRORS.cancelAfterShow;
-  if (!p.reason?.trim()) return LIFECYCLE_ERRORS.reasonRequired;
+  const reasonRaw = p.reason?.trim() ?? "";
+  if (!reasonRaw || !isCancelBookingReason(reasonRaw)) {
+    return LIFECYCLE_ERRORS.cancelReasonRequired;
+  }
+  const note = p.note?.trim() || null;
+  if (reasonRaw === "other" && !note) return LIFECYCLE_ERRORS.otherNoteRequired;
+  if (reasonRaw === "unreachable" && !p.followUpAt) {
+    return LIFECYCLE_ERRORS.followUpRequired;
+  }
+
+  const undoQual =
+    reasonRaw === "logged_by_mistake" &&
+    Boolean(p.undoQualification) &&
+    isWorkQueueQualifyAndBook(d.lead);
+
   d.set({
     call_booked_at: null,
     call_scheduled_for: null,
-    last_action: "Call cancelled",
+    booking_history: cancelHistoryEntry(d, ctx, reasonRaw),
+    last_action: "Booking cancelled",
     last_action_at: ctx.now
   });
-  d.log("call_cancelled", null, p.reason);
+  d.log(
+    "call_cancelled",
+    reasonRaw,
+    note,
+    reasonRaw === "unreachable" ? p.followUpAt ?? undefined : undefined
+  );
+
+  if (reasonRaw === "not_qualified") {
+    return disqualify(d, { note }, ctx);
+  }
+  if (reasonRaw === "unreachable") {
+    d.set({ next_action_at: p.followUpAt });
+  }
+  if (undoQual) {
+    d.set({
+      qualified: null,
+      qualified_at: null,
+      qualified_by: null
+    });
+    d.log("qualification", "cleared", "Undo qualification with mistaken booking");
+  }
+  return null;
+};
+
+const undoCancelBooking: Step = (d, p, ctx) => {
+  if (d.lead.call_booked_at) return LIFECYCLE_ERRORS.alreadyBooked;
+  const last = latestCancelEntry(d.lead.booking_history);
+  if (!last) return LIFECYCLE_ERRORS.nothingToUndo;
+  const age = new Date(ctx.now).getTime() - new Date(last.cancelled_at).getTime();
+  if (age > CANCEL_BOOKING_UNDO_MS) return LIFECYCLE_ERRORS.undoExpired;
+  const hist = [...(d.lead.booking_history ?? [])];
+  const idx = hist.lastIndexOf(last);
+  if (idx >= 0) hist.splice(idx, 1);
+  d.set({
+    call_booked_at: last.previous_call_booked_at ?? last.cancelled_at,
+    call_scheduled_for: last.previous_scheduled_for,
+    booking_history: hist,
+    last_action: "Call scheduled",
+    last_action_at: ctx.now
+  });
+  d.log("schedule", null, "Undo cancel booking");
   return null;
 };
 
@@ -373,7 +468,9 @@ const STEPS: Record<LifecycleAction, Step> = {
   clear_qualification: clearQualification,
   book_call: bookCall,
   reschedule_call: rescheduleCall,
-  cancel_call: cancelCall,
+  cancel_call: cancelBooking,
+  cancel_booking: cancelBooking,
+  undo_cancel_booking: undoCancelBooking,
   mark_showed: markShowed,
   mark_no_show: markNoShow,
   clear_show: clearShow,

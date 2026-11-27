@@ -7,6 +7,7 @@ import {
   type LeadDrawerPayload
 } from "@/app/leads/drawer/loadDrawer";
 import { useOrgPreview } from "@/components/admin/OrgPreviewContext";
+import { CancelBookingButton } from "@/components/leads/CancelBookingPopover";
 import CopyValue from "@/components/CopyValue";
 import CustomFieldsPanel from "@/components/leads/CustomFieldsPanel";
 import LeadFollowUps from "@/components/leads/LeadFollowUps";
@@ -100,12 +101,19 @@ function BookingHistoryList({ entries }: { entries: BookingHistoryEntry[] }) {
   return (
     <ul className="space-y-2">
       {ordered.map((e, i) => (
-        <li key={`${e.changed_at}-${i}`} className="text-xs text-fg">
-          <div>
-            {fmtWhen(e.previous_scheduled_for)} → {fmtWhen(e.new_scheduled_for)}
-          </div>
+        <li key={`${e.cancelled_at ?? e.changed_at}-${i}`} className="text-xs text-fg">
+          {e.cancelled_at ? (
+            <div>
+              Cancelled{e.reason ? ` · ${e.reason}` : ""} · was{" "}
+              {fmtWhen(e.previous_scheduled_for)}
+            </div>
+          ) : (
+            <div>
+              {fmtWhen(e.previous_scheduled_for)} → {fmtWhen(e.new_scheduled_for)}
+            </div>
+          )}
           <div className="text-muted">
-            {e.changed_by || "—"} · {fmtWhen(e.changed_at)}
+            {e.by || e.changed_by || "—"} · {fmtWhen(e.cancelled_at ?? e.changed_at)}
             {e.source === "cal_com" ? " · Cal.com" : " · manual"}
           </div>
         </li>
@@ -280,7 +288,18 @@ function LeadDrawerBody({
           <Field label="Form filled" value={fmtWhen(lead.form_filled_at)} />
           <Field label="First contacted" value={fmtWhen(lead.first_contacted_at)} />
           <Field label="Call booked" value={fmtWhen(lead.call_booked_at)} />
-          <Field label="Call scheduled" value={fmtWhen(lead.call_scheduled_for)} />
+          <div>
+            <div className="text-xs text-muted">Call scheduled</div>
+            <div className="mt-0.5 inline-flex min-w-0 items-center gap-1 text-sm text-fg">
+              <span>{fmtWhen(lead.call_scheduled_for)}</span>
+              {!preview.active ? (
+                <CancelBookingButton
+                  lead={lead}
+                  onLeadPatched={() => onReload()}
+                />
+              ) : null}
+            </div>
+          </div>
           <Field
             label="Booking source"
             value={

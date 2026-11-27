@@ -137,16 +137,127 @@ describe("booking", () => {
     expect(plan(contacted, "reschedule_call", when)).toEqual({ ok: false, error: LIFECYCLE_ERRORS.notBooked });
   });
 
-  it("cancel_call needs a booking and a reason", () => {
-    expect(plan(contacted, "cancel_call", { reason: "x" })).toMatchObject({ ok: false });
-    expect(plan(booked, "cancel_call")).toEqual({ ok: false, error: LIFECYCLE_ERRORS.reasonRequired });
-    const p = ok(booked, "cancel_call", { reason: "lead asked" });
+  it("cancel_booking needs a booking and a listed reason", () => {
+    expect(plan(contacted, "cancel_booking", { reason: "lead_cancelled" })).toMatchObject({
+      ok: false,
+      error: LIFECYCLE_ERRORS.notBooked
+    });
+    expect(plan(booked, "cancel_booking")).toEqual({
+      ok: false,
+      error: LIFECYCLE_ERRORS.cancelReasonRequired
+    });
+    expect(plan(booked, "cancel_booking", { reason: "lead asked" })).toEqual({
+      ok: false,
+      error: LIFECYCLE_ERRORS.cancelReasonRequired
+    });
+    const p = ok(booked, "cancel_booking", { reason: "lead_cancelled", note: "they asked" });
     expect(p.patch).toMatchObject({ call_booked_at: null, call_scheduled_for: null });
-    expect(p.activities[0]).toMatchObject({ type: "call_cancelled", note: "lead asked" });
-    expect(plan({ ...booked, call_showed: true }, "cancel_call", { reason: "x" })).toEqual({
+    expect(p.activities[0]).toMatchObject({
+      type: "call_cancelled",
+      outcome: "lead_cancelled",
+      note: "they asked"
+    });
+    expect(p.patch.booking_history?.at(-1)).toMatchObject({
+      cancelled_at: NOW,
+      reason: "lead_cancelled",
+      previous_call_booked_at: booked.call_booked_at,
+      previous_scheduled_for: booked.call_scheduled_for,
+      new_scheduled_for: null
+    });
+    expect(plan({ ...booked, call_showed: true }, "cancel_booking", { reason: "lead_cancelled" })).toEqual({
       ok: false,
       error: LIFECYCLE_ERRORS.cancelAfterShow
     });
+  });
+
+  it("cancel_call is an alias of cancel_booking", () => {
+    const a = ok(booked, "cancel_call", { reason: "duplicate_booking" });
+    const b = ok(booked, "cancel_booking", { reason: "duplicate_booking" });
+    expect(a.patch).toMatchObject(b.patch);
+    expect(types(a)).toEqual(types(b));
+  });
+
+  it("not_qualified also disqualifies and kills the lead in one plan", () => {
+    const p = ok(booked, "cancel_booking", { reason: "not_qualified" });
+    expect(p.patch).toMatchObject({
+      call_booked_at: null,
+      call_scheduled_for: null,
+      qualified: false,
+      qualified_at: NOW,
+      qualified_by: "setter@x.com",
+      is_dead: true,
+      dead_reason: "not_qualified"
+    });
+    expect(types(p)).toEqual(["call_cancelled/not_qualified", "qualification/unqualified"]);
+  });
+
+  it("unreachable requires a follow-up and leaves the lead alive", () => {
+    expect(plan(booked, "cancel_booking", { reason: "unreachable" })).toEqual({
+      ok: false,
+      error: LIFECYCLE_ERRORS.followUpRequired
+    });
+    const at = "2026-10-30T05:00:00.000Z";
+    const p = ok(booked, "cancel_booking", { reason: "unreachable", followUpAt: at });
+    expect(p.patch).toMatchObject({
+      call_booked_at: null,
+      next_action_at: at
+    });
+    expect(p.patch).not.toHaveProperty("is_dead");
+    expect(p.patch).not.toHaveProperty("qualified");
+    expect(types(p)).toEqual(["call_cancelled/unreachable"]);
+  });
+
+  it("logged_by_mistake leaves qualification alone unless undoQualification", () => {
+    const qualifiedBooked = {
+      ...booked,
+      qualified: true as const,
+      qualified_at: booked.call_booked_at,
+      qualified_by: "setter@x.com"
+    };
+    const plain = ok(qualifiedBooked, "cancel_booking", { reason: "logged_by_mistake" });
+    expect(plain.patch).not.toHaveProperty("qualified");
+    expect(types(plain)).toEqual(["call_cancelled/logged_by_mistake"]);
+
+    const undone = ok(qualifiedBooked, "cancel_booking", {
+      reason: "logged_by_mistake",
+      undoQualification: true
+    });
+    expect(undone.patch).toMatchObject({
+      qualified: null,
+      qualified_at: null,
+      qualified_by: null
+    });
+    expect(types(undone)).toEqual([
+      "call_cancelled/logged_by_mistake",
+      "qualification/cleared"
+    ]);
+  });
+
+  it("other requires a note", () => {
+    expect(plan(booked, "cancel_booking", { reason: "other" })).toEqual({
+      ok: false,
+      error: LIFECYCLE_ERRORS.otherNoteRequired
+    });
+    expect(ok(booked, "cancel_booking", { reason: "other", note: "typo" }).activities[0].note).toBe(
+      "typo"
+    );
+  });
+
+  it("undo restores the previous booking fields within 10 minutes", () => {
+    const cancelled = ok(booked, "cancel_booking", { reason: "duplicate_booking" });
+    const after = { ...makeLead(booked), ...cancelled.patch };
+    const undone = ok(after, "undo_cancel_booking");
+    expect(undone.patch).toMatchObject({
+      call_booked_at: booked.call_booked_at,
+      call_scheduled_for: booked.call_scheduled_for
+    });
+    expect(undone.patch.booking_history ?? []).toHaveLength(0);
+    expect(types(undone)).toEqual(["schedule/null"]);
+
+    const late = planLifecycle(after, "undo_cancel_booking", {}, actor, {
+      now: "2026-10-27T10:11:00.000Z"
+    });
+    expect(late).toEqual({ ok: false, error: LIFECYCLE_ERRORS.undoExpired });
   });
 });
 

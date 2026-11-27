@@ -3,13 +3,46 @@ import type { FollowUpState, KpiKey } from "@/lib/leads/lifecycleDefinitions";
 
 export type BookingSource = "cal_com" | "manual";
 
+export const CANCEL_BOOKING_REASONS = [
+  "not_qualified",
+  "unreachable",
+  "logged_by_mistake",
+  "duplicate_booking",
+  "lead_cancelled",
+  "other"
+] as const;
+export type CancelBookingReason = (typeof CANCEL_BOOKING_REASONS)[number];
+
+export const CANCEL_BOOKING_LABELS: Record<CancelBookingReason, string> = {
+  not_qualified: "Not qualified",
+  unreachable: "Unreachable",
+  logged_by_mistake: "Logged by mistake",
+  duplicate_booking: "Duplicate",
+  lead_cancelled: "Lead cancelled",
+  other: "Other"
+};
+
+export function isCancelBookingReason(value: string): value is CancelBookingReason {
+  return (CANCEL_BOOKING_REASONS as readonly string[]).includes(value);
+}
+
 export type BookingHistoryEntry = {
   changed_at: string;
   previous_scheduled_for: string | null;
-  new_scheduled_for: string;
+  new_scheduled_for: string | null;
   source: BookingSource;
   changed_by: string;
+  cancelled_at?: string;
+  reason?: string;
+  by?: string;
+  previous_call_booked_at?: string | null;
 };
+
+export function isCancelHistoryEntry(
+  entry: BookingHistoryEntry
+): entry is BookingHistoryEntry & { cancelled_at: string } {
+  return typeof entry.cancelled_at === "string" && entry.cancelled_at.length > 0;
+}
 
 export type LeadReminder = {
   id: string;

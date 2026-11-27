@@ -4,6 +4,7 @@ import { useState } from "react";
 import CopyValue from "@/components/CopyValue";
 import { FollowUpDate, LeadStatusBadges } from "@/components/leads/StageBadge";
 import InlineEditableValue from "@/components/leads/InlineEditableValue";
+import { CancelBookingButton } from "@/components/leads/CancelBookingPopover";
 import WorkQueueLeadActions from "@/components/leads/WorkQueueLeadActions";
 import AsyncStatusIndicator from "@/components/ui/AsyncStatusIndicator";
 import type { LeadActivityRow } from "@/lib/db/lead_activities";
@@ -115,7 +116,15 @@ export default function WorkQueueCard({
             <div key={f.id}>
               <dt className="text-muted">{f.label}</dt>
               <dd className="mt-0.5 min-w-0 text-fg">
-                {renderEditableExtra(f, lead, editDisabled, onPlainField, onCustomField)}
+                {renderEditableExtra(
+                  f,
+                  lead,
+                  editDisabled,
+                  onPlainField,
+                  onCustomField,
+                  onLeadPatched,
+                  onLeadRollback
+                )}
               </dd>
             </div>
           ))
@@ -141,6 +150,21 @@ export default function WorkQueueCard({
               <dt className="text-muted">Source</dt>
               <dd className="mt-0.5 text-fg">{lead.lead_source || "—"}</dd>
             </div>
+            {lead.call_scheduled_for ? (
+              <div>
+                <dt className="text-muted">Call scheduled</dt>
+                <dd className="mt-0.5 inline-flex items-center gap-1 text-fg">
+                  {formatISTDateTime(lead.call_scheduled_for)}
+                  {!editDisabled ? (
+                    <CancelBookingButton
+                      lead={lead}
+                      onLeadPatched={onLeadPatched}
+                      onLeadRollback={onLeadRollback}
+                    />
+                  ) : null}
+                </dd>
+              </div>
+            ) : null}
           </>
         )}
       </dl>
@@ -210,7 +234,9 @@ function renderEditableExtra(
     field: "notes" | "deal_value" | "call_scheduled_for",
     value: string
   ) => void,
-  onCustomField?: (key: string, value: string) => void
+  onCustomField?: (key: string, value: string) => void,
+  onLeadPatched?: (patch: Partial<LeadRow>) => void,
+  onLeadRollback?: (snapshot: LeadRow) => void
 ) {
   if (f.id === "phone") {
     return (
@@ -281,12 +307,19 @@ function renderEditableExtra(
   }
   if (f.id === "call_scheduled_for" && onPlainField) {
     return (
-      <InlineEditableValue
-        value={toDatetimeLocalIST(lead.call_scheduled_for)}
-        displayValue={formatISTDateTime(lead.call_scheduled_for)}
-        inputType="datetime-local"
-        onCommit={(next) => onPlainField("call_scheduled_for", next)}
-      />
+      <span className="inline-flex items-center gap-1">
+        <InlineEditableValue
+          value={toDatetimeLocalIST(lead.call_scheduled_for)}
+          displayValue={formatISTDateTime(lead.call_scheduled_for)}
+          inputType="datetime-local"
+          onCommit={(next) => onPlainField("call_scheduled_for", next)}
+        />
+        <CancelBookingButton
+          lead={lead}
+          onLeadPatched={onLeadPatched}
+          onLeadRollback={onLeadRollback}
+        />
+      </span>
     );
   }
 

@@ -1,3 +1,7 @@
+import {
+  emptyCancelledBookings,
+  type CancelledBookingsStat
+} from "@/lib/leads/cancelledBookings";
 import { countKpi } from "@/lib/leads/lifecycleDefinitions";
 import type { LeadRow } from "@/lib/leads/types";
 import { addDaysISO } from "@/lib/utils/date";
@@ -45,6 +49,7 @@ export type InsightsMetrics = {
   unmatchedLeadCount: number;
   sourceBooked: SourceBookedRow[];
   daily: InsightsDailyPoint[];
+  cancelledBookings: CancelledBookingsStat;
 };
 
 /**
@@ -318,6 +323,7 @@ export function computeInsights(
     creatives,
     unmatchedLeadCount: unmatched.leadIds.size,
     sourceBooked,
-    daily: Array.from(dailyMap.values())
+    daily: Array.from(dailyMap.values()),
+    cancelledBookings: emptyCancelledBookings()
   };
 }

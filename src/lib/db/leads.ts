@@ -31,16 +31,27 @@ function parseBookingHistory(raw: unknown): BookingHistoryEntry[] {
   for (const item of raw) {
     if (!item || typeof item !== "object") continue;
     const e = item as Record<string, unknown>;
-    if (typeof e.new_scheduled_for !== "string") continue;
+    const cancelledAt = typeof e.cancelled_at === "string" ? e.cancelled_at : undefined;
+    const newScheduled =
+      typeof e.new_scheduled_for === "string" ? e.new_scheduled_for : null;
+    if (!cancelledAt && newScheduled == null) continue;
     const source: BookingSource = e.source === "cal_com" ? "cal_com" : "manual";
-    out.push({
-      changed_at: typeof e.changed_at === "string" ? e.changed_at : "",
+    const entry: BookingHistoryEntry = {
+      changed_at: typeof e.changed_at === "string" ? e.changed_at : cancelledAt ?? "",
       previous_scheduled_for:
         typeof e.previous_scheduled_for === "string" ? e.previous_scheduled_for : null,
-      new_scheduled_for: e.new_scheduled_for,
+      new_scheduled_for: newScheduled,
       source,
       changed_by: typeof e.changed_by === "string" ? e.changed_by : ""
-    });
+    };
+    if (cancelledAt) {
+      entry.cancelled_at = cancelledAt;
+      if (typeof e.reason === "string") entry.reason = e.reason;
+      if (typeof e.by === "string") entry.by = e.by;
+      entry.previous_call_booked_at =
+        typeof e.previous_call_booked_at === "string" ? e.previous_call_booked_at : null;
+    }
+    out.push(entry);
   }
   return out;
 }

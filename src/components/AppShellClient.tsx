@@ -9,6 +9,7 @@ import {
 } from "react";
 import OrgPreviewBanner from "@/components/admin/OrgPreviewBanner";
 import OrgPreviewSwitcher from "@/components/admin/OrgPreviewSwitcher";
+import { ActorEmailProvider } from "@/components/leads/ActorEmailContext";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { Toaster } from "@/components/ui/Toast";
 import CountUp from "@/components/ui/CountUp";
@@ -103,6 +104,7 @@ function NavLink({
 
 export default function AppShellClient({
   signedIn,
+  actorEmail = null,
   isPlatformAdmin,
   organizations = [],
   previewOrgId = null,
@@ -111,6 +113,7 @@ export default function AppShellClient({
   children
 }: {
   signedIn: boolean;
+  actorEmail?: string | null;
   isPlatformAdmin: boolean;
   organizations?: Array<{ id: string; name: string }>;
   previewOrgId?: string | null;
@@ -161,7 +164,11 @@ export default function AppShellClient({
   const isCollapsed = hydrated ? collapsed : false;
 
   if (isDev) {
-    return <div className="min-h-dvh bg-page text-fg">{children}</div>;
+    return (
+      <ActorEmailProvider email={actorEmail}>
+        <div className="min-h-dvh bg-page text-fg">{children}</div>
+      </ActorEmailProvider>
+    );
   }
 
   if (!showNav) {
@@ -191,6 +198,7 @@ export default function AppShellClient({
   }
 
   return (
+    <ActorEmailProvider email={actorEmail}>
     <div className="flex h-dvh bg-page">
       <aside
         className={cn(
@@ -314,5 +322,6 @@ export default function AppShellClient({
       </div>
       <Toaster />
     </div>
+    </ActorEmailProvider>
   );
 }

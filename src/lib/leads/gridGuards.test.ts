@@ -25,6 +25,18 @@ describe("lifecycleBlockReason", () => {
       lifecycleBlockReason(makeLead({ is_dead: true }), "revive")
     ).toBeNull();
   });
+
+  it("blocks cancel_booking after a showup", () => {
+    expect(
+      lifecycleBlockReason(
+        makeLead({
+          call_booked_at: "2026-10-01T00:00:00.000Z",
+          call_showed: true
+        }),
+        "cancel_booking"
+      )
+    ).toBe(LIFECYCLE_ERRORS.cancelAfterShow);
+  });
 });
 
 describe("bookedLeadDeadWarning", () => {

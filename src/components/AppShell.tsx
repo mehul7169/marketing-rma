@@ -43,6 +43,7 @@ export default async function AppShell({
     >
       <AppShellClient
         signedIn={Boolean(session)}
+        actorEmail={session?.email ?? null}
         isPlatformAdmin={platformAdmin}
         organizations={organizations}
         previewOrgId={preview?.orgId ?? null}

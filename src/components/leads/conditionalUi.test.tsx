@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { makeLead } from "@/test/fixtures";
 
@@ -28,7 +28,7 @@ describe("WorkQueueLeadActions UI", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows Qualify Call with shared qualification outcomes", () => {
+  it("shows a one-click Qualified ✓ on needs-qualification cards", () => {
     render(
       <WorkQueueLeadActions
         lead={makeLead({
@@ -37,24 +37,14 @@ describe("WorkQueueLeadActions UI", () => {
       />
     );
     expect(
-      screen.getByRole("button", { name: "Qualify Call" })
+      screen.getByRole("button", { name: "Qualified ✓" })
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Log Call" })
     ).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Qualify Call" }));
-    expect(screen.getByRole("heading", { name: "Qualify call" })).toBeInTheDocument();
-    const select = screen.getByLabelText("Outcome");
-    expect(select).toHaveTextContent("No Answer");
-    expect(select).toHaveTextContent("Follow-up Needed");
-    expect(select).toHaveTextContent("Qualified");
-    expect(select).toHaveTextContent("Unqualified");
-    expect(select).not.toHaveTextContent("Confirmed");
-    expect(select).not.toHaveTextContent("Not confirmed");
-
-    fireEvent.change(select, { target: { value: "qualified" } });
-    expect(screen.getByLabelText("Call scheduled for")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Qualify Call" })
+    ).not.toBeInTheDocument();
   });
 });
 

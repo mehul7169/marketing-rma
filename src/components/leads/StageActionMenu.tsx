@@ -2,7 +2,15 @@
 
 import { useRef, useState } from "react";
 import ActionPopover from "@/components/leads/ActionPopover";
+import { useActorEmail } from "@/components/leads/ActorEmailContext";
+import {
+  CancelBookingFields,
+  buildCancelPayload,
+  cancelHint
+} from "@/components/leads/CancelBookingPopover";
+import { canCancelBooking, defaultCancelReason } from "@/lib/leads/cancelBooking";
 import { lifecycleBlockReason } from "@/lib/leads/gridGuards";
+import type { CancelBookingReason } from "@/lib/leads/types";
 import type {
   LifecycleAction,
   LifecyclePayload,
@@ -34,7 +42,7 @@ const OUTCOME_LABEL: Record<LogCallOutcome, string> = {
   not_qualified: "Not qualified"
 };
 
-type Panel = "menu" | "log_call" | "book_call" | null;
+type Panel = "menu" | "log_call" | "book_call" | "cancel_booking" | null;
 
 export default function StageActionMenu({
   lead,
@@ -54,6 +62,13 @@ export default function StageActionMenu({
     toDatetimeLocalIST(lead.call_scheduled_for) || tomorrowSameTimeLocalIST()
   );
   const [error, setError] = useState<string | null>(null);
+  const actorEmail = useActorEmail();
+  const [cancelReason, setCancelReason] = useState<CancelBookingReason | null>(
+    () => defaultCancelReason(lead, actorEmail)
+  );
+  const [cancelNote, setCancelNote] = useState("");
+  const [cancelFollowUp, setCancelFollowUp] = useState(tomorrowSameTimeLocalIST());
+  const [undoQualification, setUndoQualification] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   if (disabled) return null;
@@ -93,6 +108,24 @@ export default function StageActionMenu({
         setPanel("book_call");
       }
     },
+    ...(canCancelBooking(lead)
+      ? [
+          {
+            id: "cancel_booking",
+            label: "Cancel booking",
+            action: "cancel_booking" as LifecycleAction,
+            disabledReason: lifecycleBlockReason(lead, "cancel_booking"),
+            onPick: () => {
+              setCancelReason(defaultCancelReason(lead, actorEmail));
+              setCancelNote("");
+              setCancelFollowUp(tomorrowSameTimeLocalIST());
+              setUndoQualification(false);
+              setError(null);
+              setPanel("cancel_booking");
+            }
+          }
+        ]
+      : []),
     {
       id: "mark_showed",
       label: "Mark showed",
@@ -186,6 +219,21 @@ export default function StageActionMenu({
     onRun(bookAction, { scheduledFor: fromDatetimeLocalIST(callAt) });
   }
 
+  function submitCancel() {
+    const built = buildCancelPayload({
+      reason: cancelReason,
+      note: cancelNote,
+      followUpAt: cancelFollowUp,
+      undoQualification
+    });
+    if (!built.ok) {
+      setError(built.error);
+      return;
+    }
+    setPanel(null);
+    onRun("cancel_booking", built.payload);
+  }
+
   const formFooter = (
     <div className="flex justify-end gap-2">
       <button
@@ -205,6 +253,29 @@ export default function StageActionMenu({
     </div>
   );
 
+  const cancelFooter = (
+    <div className="space-y-2">
+      <p className="text-[11px] text-muted">{cancelHint(cancelReason)}</p>
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          className="text-xs text-muted"
+          onClick={() => setPanel(null)}
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          data-testid="cancel-booking-confirm"
+          className="btn-brand text-xs"
+          onClick={submitCancel}
+        >
+          Cancel booking
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div data-no-row-nav>
       <ActionPopover
@@ -213,10 +284,16 @@ export default function StageActionMenu({
           if (!next) setPanel(null);
         }}
         role={panel === "menu" ? "menu" : "dialog"}
-        widthClass={panel === "menu" ? "w-48" : "w-72"}
+        widthClass={
+          panel === "menu" ? "w-48" : panel === "cancel_booking" ? "w-80" : "w-72"
+        }
         bodyClassName={panel === "menu" ? "py-1" : "p-3"}
         footer={
-          panel === "log_call" || panel === "book_call" ? formFooter : undefined
+          panel === "log_call" || panel === "book_call"
+            ? formFooter
+            : panel === "cancel_booking"
+              ? cancelFooter
+              : undefined
         }
         trigger={
           <button
@@ -313,6 +390,21 @@ export default function StageActionMenu({
             </label>
             {error ? <p className="text-xs text-danger">{error}</p> : null}
           </div>
+        ) : null}
+        {panel === "cancel_booking" ? (
+          <CancelBookingFields
+            lead={lead}
+            actorEmail={actorEmail}
+            reason={cancelReason}
+            onReason={setCancelReason}
+            note={cancelNote}
+            onNote={setCancelNote}
+            followUpAt={cancelFollowUp}
+            onFollowUpAt={setCancelFollowUp}
+            undoQualification={undoQualification}
+            onUndoQualification={setUndoQualification}
+            error={error}
+          />
         ) : null}
       </ActionPopover>
     </div>

@@ -31,6 +31,11 @@ test.describe("/dev/ui kit", () => {
       path: path.join(OUT, "dev-ui-light.png"),
       fullPage: true
     });
+    const cancelKit = page.getByTestId("cancel-booking-kit").first();
+    await expect(cancelKit).toBeVisible();
+    await cancelKit.screenshot({
+      path: path.join(OUT, "cancel-booking-popover.png")
+    });
     const contrast = await contrastViolations(page, '[data-theme="light"]');
     expect(contrast, JSON.stringify(contrast, null, 2)).toEqual([]);
   });
